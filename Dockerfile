@@ -18,7 +18,6 @@ COPY --from=build /app/server/db/migrations ./server/db/migrations
 RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 ENV NODE_ENV=production NUXT_DATABASE_PATH=/app/data/spk.db PORT=3000 HOST=0.0.0.0
-VOLUME /app/data
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:3000/api/health
-CMD ["node", ".output/server/index.mjs"]
+CMD ["sh", "-c", "mountpoint -q /app/data || { echo 'ERROR: nothing is mounted at /app/data. Mount a persistent volume there, otherwise the database is lost on redeploy.' >&2; exit 1; }; exec node .output/server/index.mjs"]

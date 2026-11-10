@@ -2,8 +2,8 @@
 
 A private, self-hosted chat and voice app (an IRC/TeamSpeak/Mumble/Discord replacement) for **5 people at most**. Hobby project: keep it simple.
 
-- **App:** `spk.meeehdi.dev`
-- **LiveKit:** `rtc.spk.meeehdi.dev`
+- **App:** `chat.example.com` (placeholder)
+- **LiveKit:** `rtc.chat.example.com` (placeholder)
 
 ---
 
@@ -32,8 +32,8 @@ A private, self-hosted chat and voice app (an IRC/TeamSpeak/Mumble/Discord repla
 | Push notifications | **`web-push`** + a service worker (PWA) |
 | Package manager | **pnpm** |
 | Tests | **Vitest**, unit tests only, for risky logic. No E2E tests |
-| Hosting | OVH VPS (4 vCPU, 8 GB), deployed with **Coolify** |
-| Backups | Handled by you in Coolify (see §13) |
+| Hosting | Any Docker host (one small VPS is enough), e.g. with **Coolify** |
+| Backups | `VACUUM INTO` snapshot of the SQLite file (see §13) |
 
 ---
 
@@ -47,7 +47,7 @@ Browser (Nuxt app, PWA)
  ├─ HTTPS  → R2: direct upload/download through presigned URLs
  └─ WebRTC → LiveKit: audio, webcam, screen share
 
-VPS (Coolify)
+Docker host
  ├─ app      Nuxt/Nitro + SQLite file (persistent volume /app/data)
  └─ livekit  network_mode: host, embedded TURN (UDP 3478)
 ```
@@ -83,11 +83,11 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - **Email + password** with better-auth. `requireEmailVerification: false`. The app never sends email.
 - **Sign-up only with an invite link:**
   - An admin creates an invite in Settings → Invites, with an optional note and an expiry (**1h / 24h / 7 days**).
-  - The link `https://spk.meeehdi.dev/signup?invite=<token>` is shown **once** with a copy button. Only a hash of the token is stored.
+  - The link `https://chat.example.com/signup?invite=<token>` is shown **once** with a copy button. Only a hash of the token is stored.
   - One link creates **one account**. The invite is marked used in the same step as sign-up, and released if sign-up fails.
   - A `before` hook on `/sign-up/email` rejects requests without a valid invite, so the API can't be called directly.
   - `/signup` without an invite shows "You need an invite link". `GET /api/invites/check` reports invalid or expired links before the form.
-- **First admin:** when there are no users, the server prints an admin invite link in its logs at startup (visible in Coolify's logs). No CLI.
+- **First admin:** when there are no users, the server prints an admin invite link in its logs at startup (visible in the container logs). No CLI.
 - **First sign-in:** a modal that can't be dismissed asks for:
   - a **nickname** (required, 2–32 characters, unique ignoring upper/lower case),
   - an **avatar** (optional). It's center-cropped automatically and resized to 256px WebP with `sharp`. Animated GIFs stay animated (animated WebP). Without an avatar, `i-lucide-user` is shown.
@@ -182,7 +182,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 
 ### Links and previews
 - URLs are clickable (GFM autolink) and **open in a new tab** (`rel="noopener noreferrer"`). Links to messages or channels inside spk open in the app.
-- **Internal links:** "Copy link" in the context menu of every message and channel copies `https://spk.meeehdi.dev/c/:channelId` or `/c/:channelId/m/:messageId`. Pasted in a message, it shows as a chip (`#general › message from Alex`) instead of a raw URL, and gets no preview card. Clicking it opens the channel and jumps to the message. A DM link only works for its 2 members, everyone else sees "No access".
+- **Internal links:** "Copy link" in the context menu of every message and channel copies `https://chat.example.com/c/:channelId` or `/c/:channelId/m/:messageId`. Pasted in a message, it shows as a chip (`#general › message from Alex`) instead of a raw URL, and gets no preview card. Clicking it opens the channel and jumps to the message. A DM link only works for its 2 members, everyone else sees "No access".
 - **Preview card** (site name, title, description, thumbnail) when the site has preview data, otherwise **just the link**. No embeds, no "leaving the app" warning.
 - Previews are fetched in the background after sending, then added by the `message:previews` WebSocket event. Up to 3 per message. Cached in `link_previews`. Thumbnails are resized with `sharp` and stored in R2.
 - `<url>` skips the preview. The author or an admin can remove a preview.
@@ -192,7 +192,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - A `i-lucide-image-play` button in the input opens a **GIF menu** with trending GIFs and a search box.
 - Requests go through a Nitro proxy, so the API key stays on the server and friends' IPs aren't sent to the provider.
 - Picking a GIF sends its URL. GIFs from the provider show **inline and animated** (the one exception to "card or link"). No favorites.
-- Provider: **Klipy** (account created). Its API key goes in a Coolify env var. Follow Klipy's attribution guidelines in the GIF menu.
+- Provider: **Klipy** (account created). Its API key goes in an environment variable. Follow Klipy's attribution guidelines in the GIF menu.
 
 ---
 
@@ -436,22 +436,22 @@ Admins also manage channels (create, rename, delete, reorder text and voice chan
 
 ---
 
-## 13. Deployment (Coolify on OVH)
+## 13. Deployment (Docker)
 
 - **Dockerfile**, 2 stages on `node:22-slim`:
   1. **Build:** `pnpm install` (with build tools for `better-sqlite3`), `nuxt build`.
   2. **Runtime:** copies `.output`, installs `curl`, runs as a non-root user, `HEALTHCHECK CMD curl -fsS http://localhost:3000/api/health`.
 - **`GET /api/health`:** runs `select 1` on SQLite. Returns `200 { ok: true }`, or 503.
-- **Coolify's proxy (Traefik)** handles HTTPS and WebSockets. No Caddy.
-- **Persistent volume** `/app/data` for the SQLite file.
-- **LiveKit:** a separate Coolify service (Docker Compose, `network_mode: host`). The proxy sends `rtc.spk.meeehdi.dev` to port 7880. Embedded TURN on UDP 3478 only.
-- **Ports** to open in the OVH firewall and `ufw`: TCP 443, TCP 7881, UDP 50000–60000, UDP 3478.
-- **DNS:** `spk.meeehdi.dev` and `rtc.spk.meeehdi.dev` → VPS.
-- **R2:** private bucket, CORS allowing PUT and GET from `spk.meeehdi.dev`.
-- **Secrets** (Coolify env vars): `BETTER_AUTH_SECRET`, R2 keys, LiveKit key and secret, VAPID keys, `KLIPY_API_KEY`.
-- **Backups (you, in Coolify):** yes, only the **SQLite database** needs backing up. Files are already in R2, and everything else is rebuilt from the repo. Don't copy the `.db` file while the app runs (WAL mode can give a broken copy): make a consistent snapshot with `sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"` (the runtime image includes the `sqlite3` CLI for this), then back up that file.
+- **Reverse proxy:** any proxy that handles HTTPS and WebSockets (e.g. Coolify's built-in Traefik, Caddy, nginx).
+- **Persistent volume** at `/app/data` for the SQLite file. The image has no `VOLUME` and refuses to start if nothing is mounted there, so a missing volume can't silently lose data. A bind-mounted host folder must be writable by UID 1000 (`node`).
+- **LiveKit:** a separate Docker Compose service (`network_mode: host`, `deploy/livekit/`). The proxy sends `rtc.chat.example.com` to port 7880. Embedded TURN on UDP 3478 only.
+- **Ports** to open in the firewall: TCP 443, TCP 7881, UDP 50000–60000, UDP 3478.
+- **DNS:** `chat.example.com` and `rtc.chat.example.com` → the host.
+- **R2:** private bucket, CORS allowing PUT and GET from `chat.example.com`.
+- **Secrets** (environment variables): `BETTER_AUTH_SECRET`, R2 keys, LiveKit key and secret, VAPID keys, `NUXT_KLIPY_API_KEY`.
+- **Backups:** only the **SQLite database** needs backing up. Files are already in R2, and everything else is rebuilt from the repo. Don't copy the `.db` file while the app runs (WAL mode can give a broken copy): make a consistent snapshot with `sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"` (the runtime image includes the `sqlite3` CLI for this), then back up that file.
 - **Monitoring:** `docker logs` only.
-- No CD pipeline: Coolify builds from the repo.
+- No CD pipeline: the host builds the image from the repo.
 
 ### Local development
 - `pnpm dev` + `livekit-server --dev`.
@@ -477,7 +477,7 @@ Latest Chrome, Firefox and Safari.
 11. Webcam and screen share: tiles, opt-in watching, presets, theater, fullscreen, volume sliders.
 12. Soundboard: admin tab with trimming, playback in voice.
 13. Admin: Users tab, move and disconnect, channel management and channel ordering, storage total.
-14. Deploy on Coolify: LiveKit service, firewall, R2 CORS, database backup.
+14. Deploy (Docker, e.g. Coolify): LiveKit service, firewall, R2 CORS, database backup.
 
 Context menu items and shortcuts are added with each feature as it's built.
 

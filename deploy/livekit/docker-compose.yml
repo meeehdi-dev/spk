@@ -1,4 +1,4 @@
-# LiveKit as its own Coolify service (Docker Compose). Host network: WebRTC needs the real ports.
+# LiveKit as its own Docker Compose service (e.g. a Coolify service). Host network: WebRTC needs the real ports.
 # Env: LIVEKIT_API_KEY / LIVEKIT_API_SECRET must equal NUXT_LIVEKIT_API_KEY / NUXT_LIVEKIT_API_SECRET of the app.
 services:
   livekit:

@@ -1,10 +1,21 @@
 # spk
 
-Small private chat for friends: text channels, DMs, voice, webcam, screen share, soundboard. Nuxt 4 + Nuxt UI, SQLite, Cloudflare R2, LiveKit. Full spec: `PLAN.md`.
+A small, self-hosted chat and voice app for a handful of friends: an IRC/TeamSpeak/Discord alternative you run yourself.
+
+**Features:** text channels, DMs, voice, webcam, screen share, soundboard, search, push notifications, GIFs. Sign-up is invite-only.
+
+**Stack:** Nuxt 4 + Nuxt UI, SQLite + Drizzle, better-auth, Cloudflare R2 (files), LiveKit (voice and video).
+
+The design document is [PLAN.md](PLAN.md).
+
+## Requirements
+
+- Node 22+ and pnpm 10
+- `livekit-server` (voice; for local dev, see [livekit.io](https://docs.livekit.io/home/self-hosting/local/))
+- A Cloudflare R2 bucket and API token (file uploads)
+- Optional: a [Klipy](https://klipy.com) API key (GIFs)
 
 ## Local development
-
-Needs Node 22+, pnpm 10, and (for voice) the `livekit-server` binary.
 
 ```sh
 cp .env.example .env     # fill in the values (each one is commented)
@@ -13,34 +24,109 @@ pnpm dev                 # http://localhost:3000
 livekit-server --dev     # voice; dev key/secret are devkey / secret
 ```
 
-On first start with an empty database, the server logs an admin invite link. Open it to create the first admin. `localhost` allows mic and camera without HTTPS.
+On first start with an empty database, the server logs an admin invite link. Open it to create the first admin. `localhost` allows mic and camera without HTTPS; elsewhere you need HTTPS.
 
-Checks: `pnpm typecheck`, `pnpm test`, `pnpm build`. Latest Chrome, Firefox and Safari are supported.
+## Configuration
 
-## Deploy checklist (Coolify on OVH)
+Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.
 
-1. **DNS:** `spk.meeehdi.dev` and `rtc.spk.meeehdi.dev` → the VPS.
-2. **R2:** create a private bucket. Create an API token with Object Read & Write on it. Set the bucket CORS to allow `PUT` and `GET` (and the `Content-Type` / `Content-Length` request headers) from `https://spk.meeehdi.dev`:
-   ```json
-   [{ "AllowedOrigins": ["https://spk.meeehdi.dev"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
-   ```
-3. **App:** a Coolify application built from this repo's `Dockerfile` (no CD pipeline, Coolify builds it). Domain `https://spk.meeehdi.dev`, port 3000. Coolify's proxy (Traefik) handles HTTPS and WebSockets.
-4. **Volume:** persistent storage mounted at `/app/data` (the SQLite file, `NUXT_DATABASE_PATH=/app/data/spk.db`).
-5. **Env vars** (Coolify secrets), as in `.env.example`: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=https://spk.meeehdi.dev`, `NUXT_DATABASE_PATH`, `NUXT_R2_*` (account id, access key id, secret, bucket), `NUXT_PUBLIC_LIVEKIT_URL=wss://rtc.spk.meeehdi.dev`, `NUXT_LIVEKIT_API_KEY`, `NUXT_LIVEKIT_API_SECRET`, `NUXT_PUBLIC_VAPID_PUBLIC_KEY`, `NUXT_VAPID_PRIVATE_KEY`, `NUXT_VAPID_SUBJECT`, `NUXT_KLIPY_API_KEY`.
-6. **LiveKit:** a separate Coolify service from `deploy/livekit/docker-compose.yml` (host network, embedded TURN on UDP 3478). Set `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` to the same values as the app's `NUXT_LIVEKIT_API_KEY` / `NUXT_LIVEKIT_API_SECRET`. Route the domain `rtc.spk.meeehdi.dev` to port 7880 in Coolify.
-7. **Firewall** (OVH firewall and `ufw`): TCP 443, TCP 7881, UDP 50000–60000, UDP 3478.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `BETTER_AUTH_SECRET` | yes | Session signing secret |
+| `BETTER_AUTH_URL` | yes | Public app URL, e.g. `https://chat.example.com` |
+| `NUXT_DATABASE_PATH` | yes | SQLite file (`./data/spk.db` in dev, `/app/data/spk.db` in the image) |
+| `NUXT_R2_ACCOUNT_ID` | yes | Cloudflare R2 account id |
+| `NUXT_R2_ACCESS_KEY_ID` | yes | R2 API token key id (Object Read & Write) |
+| `NUXT_R2_SECRET_ACCESS_KEY` | yes | R2 API token secret |
+| `NUXT_R2_BUCKET` | yes | R2 bucket name |
+| `NUXT_PUBLIC_LIVEKIT_URL` | yes | LiveKit WebSocket URL used by the browser, e.g. `wss://rtc.chat.example.com` |
+| `NUXT_LIVEKIT_API_KEY` | yes | LiveKit API key (must match the LiveKit server) |
+| `NUXT_LIVEKIT_API_SECRET` | yes | LiveKit API secret (must match the LiveKit server) |
+| `NUXT_PUBLIC_VAPID_PUBLIC_KEY` | for push | Web Push public key |
+| `NUXT_VAPID_PRIVATE_KEY` | for push | Web Push private key |
+| `NUXT_VAPID_SUBJECT` | for push | Web Push contact, e.g. `mailto:you@example.com` |
+| `NUXT_KLIPY_API_KEY` | for GIFs | Klipy API key for the GIF proxy |
+
+## Deploy
+
+Replace `chat.example.com` and `rtc.chat.example.com` with your own domains and point both at the host.
+
+### Docker
+
+```sh
+docker build -t spk .
+docker run -d --name spk -p 3000:3000 --env-file .env -v spk-data:/app/data spk
+```
+
+- **A persistent volume at `/app/data` is required.** The image has no `VOLUME` on purpose, and the container exits with an error before starting if nothing is mounted there. Without a mount the database would be lost on every redeploy.
+- With a bind mount (`-v /srv/spk:/app/data`), the host folder must be writable by UID 1000 (the `node` user in the image).
+- Run **one replica only**: SQLite and the in-memory voice presence don't work across containers.
+- Put a reverse proxy in front that handles **HTTPS and WebSockets** and forwards `chat.example.com` to port 3000.
+- Set `NUXT_DATABASE_PATH=/app/data/spk.db` (the image already does) and the other variables from the table above.
+
+**LiveKit:** run it from [deploy/livekit/](deploy/livekit/) (`docker-compose.yml` + `livekit.yaml`; host network, embedded TURN). Set `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` to the same values as the app's `NUXT_LIVEKIT_API_KEY` / `NUXT_LIVEKIT_API_SECRET`, and have the proxy send `rtc.chat.example.com` to port 7880.
+
+**Firewall:** TCP 443, TCP 7881, UDP 50000–60000, UDP 3478.
+
+```sh
+ufw allow 443/tcp && ufw allow 7881/tcp && ufw allow 50000:60000/udp && ufw allow 3478/udp
+```
+
+**R2:** create a private bucket and an API token with Object Read & Write on it. Set the bucket CORS to allow `PUT` and `GET` (and the `Content-Type` / `Content-Length` request headers) from your app origin:
+
+```json
+[{ "AllowedOrigins": ["https://chat.example.com"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
+```
+
+**First admin:** read the app logs (`docker logs spk`) for the admin invite link.
+
+**Backup (SQLite only):** files live in R2 and everything else is rebuilt from the repo. Don't copy the `.db` file while the app runs (WAL can give a broken copy). Take a consistent snapshot, then back up that file:
+
+```sh
+docker exec spk sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
+```
+
+`VACUUM INTO` fails if `backup.db` already exists: delete the old one first.
+
+### Coolify
+
+- Create an application built from this repo's `Dockerfile`, port 3000, domain `https://chat.example.com`. Coolify's proxy handles HTTPS and WebSockets.
+- Under **Persistent Storage**, add a **named volume** with destination `/app/data`. Without it the deploy fails on purpose.
+- Add the environment variables as secrets.
+- Run LiveKit as a separate **Docker Compose** service from `deploy/livekit/docker-compose.yml`, and route the domain `rtc.chat.example.com` to port 7880.
+
+## Contributing
+
+1. Follow [Local development](#local-development) to set up.
+2. Before opening a PR, run:
    ```sh
-   ufw allow 443/tcp && ufw allow 7881/tcp && ufw allow 50000:60000/udp && ufw allow 3478/udp
+   pnpm typecheck
+   pnpm test
+   pnpm build
    ```
-8. **First start:** read the app logs (`docker logs`, the only monitoring) for the admin invite link.
-9. **Backup (SQLite only):** files live in R2 and everything else is rebuilt from the repo. Don't copy the `.db` file while the app runs (WAL can give a broken copy). Take a consistent snapshot, then back up that file:
-   ```sh
-   docker exec <app-container> sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
-   ```
-   `VACUUM INTO` fails if `backup.db` already exists: delete the old one first.
+3. Keep PRs small and focused, with the checks passing. Add a unit test for risky logic. There are no E2E tests.
+
+Project layout:
+
+- `app/`: Nuxt frontend (pages, components, composables)
+- `server/api/`: HTTP endpoints
+- `server/db/`: Drizzle schema, queries and SQL migrations (`server/db/migrations`)
+- `server/plugins/`: startup plugins (bootstrap, error log)
+- `server/tasks/`: scheduled tasks
+- `shared/`: code used by both app and server
+- `tests/`: Vitest unit tests
+- `deploy/`: LiveKit deployment files
+
+To add a migration, edit `server/db/schema.ts`, then run `pnpm exec drizzle-kit generate` (configured in `drizzle.config.ts`). Commit the generated SQL and `meta/` files; migrations run at startup.
+
+Latest Chrome, Firefox and Safari are supported.
 
 ## Notes
 
 - **Klipy:** the GIF proxy (`/api/gifs`) keeps the API key on the server, but Klipy's terms say proxying needs prior written approval from developers@klipy.com. Get it before relying on GIFs. Media loads directly from Klipy.
 - **Shortcuts:** where browsers keep a combination (e.g. `Ctrl Shift M/D/E/S`), the app uses `Ctrl/⌘ Alt Shift …`. See `?` in the app for the real list.
 - **Screen share audio** is captured unprocessed (no noise suppression, echo cancellation or gain), whatever the mic setting.
+
+## License
+
+[MIT](LICENSE)

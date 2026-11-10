@@ -1,5 +1,5 @@
 # LiveKit server config. API key/secret come from the LIVEKIT_KEYS env var (see docker-compose.yml).
-port: 7880            # signalling; Coolify's proxy sends rtc.spk.meeehdi.dev here
+port: 7880            # signalling; your reverse proxy sends rtc.chat.example.com here
 rtc:
   tcp_port: 7881
   port_range_start: 50000
