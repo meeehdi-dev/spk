@@ -1,7 +1,7 @@
-import type { SavedDevice, ScreenPreset } from '#shared/utils/voice'
+import type { SavedDevice } from '#shared/utils/voice'
 
 export type NoiseMode = 'off' | 'standard' | 'enhanced'
-export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen'
+export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
 export interface VoiceSettings {
   mic?: SavedDevice, speaker?: SavedDevice, camera?: SavedDevice
   noise: NoiseMode, echo: boolean, agc: boolean
@@ -10,13 +10,13 @@ export interface VoiceSettings {
   sounds: Record<VoiceSound, { on: boolean, volume: number }>
   /** Soundboard sounds from others: its own switch and volume. */
   soundboard: { on: boolean, volume: number }
-  /** Last choices in the pre-share dialog. */
-  screenPreset: ScreenPreset, screenAudio: boolean
+  /** Share audio with the screen (the chevron next to the share button). */
+  screenAudio: boolean
 }
 
 export const useVoiceSettings = () => useLocalStorage<VoiceSettings>('spk:voice', {
-  noise: 'standard', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenPreset: 'clarity', screenAudio: true, soundboard: { on: true, volume: 0.7 },
-  sounds: { join: { on: true, volume: 0.5 }, leave: { on: true, volume: 0.5 }, mute: { on: true, volume: 0.5 }, deafen: { on: true, volume: 0.5 } }
+  noise: 'standard', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenAudio: true, soundboard: { on: true, volume: 0.7 },
+  sounds: { join: { on: true, volume: 0.5 }, leave: { on: true, volume: 0.5 }, mute: { on: true, volume: 0.5 }, deafen: { on: true, volume: 0.5 }, camera: { on: true, volume: 0.5 }, screen: { on: true, volume: 0.5 } }
 }, { mergeDefaults: (stored, defaults) => ({ ...defaults, ...stored, sounds: { ...defaults.sounds, ...stored.sounds } }) })
 
 let audio: AudioContext | undefined
@@ -25,7 +25,9 @@ const NOTES: Record<VoiceSound, { up: number[], down: number[] }> = {
   join: { up: [523, 784], down: [784, 523] },
   leave: { up: [784, 523], down: [784, 523] },
   mute: { up: [660, 880], down: [440, 330] },
-  deafen: { up: [660, 880, 990], down: [440, 330, 247] }
+  deafen: { up: [660, 880, 990], down: [440, 330, 247] },
+  camera: { up: [440, 587, 740], down: [740, 587, 440] },
+  screen: { up: [349, 523, 698], down: [698, 523, 349] }
 }
 
 /** Plays one of the voice sounds at its own volume, if enabled. `up` picks the rising variant (unmute, undeafen). */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { matchDevice, SCREEN_PRESETS, type ScreenPreset } from '#shared/utils/voice'
+import { matchDevice } from '#shared/utils/voice'
 const v = useVoice()
 const s = v.settings
 const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
@@ -39,8 +39,6 @@ const testing = ref(false)
 watch(testing, meter)
 onBeforeUnmount(() => stopMeter?.())
 
-const presetItems = (Object.keys(SCREEN_PRESETS) as ScreenPreset[]).map(k => ({ value: k, label: SCREEN_PRESETS[k].label, description: SCREEN_PRESETS[k].hint }))
-
 // Camera preview: only while this page is open and you're not already using the camera in a call.
 const camPreview = ref(false)
 const videoEl = ref<HTMLVideoElement>()
@@ -58,7 +56,7 @@ watch(camPreview, async (on) => {
 })
 onBeforeUnmount(stopCam)
 
-const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafen' } as const
+const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafen', camera: 'Camera', screen: 'Screen share' } as const
 </script>
 
 <template>
@@ -106,9 +104,6 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
             <USlider v-model="s.outputVolume" :min="0" :max="1" :step="0.05" class="max-w-xs" aria-label="Output volume" @update:model-value="v.applyOutput()" />
             <UButton icon="i-lucide-volume-2" label="Test sound" color="neutral" variant="outline" @click="playVoiceSound('join', true, true)" />
           </div>
-        </UFormField>
-        <UFormField label="Screen share preset" description="Used by default when you start sharing.">
-          <USelect v-model="s.screenPreset" :items="presetItems" class="w-full max-w-xs" />
         </UFormField>
       </div>
     </UCard>

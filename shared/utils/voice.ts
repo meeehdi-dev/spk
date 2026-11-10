@@ -32,12 +32,8 @@ export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math
 /** Screen share audio is never processed: no browser suppression/echo/gain and no RNNoise (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
 export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
 
-export type ScreenPreset = 'clarity' | 'smoothness'
-/** The two screen share presets (PLAN §8). Single layer, never simulcast. Smoothness is VP9 with a VP8 backup; Clarity is VP8 because LiveKit forces contentHint 'motion' on VP9 and we want 'text'. `resolution` is the ceiling (sent as `max` constraints), bitrates are upper limits. */
-export const SCREEN_PRESETS = {
-  clarity: { label: 'Clarity', hint: 'Code, docs and text: sharp, 15 fps, up to 1440p.', resolution: { width: 2560, height: 1440, frameRate: 15 }, codec: 'vp8', contentHint: 'text', degradationPreference: 'maintain-resolution', maxBitrate: 10_000_000 },
-  smoothness: { label: 'Smoothness', hint: 'Games and video: 60 fps, up to 1080p.', resolution: { width: 1920, height: 1080, frameRate: 60 }, codec: 'vp9', contentHint: 'motion', degradationPreference: 'maintain-framerate', maxBitrate: 15_000_000 }
-} as const
+/** Screen share settings (PLAN §8): the smoothness preset. Single layer, never simulcast; VP9 with a VP8 backup. `resolution` is the ceiling (sent as `max` constraints), bitrate is an upper limit. */
+export const SCREEN_SHARE = { resolution: { width: 1920, height: 1080, frameRate: 60 }, codec: 'vp9', contentHint: 'motion', degradationPreference: 'maintain-framerate', maxBitrate: 15_000_000 } as const
 
 /** Room-wide publish/capture defaults: one layer per track, 1080p30 camera at 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
 export const VOICE_PUBLISH_DEFAULTS = { simulcast: false, videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 }, audioPreset: { maxBitrate: 128_000 }, dtx: false, red: true } as const

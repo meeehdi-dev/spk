@@ -53,7 +53,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
 <template>
   <UContextMenu :items="items as never">
-    <div ref="root" tabindex="0" class="group relative flex aspect-video min-h-40 items-center justify-center overflow-hidden rounded-lg border border-default bg-elevated/40 outline-none ring-2 transition focus-visible:ring-primary"
+    <div ref="root" tabindex="0" class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-default bg-elevated/40 outline-none ring-2 transition focus-visible:ring-primary"
       :class="tile.speaking ? 'ring-success' : 'ring-transparent'" @mouseenter="hovered = true" @mouseleave="hovered = false" @dblclick="fullscreen()">
       <video v-show="main" ref="mainEl" autoplay playsinline muted class="size-full" :class="[screen ? 'object-contain' : 'object-cover', mirrored(main) ? '-scale-x-100' : '']" />
       <video v-show="corner" ref="cornerEl" autoplay playsinline muted class="absolute right-2 top-10 h-1/4 min-h-16 rounded-md border border-default object-cover" :class="tile.local ? '-scale-x-100' : ''" />

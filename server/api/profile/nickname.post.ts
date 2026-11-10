@@ -12,5 +12,6 @@ export default defineEventHandler(async (event) => {
     if ((e as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') throw createError({ statusCode: 409, statusMessage: 'That nickname is taken' })
     throw e
   }
+  broadcast({ type: 'users:changed' })
   return { displayName: name }
 })

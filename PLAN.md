@@ -74,7 +74,7 @@ Docker host
 | `channel_reads` | user_id, channel_id, last_read_at |
 | `push_subscriptions` | user_id, endpoint, keys |
 
-Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, screen share preset, message drafts per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
+Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, message drafts per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
 
 ---
 
@@ -263,7 +263,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 | Both | Screen, with the webcam in a small corner |
 
 - Several people can share their screen at once, each as their own tile.
-- **Speaking ring** on tiles (LiveKit's `isSpeaking`). Also in the sidebar, for every voice channel, through the `voice:state` WebSocket event (sent on change, at most every ~200 ms). The server clears it when the socket closes.
+- **Speaking ring** on tiles (LiveKit's `isSpeaking`). Also in the sidebar, for every voice channel, through the `voice:state` WebSocket event (sent on change, at most every ~50 ms). The server clears it when the socket closes.
 - **Your own tile:** webcam mirrored. Screen shows "You're sharing your screen" with a Stop button ("Show preview" in its menu).
 - **Other people's webcam and screen share are opt-in.** Video tracks aren't subscribed automatically (LiveKit `autoSubscribe: false`, then audio is subscribed manually, video only on demand). When someone turns on their webcam or screen share, their tile keeps the avatar and shows a `LIVE` badge (`i-lucide-video` or `i-lucide-screen-share`) and an `i-lucide-eye` **Watch** button. Screen share audio is only received while watching it.
 - Hover actions:
@@ -280,24 +280,28 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - **On a watched screen share with audio:** a `i-lucide-volume-2` button at the **bottom right** of the tile, shown on hover, with a volume slider. It's the same setting as the one in the menus.
 
 ### Screen share
-- A **pre-share dialog** in the app: preset and audio on/off. Then the browser's own picker opens (it can't be replaced in a web app).
+- **One click** on the share button (or ⌘⌥⇧S) opens the browser's own picker (it can't be replaced in a web app). No pre-share dialog.
+- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch.
 - Picker hints: `displaySurface`, `selfBrowserSurface: 'exclude'`, `systemAudio`, `surfaceSwitching: 'include'` (Chromium; other browsers ignore most of them).
 
-| | **Clarity** (code, docs, text) | **Smoothness** (games, video) |
-|---|---|---|
-| Resolution | native, up to 1440p, never upscaled | up to 1080p, never upscaled |
-| Frame rate | up to 15 fps | up to 60 fps |
-| `contentHint` | `detail` / `text` | `motion` |
-| `degradationPreference` | `maintain-resolution` | `maintain-framerate` |
-| Bitrate (max) | 10 Mbps | 15 Mbps |
-| Codec | VP8 (keeps the `text` hint) | VP9, VP8 as `backupCodec` |
+Screen share quality is fixed (smoothness, no clarity option):
 
-- One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled. The last preset is remembered.
+| | |
+|---|---|
+| Resolution | up to 1080p, never upscaled |
+| Frame rate | up to 60 fps |
+| `contentHint` | `motion` |
+| `degradationPreference` | `maintain-framerate` |
+| Bitrate (max) | 15 Mbps |
+| Codec | VP9, VP8 as `backupCodec` |
+
+- One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled.
 - **Screen audio:** Opus stereo, up to 256 kbps, DTX off.
 
 ### Sounds
 - **Join / leave:** played when **you** join or leave a voice channel, and when **someone else** joins or leaves the channel you're in.
 - **Mute / deafen:** only for **your own** mute and deafen. Nothing plays when others mute.
+- **Camera / screen share:** a rising tone when someone in your channel starts, a falling one when they stop (your own included).
 - **Message:** for new messages (see §9).
 - Free sound files. One volume slider and one on/off switch per sound.
 
@@ -428,7 +432,7 @@ Click an avatar or a name: avatar, nickname, role badge, online status, "Send DM
 | Tab | Who | Contents |
 |---|---|---|
 | Profile (`i-lucide-user`) | Everyone | Nickname, avatar, change password |
-| Voice & Video (`i-lucide-mic`) | Everyone | Mic, speakers, camera (with level meter, test sound, preview), noise suppression, echo cancellation, auto gain, sensitivity, screen share preset |
+| Voice & Video (`i-lucide-mic`) | Everyone | Mic, speakers, camera (with level meter, test sound, preview), noise suppression, echo cancellation, auto gain, sensitivity |
 | Notifications (`i-lucide-bell`) | Everyone | Enable system notifications, DMs and pings on/off, Do Not Disturb, sounds |
 | Shortcuts (`i-lucide-keyboard`) | Everyone | All shortcuts (same as `?`) |
 | Soundboard (`i-lucide-audio-lines`) | Admin | Add sounds (upload, trim, name, icon), edit, delete |
@@ -477,7 +481,7 @@ Latest Chrome, Firefox and Safari.
 8. Notifications: toasts, browser notifications, Web Push, PWA, mute per channel, DND, sounds.
 9. Shortcuts layer, command palette, `?` overlay.
 10. Voice with LiveKit: token, audio, voice bar with dropdowns, devices, noise suppression, speaking ring, `voice:state`, presence cleanup.
-11. Webcam and screen share: tiles, opt-in watching, presets, theater, fullscreen, volume sliders.
+11. Webcam and screen share: tiles, opt-in watching, theater, fullscreen, volume sliders.
 12. Soundboard: admin tab with trimming, playback in voice.
 13. Admin: Users tab, move and disconnect, channel management and channel ordering, storage total.
 14. Deploy (Docker, e.g. Coolify): LiveKit service, firewall, R2 CORS, database backup.

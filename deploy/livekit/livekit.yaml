@@ -8,3 +8,6 @@ rtc:
 turn:
   enabled: true
   udp_port: 3478      # UDP only, no TLS
+audio:
+  update_interval: 50   # ms between active-speaker updates; the speaking ring reacts faster
+  smooth_intervals: 1   # intervals averaged before changing speaker state; lower = less lag

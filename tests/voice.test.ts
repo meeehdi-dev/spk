@@ -79,13 +79,9 @@ describe('screen share audio', () => {
 })
 
 describe('screen share and per-user volume', () => {
-  it('has the two presets from the spec', async () => {
-    const { SCREEN_PRESETS } = await import('../shared/utils/voice')
-    expect(SCREEN_PRESETS.clarity).toMatchObject({ contentHint: 'text', degradationPreference: 'maintain-resolution' })
-    expect(SCREEN_PRESETS.smoothness).toMatchObject({ contentHint: 'motion', degradationPreference: 'maintain-framerate' })
-    expect(SCREEN_PRESETS.smoothness.resolution.frameRate).toBe(60)
-    expect(SCREEN_PRESETS.clarity).toMatchObject({ codec: 'vp8', maxBitrate: 10_000_000, resolution: { width: 2560, height: 1440, frameRate: 15 } })
-    expect(SCREEN_PRESETS.smoothness).toMatchObject({ codec: 'vp9', maxBitrate: 15_000_000, resolution: { width: 1920, height: 1080, frameRate: 60 } })
+  it('has the single smoothness screen share setting', async () => {
+    const { SCREEN_SHARE } = await import('../shared/utils/voice')
+    expect(SCREEN_SHARE).toMatchObject({ contentHint: 'motion', degradationPreference: 'maintain-framerate', codec: 'vp9', maxBitrate: 15_000_000, resolution: { width: 1920, height: 1080, frameRate: 60 } })
   })
   it('publishes single-layer, high-bitrate camera, mic and screen audio', () => {
     expect(VOICE_PUBLISH_DEFAULTS).toMatchObject({ simulcast: false, videoEncoding: { maxBitrate: 6_000_000 }, audioPreset: { maxBitrate: 128_000 }, dtx: false, red: true })

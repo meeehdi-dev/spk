@@ -20,5 +20,6 @@ export default defineEventHandler(async (event) => {
   await r2Put(r2, key, out, 'image/webp')
   useDb().update(user).set({ avatarKey: key, updatedAt: new Date() }).where(eq(user.id, u.id)).run()
   if (u.avatarKey) await r2Delete(r2, u.avatarKey).catch(() => {})
+  broadcast({ type: 'users:changed' })
   return { avatarKey: key }
 })

@@ -95,10 +95,20 @@ const current = (saved?: { deviceId: string, label: string }, list: MediaDeviceI
      </div>
      <div :class="panel ? 'flex items-center justify-center gap-1' : 'contents'">
       <SoundboardPopover />
+      <UFieldGroup>
       <UTooltip :text="v.screenOn.value ? 'Stop sharing' : 'Share screen'" :kbds="['meta', 'alt', 'shift', 'S']">
         <UButton :icon="v.screenOn.value ? 'i-lucide-monitor-off' : 'i-lucide-screen-share'" :color="v.screenOn.value ? 'primary' : 'neutral'" :variant="v.screenOn.value ? 'soft' : 'ghost'"
           :disabled="!v.channelId.value" :aria-label="v.screenOn.value ? 'Stop sharing' : 'Share screen'" @click="v.toggleScreen()" />
       </UTooltip>
+      <UPopover :content="{ align: 'end', side: 'top' }">
+        <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Screen share options" />
+        <template #content>
+          <div class="w-72 p-3 text-sm">
+            <USwitch v-model="v.settings.value.screenAudio" label="Share audio" description="Applies the next time you start sharing." />
+          </div>
+        </template>
+      </UPopover>
+      </UFieldGroup>
 
       <UTooltip text="Leave voice">
         <UButton icon="i-lucide-phone-off" color="error" variant="ghost" :disabled="!v.channelId.value" aria-label="Leave voice" @click="v.leave()" />

@@ -18,4 +18,4 @@ export function useChannelLabel() {
   return (c?: ChannelEntry) => !c ? '' : c.type === 'dm' ? `@${nameOf(c.otherUserId ?? '')}` : `#${c.name}`
 }
 
-export const avatarSrc = (u?: { id: string, avatarKey: string | null }) => u?.avatarKey ? `/api/avatar/${u.id}` : undefined
+export const avatarSrc = (u?: { id: string, avatarKey: string | null }) => u?.avatarKey ? `/api/avatar/${u.id}?v=${u.avatarKey}` : undefined

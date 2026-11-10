@@ -27,7 +27,7 @@ const toggleTheater = (id: string) => { theater.value = theater.value === id ? n
     <!-- In the channel: one tile per person, with the webcam / screen opt-in rules. Theater: one tile fills the panel, the rest sit in a strip below. -->
     <div v-if="here && tiles.length" class="flex w-full flex-col gap-3" :class="focused ? 'min-h-0 flex-1' : ''">
       <VoiceTile v-if="focused" :key="focused.userId" :tile="focused" theater class="min-h-0 flex-1" @theater="toggleTheater(focused.userId)" />
-      <div :class="focused ? 'flex gap-3 overflow-x-auto [&>*]:w-48 [&>*]:shrink-0' : 'grid w-full gap-3 [grid-template-columns:repeat(auto-fill,minmax(16rem,1fr))]'">
+      <div :class="focused ? 'flex gap-3 overflow-x-auto p-1 [&>*]:w-48 [&>*]:shrink-0' : 'flex w-full flex-wrap justify-center gap-3 [&>*]:w-80 [&>*]:max-w-full'">
         <VoiceTile v-for="t in others" :key="t.userId" :tile="t" :theater="false" @theater="toggleTheater(t.userId)" />
       </div>
     </div>

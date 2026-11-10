@@ -1,5 +1,5 @@
 import type { Participant, Room, Track, VideoTrack } from 'livekit-client'
-import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type ScreenPreset, type UserVolume } from '#shared/utils/voice'
+import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
 import type { MicProcessor } from '~/utils/voice-processor'
 
 export interface VoiceMember { channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean }
@@ -22,7 +22,6 @@ const tiles = shallowRef<VoiceTile[]>([])
 const watching = ref<string[]>([])
 const camOn = ref(false)
 const screenOn = ref(false)
-const screenDialog = ref(false)
 const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
@@ -50,12 +49,12 @@ export function useVoice() {
     noiseSuppression: settings.value.noise === 'standard', channelCount: 1
   })
 
-  // The state the server shows to others: sent on change, at most every ~200 ms (the latest values go out).
+  // The state the server shows to others: sent on change, at most every ~50 ms (the latest values go out).
   let speaking = false, lastSent = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   function pushState() {
     if (!channelId.value) return
-    const wait = 200 - (Date.now() - lastSent)
+    const wait = 50 - (Date.now() - lastSent)
     if (wait > 0) { timer ??= setTimeout(() => { timer = undefined; pushState() }, wait); return }
     lastSent = Date.now()
     socket.send({ type: 'voice:state', sid, muted: mute.value.muted, deafened: mute.value.deafened, speaking: speaking && !mute.value.muted, cam: camOn.value, screen: screenOn.value })
@@ -203,14 +202,13 @@ export function useVoice() {
     await room.localParticipant.setCameraEnabled(on, on ? { deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId } : undefined).catch(fail('Could not turn the camera on'))
     rebuild()
   }
-  /** Must run from a click (the browser's picker needs a user gesture): the pre-share dialog's Start button. */
-  async function startScreen(preset: ScreenPreset, audio: boolean) {
+  /** Must run from a click (the browser's picker needs a user gesture): the share button or its shortcut. */
+  async function startScreen() {
     if (!room) return
-    const p = SCREEN_PRESETS[preset]
-    settings.value = { ...settings.value, screenPreset: preset, screenAudio: audio }
+    const p = SCREEN_SHARE
     // Screen audio is captured raw (no browser processing) and published as its own track with no processor, whatever the mic noise setting is.
     await room.localParticipant.setScreenShareEnabled(true, {
-      audio: audio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
+      audio: settings.value.screenAudio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
       // `max` is a ceiling, so the capture is never upscaled past the shared surface; LiveKit's type only declares displaySurface.
       video: { displaySurface: 'monitor', width: { max: p.resolution.width }, height: { max: p.resolution.height }, frameRate: { ideal: p.resolution.frameRate, max: p.resolution.frameRate } } as { displaySurface: 'monitor' }, selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include'
     }, {
@@ -220,7 +218,7 @@ export function useVoice() {
     rebuild()
   }
   const stopScreen = async () => { await room?.localParticipant.setScreenShareEnabled(false); rebuild() }
-  const toggleScreen = () => { if (!channelId.value) return; if (screenOn.value) void stopScreen(); else screenDialog.value = true }
+  const toggleScreen = () => { if (!channelId.value) return; if (screenOn.value) void stopScreen(); else void startScreen() }
   const watch = (id: string, on: boolean) => { watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id); rebuild() }
   const setVolume = (id: string, patch: Partial<UserVolume>) => { volumes.value = { ...volumes.value, [id]: { ...volumes.value[id], ...patch } }; applyOutput() }
   /** Context-menu entries for a person in the channel you're in: mute for me and the volume sliders. */
@@ -239,7 +237,7 @@ export function useVoice() {
 
   return {
     me, sid, channelId, connecting, mute, devices, canPickOutput, settings,
-    tiles, watching, camOn, screenOn, screenDialog, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
+    tiles, watching, camOn, screenOn, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
     join, leave, toggleMic, toggleHeadphones, applySettings, pickDevice, refreshDevices, cycleNoise, toggleEcho, toggleAgc, applyOutput,
     activeRoom: () => room
   }
@@ -274,6 +272,12 @@ export function useVoiceLive() {
       if (mine && m.userId !== v.me.value?.id) {
         if (m.channelId === mine && prev?.channelId !== mine) playVoiceSound('join')
         else if (prev?.channelId === mine && m.channelId !== mine) playVoiceSound('leave')
+      }
+      // Your own echo counts too; a user joining with the camera already on only plays the join sound.
+      if (mine && m.channelId === mine && prev?.channelId === mine) {
+        for (const k of ['cam', 'screen'] as const) {
+          if (!!prev[k] !== !!m[k]) playVoiceSound(k === 'cam' ? 'camera' : 'screen', !!m[k])
+        }
       }
     } else if (m.type === 'voice:sound') {
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)

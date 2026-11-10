@@ -72,8 +72,8 @@ const sections = useLocalStorage('spk:sidebar-sections', { dms: true, text: true
               <UButton :to="`/c/${c.id}`" :label="nameOf(c.otherUserId ?? '')" icon="i-lucide-message-circle" color="neutral"
                 :variant="route.params.channelId === c.id ? 'soft' : 'ghost'" block class="justify-start" :class="[unreadOf(c.id).unread ? 'font-bold' : '', isMuted(c.id) ? 'opacity-50' : '']">
                 <template #trailing>
-                  <UBadge v-if="unreadOf(c.id).mentions" :label="String(unreadOf(c.id).mentions)" color="error" size="sm" class="ml-auto" aria-label="Mentions" />
-                  <UBadge v-if="unreadOf(c.id).unread" :label="String(unreadOf(c.id).unread)" color="neutral" variant="subtle" size="sm" :class="{ 'ml-auto': !unreadOf(c.id).mentions }" aria-label="Unread messages" />
+                  <UBadge v-if="unreadOf(c.id).mentions" icon="i-lucide-at-sign" :label="String(unreadOf(c.id).mentions)" color="error" size="sm" class="ml-auto" aria-label="Mentions" />
+                  <UBadge v-if="unreadOf(c.id).unread" :label="String(unreadOf(c.id).unread)" color="error" variant="subtle" size="sm" :class="{ 'ml-auto': !unreadOf(c.id).mentions }" aria-label="Unread messages" />
                 </template>
               </UButton>
             </UContextMenu>
@@ -100,8 +100,8 @@ const sections = useLocalStorage('spk:sidebar-sections', { dms: true, text: true
                 :variant="route.params.channelId === c.id ? 'soft' : 'ghost'" block class="justify-start" :class="[unreadOf(c.id).unread ? 'font-bold' : '', isMuted(c.id) ? 'opacity-50' : '']"
               >
                 <template #trailing>
-                  <UBadge v-if="unreadOf(c.id).mentions" :label="String(unreadOf(c.id).mentions)" color="error" size="sm" class="ml-auto" aria-label="Mentions" />
-                  <UBadge v-if="unreadOf(c.id).unread" :label="String(unreadOf(c.id).unread)" color="neutral" variant="subtle" size="sm" :class="{ 'ml-auto': !unreadOf(c.id).mentions }" aria-label="Unread messages" />
+                  <UBadge v-if="unreadOf(c.id).mentions" icon="i-lucide-at-sign" :label="String(unreadOf(c.id).mentions)" color="error" size="sm" class="ml-auto" aria-label="Mentions" />
+                  <UBadge v-if="unreadOf(c.id).unread" :label="String(unreadOf(c.id).unread)" color="error" variant="subtle" size="sm" :class="{ 'ml-auto': !unreadOf(c.id).mentions }" aria-label="Unread messages" />
                 </template>
               </UButton>
             </UContextMenu>

@@ -11,7 +11,7 @@ export default defineNuxtConfig({
     }
   },
   css: ['~/assets/css/main.css'],
-  icon: { provider: 'iconify', serverBundle: 'local' },
+  icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
   nitro: {
     experimental: { websocket: true, tasks: true },
     scheduledTasks: { '0 * * * *': ['attachments:cleanup'] } // hourly: unsent uploads older than 24 h
