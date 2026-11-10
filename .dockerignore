@@ -4,3 +4,15 @@ node_modules
 data
 .env
 .git
+
+# Exclude files that are not inputs to the app build.
+.github
+tests
+deploy
+README.md
+PLAN.md
+AGENTS.md
+mise.toml
+vitest.config.ts
+knip.jsonc
+.jscpd.json
