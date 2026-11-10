@@ -12,6 +12,11 @@ const tiles = computed(() => here.value ? v.tiles.value : [])
 const focused = computed(() => tiles.value.find(t => t.userId === theater.value))
 const others = computed(() => tiles.value.filter(t => t !== focused.value))
 const toggleTheater = (id: string) => { theater.value = theater.value === id ? null : id }
+// Starting to watch someone puts their tile in theater mode.
+watch(v.watching, (now, before) => {
+  const added = now.find(id => !before.includes(id))
+  if (added) theater.value = added
+})
 </script>
 
 <template>
