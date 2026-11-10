@@ -2,7 +2,7 @@
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024
 export const MAX_FILES = 10
-export const TEXT_PREVIEW_MAX_BYTES = 1024 * 1024
+const TEXT_PREVIEW_MAX_BYTES = 1024 * 1024
 export const TEXT_PREVIEW_RANGE = 64 * 1024
 
 const MIME_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i

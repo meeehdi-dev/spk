@@ -4,8 +4,8 @@ import { attachments } from './schema'
 import { ChatError } from './messages'
 import { cleanMime, MAX_FILE_BYTES } from '../../shared/utils/files'
 
-export const MAX_PENDING_PER_USER = 30
-export const ORPHAN_AGE_MS = 24 * 3600_000
+const MAX_PENDING_PER_USER = 30
+const ORPHAN_AGE_MS = 24 * 3600_000
 
 const cleanName = (v: unknown) =>
   (typeof v === 'string' ? v : '').replace(/[\u0000-\u001f\u007f/\\]/g, '').trim().slice(0, 200) || 'file'

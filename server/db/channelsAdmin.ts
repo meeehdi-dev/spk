@@ -6,7 +6,7 @@ import { ChatError } from './messages'
 type Kind = 'text' | 'voice'
 const kind = (v: unknown): Kind => { if (v === 'text' || v === 'voice') return v; throw new ChatError(400, 'Type must be text or voice') }
 
-export function cleanChannelName(v: unknown) {
+function cleanChannelName(v: unknown) {
   const name = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim() : ''
   if (name.length < 1 || name.length > 32) throw new ChatError(400, 'Name must be 1–32 characters')
   return name

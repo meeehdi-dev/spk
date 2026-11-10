@@ -1,5 +1,5 @@
 // Pure scroll math for the chat history list.
-export const NEAR_TOP = 200
+const NEAR_TOP = 200
 
 /** Fetch an older page when close to the top (also true when the page doesn't fill the viewport: scrollTop is 0). */
 export const needsOlder = (scrollTop: number, hasMoreBefore: boolean, busy: boolean) =>

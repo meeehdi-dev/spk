@@ -3,7 +3,7 @@ import type { Db } from './client'
 import { ChatError, accessibleChannel, messageDto } from './messages'
 import { linkPreviews, messagePreviews, messages } from './schema'
 
-export const PREVIEW_TTL_MS = 7 * 24 * 3600_000
+const PREVIEW_TTL_MS = 7 * 24 * 3600_000
 
 export interface ParsedPreview { title: string | null, description: string | null, siteName: string | null, imageKey: string | null }
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "entry": [
+    // MDC renders components by name; settings use resolveComponent().
+    "app/components/mdc/**/*.vue",
+    "app/components/settings/**/*.vue",
+    // Registered by URL in the client PWA plugin.
+    "public/sw.js"
+  ],
+  "ignoreDependencies": [
+    // Nuxt generates VueUse auto-imports and invokes vue-tsc through its CLI.
+    "@vueuse/core",
+    "vue-tsc"
+  ]
+}

@@ -1,6 +1,6 @@
 import type { SavedDevice } from '#shared/utils/voice'
 
-export type NoiseMode = 'off' | 'standard' | 'enhanced'
+type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
 export interface VoiceSettings {
   mic?: SavedDevice, speaker?: SavedDevice, camera?: SavedDevice

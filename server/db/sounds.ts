@@ -8,7 +8,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const soundKey = (id: string) => `sounds/${id}`
 
 /** Name (1–32 characters) and Lucide icon name, trimmed and checked. */
-export function cleanSoundMeta(input: { name?: unknown, icon?: unknown }) {
+function cleanSoundMeta(input: { name?: unknown, icon?: unknown }) {
   const name = typeof input.name === 'string' ? input.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : ''
   if (name.length < 1 || name.length > 32) throw new ChatError(400, 'Name must be 1–32 characters')
   if (typeof input.icon !== 'string' || !/^[a-z0-9-]{1,64}$/.test(input.icon)) throw new ChatError(400, 'Bad icon')

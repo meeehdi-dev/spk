@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { presenceOf } from '~/composables/usePresence'
 import { insertNodeAt, removeNode, useSortable } from '@vueuse/integrations/useSortable'
 import type { ChannelEntry } from '~/composables/useUsers'
 const location = import.meta.client ? window.location : ({ origin: '' } as Location)

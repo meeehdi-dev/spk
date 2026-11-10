@@ -1,6 +1,6 @@
 import type { ChannelEntry } from '~/composables/useUsers'
 
-export type AdminDialog =
+type AdminDialog =
   | { kind: 'create', type: 'text' | 'voice' }
   | { kind: 'rename' | 'delete', channel: ChannelEntry }
   | { kind: 'ban', userId: string }
