@@ -5,7 +5,11 @@ RUN npm install -g corepack && corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
-COPY . .
+COPY app ./app
+COPY public ./public
+COPY server ./server
+COPY shared ./shared
+COPY nuxt.config.ts tsconfig.json ./
 RUN pnpm build
 
 # Stage 2: runtime

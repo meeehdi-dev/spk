@@ -5,7 +5,7 @@ data
 .env
 .git
 
-# Files outside the app build must not invalidate COPY . .
+# Exclude files that are not inputs to the app build.
 .github
 tests
 deploy
