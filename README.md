@@ -114,7 +114,7 @@ docker exec spk sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
 
 GitHub Actions runs Knip, jscpd, typecheck, and tests on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the app once inside the Docker image, without publishing or deploying it. CI uses the exact Node and Corepack versions from `mise.toml`, the pnpm version from `package.json`, and needs no production secrets.
 
-Tool installs are cached separately from Corepack's pnpm download and the pnpm package store. The frozen install still runs on cache hits to recreate `node_modules` and validate the lockfile. Docker caches intermediate layers and copies only application build inputs; `.dockerignore` also excludes docs, CI, tests, and deployment files.
+Tool installs are cached separately from Corepack's pnpm download and the pnpm package store. The frozen install still runs on cache hits to recreate `node_modules` and validate the lockfile. Docker builds directly from the exact tested Git commit and caches intermediate layers; `.dockerignore` excludes docs, CI, tests, and deployment files from its build context.
 
 Knip checks for unused files, exports, and dependencies after Nuxt generates its imports. `knip.jsonc` declares components loaded by name and the service worker as entry points. jscpd scans `app`, `server`, and `shared` with a 5% duplication ceiling; generated SQL migrations and test fixtures are outside the scan. Both checks block CI.
 
