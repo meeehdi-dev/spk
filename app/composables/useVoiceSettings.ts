@@ -1,4 +1,4 @@
-import type { SavedDevice } from '#shared/utils/voice'
+import type { SavedDevice, ScreenQuality } from '#shared/utils/voice'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
@@ -12,10 +12,12 @@ export interface VoiceSettings {
   soundboard: { on: boolean, volume: number }
   /** Share audio with the screen (the chevron next to the share button). */
   screenAudio: boolean
+  /** Screen share quality preset, applied the next time you start sharing. */
+  screenQuality: ScreenQuality
 }
 
 export const useVoiceSettings = () => useLocalStorage<VoiceSettings>('spk:voice', {
-  noise: 'standard', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenAudio: true, soundboard: { on: true, volume: 0.7 },
+  noise: 'standard', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenAudio: true, screenQuality: 'eco', soundboard: { on: true, volume: 0.7 },
   sounds: { join: { on: true, volume: 0.5 }, leave: { on: true, volume: 0.5 }, mute: { on: true, volume: 0.5 }, deafen: { on: true, volume: 0.5 }, camera: { on: true, volume: 0.5 }, screen: { on: true, volume: 0.5 } }
 }, { mergeDefaults: (stored, defaults) => ({ ...defaults, ...stored, sounds: { ...defaults.sounds, ...stored.sounds } }) })
 

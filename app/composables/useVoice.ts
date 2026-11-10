@@ -1,5 +1,5 @@
 import type { Participant, Room, Track, VideoTrack } from 'livekit-client'
-import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
+import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
 import type { MicProcessor } from '~/utils/voice-processor'
 
 export interface VoiceMember { channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean }
@@ -205,7 +205,7 @@ export function useVoice() {
   /** Must run from a click (the browser's picker needs a user gesture): the share button or its shortcut. */
   async function startScreen() {
     if (!room) return
-    const p = SCREEN_SHARE
+    const p = SCREEN_SHARE_PRESETS[settings.value.screenQuality]
     // Screen audio is captured raw (no browser processing) and published as its own track with no processor, whatever the mic noise setting is.
     await room.localParticipant.setScreenShareEnabled(true, {
       audio: settings.value.screenAudio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size

@@ -103,7 +103,8 @@ const current = (saved?: { deviceId: string, label: string }, list: MediaDeviceI
       <UPopover :content="{ align: 'end', side: 'top' }">
         <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Screen share options" />
         <template #content>
-          <div class="w-72 p-3 text-sm">
+          <div class="w-72 space-y-3 p-3 text-sm">
+            <URadioGroup v-model="v.settings.value.screenQuality" legend="Quality" :items="[{ label: 'Eco: 5 fps, up to 1440p', value: 'eco' }, { label: 'Smooth: 60 fps, up to 1080p', value: 'smooth' }]" />
             <USwitch v-model="v.settings.value.screenAudio" label="Share audio" description="Applies the next time you start sharing." />
           </div>
         </template>

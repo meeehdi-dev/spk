@@ -281,19 +281,19 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 
 ### Screen share
 - **One click** on the share button (or ⌘⌥⇧S) opens the browser's own picker (it can't be replaced in a web app). No pre-share dialog.
-- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch.
+- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch and the **Quality** choice (radio group, saved per browser, applies the next time you start sharing).
 - Picker hints: `displaySurface`, `selfBrowserSurface: 'exclude'`, `systemAudio`, `surfaceSwitching: 'include'` (Chromium; other browsers ignore most of them).
 
-Screen share quality is fixed (smoothness, no clarity option):
+Screen share quality has two options. **Eco** is the default (tuned for sharp text, much less bandwidth and CPU/GPU); **Smooth** is for games and video:
 
-| | |
-|---|---|
-| Resolution | up to 1080p, never upscaled |
-| Frame rate | up to 60 fps |
-| `contentHint` | `motion` |
-| `degradationPreference` | `maintain-framerate` |
-| Bitrate (max) | 15 Mbps |
-| Codec | VP9, VP8 as `backupCodec` |
+| | Eco (default) | Smooth |
+|---|---|---|
+| Resolution | up to 1440p, never upscaled | up to 1080p, never upscaled |
+| Frame rate | up to 5 fps | up to 60 fps |
+| `contentHint` | `detail` | `motion` |
+| `degradationPreference` | `maintain-resolution` | `maintain-framerate` |
+| Bitrate (max) | 5 Mbps | 15 Mbps |
+| Codec | VP9, VP8 as `backupCodec` | VP9, VP8 as `backupCodec` |
 
 - One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled.
 - **Screen audio:** Opus stereo, up to 256 kbps, DTX off.
