@@ -25,6 +25,8 @@ provide(messageCtxKey, reactive({
 
 // Reactions, reply preview, delete confirmation.
 const picker = ref(false)
+// The hover toolbar anchors the picker and the More menu; it stays shown while either is open.
+const moreOpen = ref(false)
 const whoOpen = ref<string | null>(null)
 const confirmDelete = ref(false)
 const mineOf = (r: ReactionDto) => !!me.value && r.userIds.includes(me.value.id)
@@ -160,7 +162,7 @@ function onKey(e: KeyboardEvent) {
           <ChatReactionChip v-for="r in message.reactions" :key="r.emoji" :reaction="r" :mine="mineOf(r)" @toggle="react(r.emoji)" @who="whoOpen = r.emoji" />
         </div>
       </div>
-      <div v-if="!editing" class="absolute top-full -mt-1 left-16 z-10 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-within:flex" :class="picker ? '!flex' : ''">
+      <div v-if="!editing" class="absolute top-full -mt-1 left-16 z-10 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-within:flex" :class="picker || moreOpen ? '!flex' : ''">
         <UTooltip v-for="e in QUICK_REACTIONS" :key="e" :text="`React ${e}`">
           <UButton size="xs" color="neutral" variant="ghost" :aria-label="`React with ${e}`" :class="message.reactions.some(r => r.emoji === e && mineOf(r)) ? 'bg-primary/10' : ''" @click="react(e)">{{ e }}</UButton>
         </UTooltip>
@@ -179,7 +181,7 @@ function onKey(e: KeyboardEvent) {
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
           <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" size="xs" color="neutral" variant="ghost" aria-label="Copy message" @click="copy(message.body)" />
         </UTooltip>
-        <UDropdownMenu :items="messageItems()" :content="{ align: 'start' }">
+        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start' }">
           <UTooltip text="More">
             <UButton icon="i-lucide-ellipsis" size="xs" color="neutral" variant="ghost" aria-label="More actions" />
           </UTooltip>
