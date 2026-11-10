@@ -36,7 +36,7 @@ Name tests `tests/<feature>.test.ts`; use Vitest `describe`, `it`, and `expect`.
 
 ## Commit & Pull Request Guidelines
 
-History uses concise, descriptive subjects, sometimes with a feature prefix such as `Voice/video:`; no strict Conventional Commits pattern is established. Keep PRs small and focused. Describe the problem, resulting behavior, and validation; link related issues and include screenshots for visible UI changes when useful.
+Always use Conventional Commits for commit subjects and PR titles: `<type>(<optional scope>): <description>`, such as `fix(notifications): correct push toggle state` or `docs: update setup instructions`. Keep PRs small and focused. Describe the problem, resulting behavior, and validation; link related issues and include screenshots for visible UI changes when useful.
 
 ## Security & Configuration
 
