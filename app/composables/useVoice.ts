@@ -249,7 +249,7 @@ export const voiceChannelOf = (userId: string) => presence.value[userId]?.channe
 /** Users in a voice channel, from the server's presence. */
 export const voiceMembers = (id: string) => Object.entries(presence.value).filter(([, m]) => m.channelId === id).map(([userId, m]) => ({ userId, ...m }))
 
-/** Layout only: keeps the presence map live, handles being kicked by another tab, plays others' join/leave sounds, warns before unload, follows device changes. */
+/** Layout only: keeps the presence map live, handles being kicked by another tab, plays others' join/leave sounds, warns before unload, keeps the screen awake in a call, follows device changes. */
 export function useVoiceLive() {
   if (!import.meta.client) return
   const v = useVoice()
@@ -291,6 +291,9 @@ export function useVoiceLive() {
     }
   })
   useEventListener(window, 'beforeunload', (e) => { if (v.channelId.value) e.preventDefault() })
+  // Keep the machine awake during a call; the browser drops the lock while the tab is hidden.
+  const wakeLock = useWakeLock()
+  watch(() => !!v.channelId.value, on => (on ? wakeLock.request('screen') : wakeLock.release()).catch(() => {}))
   useEventListener(navigator.mediaDevices, 'devicechange', async () => {
     await v.refreshDevices()
     const r = v.activeRoom()
