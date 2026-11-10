@@ -110,7 +110,7 @@ docker exec spk sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
    ```
 3. Keep PRs small and focused, with the checks passing. Add a unit test for risky logic. There are no E2E tests.
 
-GitHub Actions runs these checks on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the Docker image without publishing or deploying it. CI uses the Node and pnpm versions from `package.json` and needs no production secrets.
+GitHub Actions runs Knip, jscpd, typecheck, and tests on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the app once inside the Docker image, without publishing or deploying it. CI uses the Node and pnpm versions from `package.json` and needs no production secrets.
 
 Knip checks for unused files, exports, and dependencies after Nuxt generates its imports. `knip.jsonc` declares components loaded by name and the service worker as entry points. jscpd scans `app`, `server`, and `shared` with a 5% duplication ceiling; generated SQL migrations and test fixtures are outside the scan. Both checks block CI.
 
