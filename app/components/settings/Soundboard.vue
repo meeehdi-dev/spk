@@ -63,7 +63,7 @@ async function load(file: File) {
   })
   regions.on('region-updated', (r) => { sel.value = { start: r.start, end: r.end } })
 }
-const toggle = () => { if (playing.value) ws?.pause(); else region?.play() }
+const toggle = () => { if (playing.value) ws?.pause(); else region?.play(true) }
 
 async function save() {
   if (!decoded.value || saving.value) return
