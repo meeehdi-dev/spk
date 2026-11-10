@@ -4,3 +4,15 @@ node_modules
 data
 .env
 .git
+
+# Files outside the app build must not invalidate COPY . .
+.github
+tests
+deploy
+README.md
+PLAN.md
+AGENTS.md
+mise.toml
+vitest.config.ts
+knip.jsonc
+.jscpd.json

@@ -23,15 +23,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6.1.1
+      - name: Set up tools
+        uses: jdx/mise-action@v5.2.7
 
-      - name: Set up Node
-        uses: actions/setup-node@v7.1.0
+      - name: Configure pnpm
+        run: |
+          corepack enable pnpm
+          echo "pnpm_config_store_dir=$RUNNER_TEMP/pnpm-store" >> "$GITHUB_ENV"
+
+      - name: Cache dependencies
+        uses: actions/cache@v6.1.0
         with:
-          node-version-file: package.json
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          path: |
+            ~/.cache/node/corepack
+            ${{ runner.temp }}/pnpm-store
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml') }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+          restore-keys: |
+            deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml') }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
