@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@font-face {
+  font-family: 'Departure Mono';
+  src: url('/fonts/DepartureMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Departure Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: 'Departure Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* White text on amber-500 is ~2:1; amber-700 gives ~5:1. Dark mode keeps amber-400 with dark text. */
+:root { --ui-primary: var(--color-amber-700); }
+.dark { --ui-primary: var(--color-amber-400); }
+
+/* Code blocks (ProsePre, text file previews) */
+.code-body pre { margin: 0; padding: 0.5rem 0; background: transparent !important; }
+.code-body code { counter-reset: line; display: block; }
+.code-body .line { display: inline-block; min-width: 100%; padding-right: 0.75rem; }
+.code-body .line::before { counter-increment: line; content: counter(line); display: inline-block; width: 3ch; margin: 0 1ch 0 0.75rem; text-align: right; color: var(--ui-text-dimmed); user-select: none; }
+.code-wrap .line { white-space: pre-wrap; word-break: break-all; }
+.shiki span { color: var(--shiki-light); }
+.dark .shiki span { color: var(--shiki-dark); }
+
+/* Compact density: one root switch. Spacing is 3px (whole pixels) and the text sizes stay whole pixels so Departure Mono stays crisp. */
+html[data-density='compact'] {
+  --spacing: 0.1875rem;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.25rem;
+}

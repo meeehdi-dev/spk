@@ -1,0 +1,64 @@
+{
+  "name": "spk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.152",
+    "@nuxt/ui": "^4.12.0",
+    "@nuxtjs/mdc": "^0.23.2",
+    "@sapphi-red/web-noise-suppressor": "^0.4.1",
+    "@tiptap/core": "^3.33.0",
+    "@tiptap/extension-mention": "^3.33.0",
+    "@tiptap/extension-placeholder": "^3.33.0",
+    "@tiptap/markdown": "^3.33.0",
+    "@tiptap/pm": "^3.33.0",
+    "@tiptap/starter-kit": "^3.33.0",
+    "@tiptap/suggestion": "^3.33.0",
+    "@tiptap/vue-3": "^3.33.0",
+    "@vueuse/core": "^15.0.0",
+    "@vueuse/integrations": "^15.0.0",
+    "@vueuse/nuxt": "^15.0.0",
+    "aws4fetch": "^1.0.20",
+    "better-auth": "^1.7.18",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.4",
+    "emoji-picker-element": "^1.29.1",
+    "emoji-picker-element-data": "^1.8.0",
+    "highlight.js": "^11.12.0",
+    "livekit-client": "^2.23.0",
+    "livekit-server-sdk": "^2.19.2",
+    "nuxt": "^4.6.4",
+    "open-graph-scraper": "^6.13.0",
+    "sharp": "^0.35.5",
+    "shiki": "^4.6.0",
+    "sortablejs": "^1.15.7",
+    "tailwindcss": "^4.3.5",
+    "vue": "^3.5.45",
+    "vue-router": "^5.4.0",
+    "wavesurfer.js": "^8.0.5",
+    "web-push": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/sortablejs": "^1.15.9",
+    "@types/web-push": "^3.6.4",
+    "drizzle-kit": "^0.31.11",
+    "happy-dom": "^21.0.4",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "sharp"
+    ]
+  }
+}
