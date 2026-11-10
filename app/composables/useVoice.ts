@@ -1,5 +1,5 @@
 import type { Participant, Room, Track, VideoTrack } from 'livekit-client'
-import { effectiveVolume, initialMute, matchDevice, SCREEN_AUDIO_CAPTURE, SCREEN_PRESETS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type ScreenPreset, type UserVolume } from '#shared/utils/voice'
+import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type ScreenPreset, type UserVolume } from '#shared/utils/voice'
 import type { MicProcessor } from '~/utils/voice-processor'
 
 export interface VoiceMember { channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean }
@@ -119,7 +119,7 @@ export function useVoice() {
       const out = matchDevice(settings.value.speaker, devices.value.speakers)
       const { token, url } = await $fetch<{ token: string, url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
       const { Room, RoomEvent, Track } = await import('livekit-client')
-      const r = new Room({ adaptiveStream: true, dynacast: true, audioCaptureDefaults: captureOptions(mic.deviceId), audioOutput: canPickOutput && out.deviceId ? { deviceId: out.deviceId } : undefined })
+      const r = new Room({ adaptiveStream: true, dynacast: true, publishDefaults: VOICE_PUBLISH_DEFAULTS, videoCaptureDefaults: CAMERA_CAPTURE, audioCaptureDefaults: captureOptions(mic.deviceId), audioOutput: canPickOutput && out.deviceId ? { deviceId: out.deviceId } : undefined })
       r.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio) return
         document.body.append(track.attach()) // remote audio only plays while attached to an element
@@ -210,10 +210,11 @@ export function useVoice() {
     settings.value = { ...settings.value, screenPreset: preset, screenAudio: audio }
     // Screen audio is captured raw (no browser processing) and published as its own track with no processor, whatever the mic noise setting is.
     await room.localParticipant.setScreenShareEnabled(true, {
-      audio: audio ? SCREEN_AUDIO_CAPTURE : false, resolution: p.resolution, contentHint: p.contentHint,
-      video: { displaySurface: 'monitor' }, selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include'
+      audio: audio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
+      // `max` is a ceiling, so the capture is never upscaled past the shared surface; LiveKit's type only declares displaySurface.
+      video: { displaySurface: 'monitor', width: { max: p.resolution.width }, height: { max: p.resolution.height }, frameRate: { ideal: p.resolution.frameRate, max: p.resolution.frameRate } } as { displaySurface: 'monitor' }, selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include'
     }, {
-      videoCodec: 'vp9', backupCodec: { codec: 'vp8' }, degradationPreference: p.degradationPreference,
+      ...SCREEN_AUDIO_PUBLISH, simulcast: false, videoCodec: p.codec, backupCodec: p.codec === 'vp9' ? { codec: 'vp8' } : false, degradationPreference: p.degradationPreference,
       screenShareEncoding: { maxBitrate: p.maxBitrate, maxFramerate: p.resolution.frameRate }
     }).catch((e: Error) => { if (e.name !== 'NotAllowedError') fail('Could not share your screen')(e) }) // NotAllowedError = picker cancelled
     rebuild()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCREEN_AUDIO_CAPTURE, initialMute, matchDevice, sensitivityToDb, toggleDeafen, toggleMute } from '../shared/utils/voice'
+import { CAMERA_CAPTURE, SCREEN_AUDIO_PUBLISH, VOICE_PUBLISH_DEFAULTS, SCREEN_AUDIO_CAPTURE, initialMute, matchDevice, sensitivityToDb, toggleDeafen, toggleMute } from '../shared/utils/voice'
 import { dropVoiceOwner, joinVoice, leaveVoice, updateVoice, voiceSnapshot } from '../server/utils/voicePresence'
 import { createVoiceToken } from '../server/utils/voiceToken'
 
@@ -84,6 +84,13 @@ describe('screen share and per-user volume', () => {
     expect(SCREEN_PRESETS.clarity).toMatchObject({ contentHint: 'text', degradationPreference: 'maintain-resolution' })
     expect(SCREEN_PRESETS.smoothness).toMatchObject({ contentHint: 'motion', degradationPreference: 'maintain-framerate' })
     expect(SCREEN_PRESETS.smoothness.resolution.frameRate).toBe(60)
+    expect(SCREEN_PRESETS.clarity).toMatchObject({ codec: 'vp8', maxBitrate: 10_000_000, resolution: { width: 2560, height: 1440, frameRate: 15 } })
+    expect(SCREEN_PRESETS.smoothness).toMatchObject({ codec: 'vp9', maxBitrate: 15_000_000, resolution: { width: 1920, height: 1080, frameRate: 60 } })
+  })
+  it('publishes single-layer, high-bitrate camera, mic and screen audio', () => {
+    expect(VOICE_PUBLISH_DEFAULTS).toMatchObject({ simulcast: false, videoEncoding: { maxBitrate: 6_000_000 }, audioPreset: { maxBitrate: 128_000 }, dtx: false, red: true })
+    expect(CAMERA_CAPTURE.resolution).toEqual({ width: 1920, height: 1080, frameRate: 30 })
+    expect(SCREEN_AUDIO_PUBLISH).toMatchObject({ audioPreset: { maxBitrate: 256_000 }, forceStereo: true, dtx: false })
   })
   it('silences on deafen or mute-for-me, else scales by user and output volume', async () => {
     const { effectiveVolume, userVolume } = await import('../shared/utils/voice')

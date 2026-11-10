@@ -33,11 +33,17 @@ export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math
 export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
 
 export type ScreenPreset = 'clarity' | 'smoothness'
-/** The two screen share presets (PLAN §8). Bitrates are the top of the approximate range; VP9 with a VP8 backup is set where they're published. */
+/** The two screen share presets (PLAN §8). Single layer, never simulcast. Smoothness is VP9 with a VP8 backup; Clarity is VP8 because LiveKit forces contentHint 'motion' on VP9 and we want 'text'. `resolution` is the ceiling (sent as `max` constraints), bitrates are upper limits. */
 export const SCREEN_PRESETS = {
-  clarity: { label: 'Clarity', hint: 'Code, docs and text: sharp, 15 fps, up to 1440p.', resolution: { width: 2560, height: 1440, frameRate: 15 }, contentHint: 'text', degradationPreference: 'maintain-resolution', maxBitrate: 4_000_000 },
-  smoothness: { label: 'Smoothness', hint: 'Games and video: 60 fps, up to 1080p.', resolution: { width: 1920, height: 1080, frameRate: 60 }, contentHint: 'motion', degradationPreference: 'maintain-framerate', maxBitrate: 8_000_000 }
+  clarity: { label: 'Clarity', hint: 'Code, docs and text: sharp, 15 fps, up to 1440p.', resolution: { width: 2560, height: 1440, frameRate: 15 }, codec: 'vp8', contentHint: 'text', degradationPreference: 'maintain-resolution', maxBitrate: 10_000_000 },
+  smoothness: { label: 'Smoothness', hint: 'Games and video: 60 fps, up to 1080p.', resolution: { width: 1920, height: 1080, frameRate: 60 }, codec: 'vp9', contentHint: 'motion', degradationPreference: 'maintain-framerate', maxBitrate: 15_000_000 }
 } as const
+
+/** Room-wide publish/capture defaults: one layer per track, 1080p30 camera at 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
+export const VOICE_PUBLISH_DEFAULTS = { simulcast: false, videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 }, audioPreset: { maxBitrate: 128_000 }, dtx: false, red: true } as const
+export const CAMERA_CAPTURE = { resolution: { width: 1920, height: 1080, frameRate: 30 } } as const
+/** Screen audio: stereo Opus 256 kbps, DTX off. */
+export const SCREEN_AUDIO_PUBLISH = { audioPreset: { maxBitrate: 256_000 }, forceStereo: true, dtx: false } as const
 
 export interface UserVolume { mic: number, screen: number, muted: boolean }
 export const userVolume = (all: Record<string, Partial<UserVolume>>, id: string): UserVolume => ({ mic: 1, screen: 1, muted: false, ...all[id] })

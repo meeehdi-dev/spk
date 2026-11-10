@@ -252,6 +252,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - **Enhanced:** RNNoise as a LiveKit track processor (the browser's suppression is turned off).
 - Echo cancellation and auto gain: toggles, on by default.
 - Mute with `track.enabled = false` (nothing to renegotiate).
+- **Mic quality:** Opus mono at up to 128 kbps, DTX off, RED on. Webcam: 1080p30, one layer, up to 6 Mbps.
 
 ### Tiles (main panel)
 | State | Tile shows |
@@ -270,7 +271,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
   - **Theater mode** (tile fills the panel, others in a strip at the bottom)
   - **Fullscreen** (`Esc` exits)
 - Shortcuts on a hovered or focused tile: `T` theater, `F` or double-click fullscreen, `W` watch/stop watching, `Esc` exit. Ignored while typing.
-- `adaptiveStream`: bigger tiles get a higher resolution automatically.
+- Every video track is sent at one resolution (no simulcast, no SVC layers). `adaptiveStream` and `dynacast` only pause video nobody watches.
 - Deafening stops audio only, not video.
 
 ### Volume
@@ -284,13 +285,15 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 
 | | **Clarity** (code, docs, text) | **Smoothness** (games, video) |
 |---|---|---|
-| Resolution | native, up to 1440p | 720p to 1080p |
-| Frame rate | 5–15 fps | 30–60 fps |
+| Resolution | native, up to 1440p, never upscaled | up to 1080p, never upscaled |
+| Frame rate | up to 15 fps | up to 60 fps |
 | `contentHint` | `detail` / `text` | `motion` |
 | `degradationPreference` | `maintain-resolution` | `maintain-framerate` |
-| Bitrate (approx.) | 2–4 Mbps | 4–8 Mbps |
+| Bitrate (max) | 10 Mbps | 15 Mbps |
+| Codec | VP8 (keeps the `text` hint) | VP9, VP8 as `backupCodec` |
 
-- **VP9**, with VP8 as `backupCodec`. The last preset is remembered.
+- One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled. The last preset is remembered.
+- **Screen audio:** Opus stereo, up to 256 kbps, DTX off.
 
 ### Sounds
 - **Join / leave:** played when **you** join or leave a voice channel, and when **someone else** joins or leaves the channel you're in.
