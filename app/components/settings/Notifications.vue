@@ -26,13 +26,13 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
         <p v-if="permission === 'unsupported'" class="text-muted">This browser can't show notifications. On iOS, add spk to the home screen first.</p>
         <template v-else>
           <p class="text-muted">
-            <template v-if="permission === 'granted'">Allowed. {{ push.supported ? (push.subscribed ? 'Push is on: you also get notifications while spk is closed.' : 'Push is off: you only get notifications while spk is open.') : 'Push is not set up on this server.' }}</template>
+            <template v-if="permission === 'granted'">Allowed. {{ push.supported ? (push.subscribed.value ? 'Push is on: you also get notifications while spk is closed.' : 'Push is off: you only get notifications while spk is open.') : 'Push is not set up on this server.' }}</template>
             <template v-else-if="permission === 'denied'">Blocked. Allow notifications for this site in your browser settings.</template>
             <template v-else>Not enabled yet.</template>
           </p>
           <div class="flex gap-2">
-            <UButton v-if="permission !== 'granted' || (push.supported && !push.subscribed)" :loading="busy" label="Enable notifications" icon="i-lucide-bell" @click="enable" />
-            <UButton v-if="push.subscribed" label="Turn push off" icon="i-lucide-bell-off" color="neutral" variant="outline" @click="disablePush" />
+            <UButton v-if="permission !== 'granted' || (push.supported && !push.subscribed.value)" :loading="busy" label="Enable notifications" icon="i-lucide-bell" @click="enable" />
+            <UButton v-if="push.subscribed.value" label="Turn push off" icon="i-lucide-bell-off" color="neutral" variant="outline" @click="disablePush" />
           </div>
         </template>
       </div>
