@@ -25,7 +25,7 @@ for (const [name, def] of Object.entries(common)) hljs.registerLanguage(name, de
 const toShiki: Record<string, string> = { xml: 'html' }
 
 export const PLAIN_ABOVE_LINES = 1000
-export const AUTO_MIN_LINES = 5
+const AUTO_MIN_LINES = 5
 
 /** Guess a language for an unlabelled block. Short blocks stay plain text. */
 export function detectLanguage(code: string): string | null {

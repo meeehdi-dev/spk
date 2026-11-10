@@ -11,7 +11,7 @@ type Conn = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>
 export interface AttachmentDto { id: string, filename: string, mime: string, size: number, spoiler: boolean }
 export interface ReactionDto { emoji: string, userIds: string[] }
 /** Preview of the message this one replies to; `deleted` when it's gone. */
-export interface ReplyRef { id: string, userId: string, preview: string, deleted: boolean }
+interface ReplyRef { id: string, userId: string, preview: string, deleted: boolean }
 
 /** A link card; `image` = a thumbnail exists (served by /api/messages/:id/previews/image). */
 export interface PreviewDto { url: string, title: string | null, description: string | null, siteName: string | null, image: boolean }
@@ -48,7 +48,7 @@ export function channelMemberIds(db: Db, ch: { id: string, type: string }, onlin
 const preview = (body: string) => (body.split('\n').find(l => l.trim()) ?? '').trim().slice(0, 120)
 
 /** Rows -> DTOs with their attachments, reactions and reply previews (3-4 queries for the whole page). */
-export function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDto[] {
+function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDto[] {
   if (!rows.length) return []
   const ids = rows.map(r => r.id)
   const files = db.select().from(attachments).where(inArray(attachments.messageId, ids)).orderBy(sql`rowid`).all()
@@ -157,7 +157,7 @@ export function deleteMessage(db: Db, userId: string, isAdmin: boolean, messageI
   })
 }
 
-export const MAX_REACTION_KINDS = 20
+const MAX_REACTION_KINDS = 20
 
 /** One grapheme that is an emoji (pictographic, flag or keycap). */
 export function isEmoji(v: unknown): v is string {

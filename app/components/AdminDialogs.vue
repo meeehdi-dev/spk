@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { presenceOf } from '~/composables/usePresence'
 const admin = useAdmin()
 const { byId, nameOf } = useUsers()
 const { data: me } = useMe()

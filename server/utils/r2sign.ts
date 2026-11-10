@@ -8,7 +8,7 @@ export const r2Url = (c: R2Config, key: string) => {
   return `https://${c.accountId}.r2.cloudflarestorage.com/${c.bucket}/${key.split('/').map(encodeURIComponent).join('/')}`
 }
 
-export function r2Client(c: R2Config) {
+function r2Client(c: R2Config) {
   return new AwsClient({ accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey, service: 's3', region: 'auto' })
 }
 

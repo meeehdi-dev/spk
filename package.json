@@ -2,10 +2,16 @@
   "name": "spk",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": "26.13.0"
+  },
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
     "typecheck": "nuxt typecheck",
+    "knip": "knip",
+    "jscpd": "jscpd app server shared",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
@@ -48,17 +54,14 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/sortablejs": "^1.15.9",
     "@types/web-push": "^3.6.4",
+    "crossws": "0.3.5",
     "drizzle-kit": "^0.31.11",
+    "h3": "1.15.11",
     "happy-dom": "^21.0.4",
+    "jscpd": "5.4.3",
+    "knip": "6.45.0",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0",
     "vue-tsc": "^3.3.14"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild",
-      "sharp"
-    ]
   }
 }

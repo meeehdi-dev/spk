@@ -3,12 +3,12 @@ import type { Db } from './client'
 import { accessibleChannel, ChatError } from './messages'
 import { ftsTerm, hasAnything, parseSearch } from '../../shared/utils/searchQuery'
 
-export type SearchScope = 'channel' | 'channels' | 'dms' | 'everything'
-export const PAGE = 20
+type SearchScope = 'channel' | 'channels' | 'dms' | 'everything'
+const PAGE = 20
 /** Copy-text limit per result; the snippet is what the panel shows. */
 const TEXT_MAX = 4000
-export const MARK_START = '\u0001'
-export const MARK_END = '\u0002'
+const MARK_START = '\u0001'
+const MARK_END = '\u0002'
 
 export interface SearchHit { messageId: string, channelId: string, userId: string, createdAt: number, snippet: string, text: string, attachments: number }
 export interface SearchResult { results: SearchHit[], nextCursor: string | null }

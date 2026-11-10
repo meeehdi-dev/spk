@@ -1,8 +1,8 @@
 // Search box syntax (PLAN.md §7), shared by the server (query building) and the client (autocomplete).
-export const FILTER_KEYS = ['from', 'mentions', 'in', 'has', 'before', 'after'] as const
+const FILTER_KEYS = ['from', 'mentions', 'in', 'has', 'before', 'after'] as const
 export type FilterKey = typeof FILTER_KEYS[number]
 export const HAS_VALUES = ['file', 'image', 'link'] as const
-export const MAX_TERMS = 8
+const MAX_TERMS = 8
 
 export interface ParsedSearch {
   /** Plain words (prefix-matched). */
@@ -16,7 +16,7 @@ export interface ParsedSearch {
 const DAY = 86_400_000
 
 /** `YYYY-MM-DD` -> UTC midnight in ms, or null when it isn't a real date. */
-export function parseDay(v: string): number | null {
+function parseDay(v: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null
   const t = Date.parse(`${v}T00:00:00Z`)
   return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== v ? null : t

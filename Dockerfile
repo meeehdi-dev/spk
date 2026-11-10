@@ -1,15 +1,15 @@
 # Stage 1: build (native modules need build tools)
-FROM node:22-slim AS build
+FROM node:26.13.0-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+RUN npm install -g corepack && corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
 # Stage 2: runtime
-FROM node:22-slim
+FROM node:26.13.0-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl sqlite3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/.output ./.output

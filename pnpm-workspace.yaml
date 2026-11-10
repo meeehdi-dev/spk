@@ -1,0 +1,7 @@
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  sharp: true
+  vue-demi: false
+minimumReleaseAgeExclude:
+  - knip@6.45.0

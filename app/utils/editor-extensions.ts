@@ -1,7 +1,7 @@
 import { Extension, Mark, markInputRule, mergeAttributes } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
 
-export const MENTION_TOKEN = /^<@([\w-]+)>/
+const MENTION_TOKEN = /^<@([\w-]+)>/
 
 /** Mention node that reads and writes `<@userId>`; the label is the user's current nickname. */
 export const SpkMention = Mention.extend<{ getLabel?: (id: string) => string | undefined }>({

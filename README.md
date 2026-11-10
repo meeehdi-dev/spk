@@ -10,7 +10,7 @@ The design document is [PLAN.md](PLAN.md).
 
 ## Requirements
 
-- Node 22+ and pnpm 10
+- Node 26.13.0 and pnpm 12.18.0 (pinned in `package.json`)
 - `livekit-server` (voice; for local dev, see [livekit.io](https://docs.livekit.io/home/self-hosting/local/))
 - A Cloudflare R2 bucket and API token (file uploads)
 - Optional: a [Klipy](https://klipy.com) API key (GIFs)
@@ -19,7 +19,8 @@ The design document is [PLAN.md](PLAN.md).
 
 ```sh
 cp .env.example .env     # fill in the values (each one is commented)
-pnpm install
+pnpm install --frozen-lockfile
+pnpm exec nuxt prepare
 pnpm dev                 # http://localhost:3000
 livekit-server --dev     # voice; dev key/secret are devkey / secret
 ```
@@ -100,11 +101,18 @@ docker exec spk sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
 1. Follow [Local development](#local-development) to set up.
 2. Before opening a PR, run:
    ```sh
+   pnpm exec nuxt prepare
+   pnpm knip
+   pnpm jscpd
    pnpm typecheck
    pnpm test
    pnpm build
    ```
 3. Keep PRs small and focused, with the checks passing. Add a unit test for risky logic. There are no E2E tests.
+
+GitHub Actions runs these checks on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the Docker image without publishing or deploying it. CI uses the Node and pnpm versions from `package.json` and needs no production secrets.
+
+Knip checks for unused files, exports, and dependencies after Nuxt generates its imports. `knip.jsonc` declares components loaded by name and the service worker as entry points. jscpd scans `app`, `server`, and `shared` with a 5% duplication ceiling; generated SQL migrations and test fixtures are outside the scan. Both checks block CI.
 
 Project layout:
 

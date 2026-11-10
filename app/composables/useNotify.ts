@@ -47,7 +47,7 @@ export function useNotificationPermission() {
  * One place that decides toast, system notification or both. Callers pass what happened;
  * `target` is the app URL to open.
  */
-export function useNotify() {
+function useNotify() {
   const toast = useToast()
   const s = useNotifySettings()
   return {
