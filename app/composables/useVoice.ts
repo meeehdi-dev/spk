@@ -75,6 +75,10 @@ let pendingScreenSession: ScreenSession | undefined
 const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
+// Speaking turns on at once but off only after this hold, so pauses between words don't flicker the ring.
+export const SPEAKING_HOLD_MS = 500
+const speakingIds = new Set<string>()
+const speakingOff = new Map<string, ReturnType<typeof setTimeout>>()
 let processor: MicProcessor | undefined
 let pendingJoin: AbortController | undefined
 let pendingJoinDone: Promise<void> | undefined
@@ -184,7 +188,7 @@ export function useVoice() {
       return {
         userId: p.identity,
         local,
-        speaking: p.isSpeaking,
+        speaking: speakingIds.has(p.identity),
         camLive,
         screenLive: !!scr || (local && !!screenSession),
         screenAudio: !!audio && !audio.isMuted,
@@ -269,7 +273,26 @@ export function useVoice() {
       })
       r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
       r.on(RoomEvent.ActiveSpeakersChanged, list => {
-        speaking = list.some(p => p.isLocal)
+        const active = new Set(list.map(p => p.identity))
+        for (const id of active) {
+          clearTimeout(speakingOff.get(id))
+          speakingOff.delete(id)
+          speakingIds.add(id)
+        }
+        for (const id of speakingIds) {
+          if (active.has(id) || speakingOff.has(id)) continue
+          speakingOff.set(
+            id,
+            setTimeout(() => {
+              speakingOff.delete(id)
+              speakingIds.delete(id)
+              speaking = speakingIds.has(me.value?.id ?? '')
+              pushState()
+              rebuild()
+            }, SPEAKING_HOLD_MS),
+          )
+        }
+        speaking = speakingIds.has(me.value?.id ?? '')
         pushState()
         rebuild()
       })
@@ -331,6 +354,7 @@ export function useVoice() {
     } catch (e) {
       if (claimed) socket.send({ type: 'voice:leave', sid })
       pendingJoin = undefined
+      clearSpeaking()
       await r?.disconnect()
       if (!signal.aborted || signal.reason?.name !== 'AbortError') {
         toast.add({
@@ -348,6 +372,13 @@ export function useVoice() {
       connecting.value = false
       settled()
     }
+  }
+
+  function clearSpeaking() {
+    speakingOff.forEach(clearTimeout)
+    speakingOff.clear()
+    speakingIds.clear()
+    speaking = false
   }
 
   async function move(id: string) {
@@ -373,6 +404,7 @@ export function useVoice() {
     }
     screenSession = pendingScreenSession = undefined
     room = undefined
+    clearSpeaking()
     watching.value = []
     const was = channelId.value
     channelId.value = null

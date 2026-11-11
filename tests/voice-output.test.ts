@@ -45,7 +45,13 @@ vi.mock('~/utils/voice-processor', () => ({
 }))
 vi.mock('livekit-client', () => ({
   Track: { Kind: { Audio: 'audio' } },
-  RoomEvent: { TrackSubscribed: 'subscribed', TrackUnsubscribed: 'unsubscribed', Disconnected: 'disconnected', ActiveDeviceChanged: 'activeDeviceChanged' },
+  RoomEvent: {
+    TrackSubscribed: 'subscribed',
+    TrackUnsubscribed: 'unsubscribed',
+    Disconnected: 'disconnected',
+    ActiveDeviceChanged: 'activeDeviceChanged',
+    ActiveSpeakersChanged: 'speakers',
+  },
   Room: MockRoom,
 }))
 
@@ -336,5 +342,29 @@ describe('microphone device changes', () => {
     await deviceChange()
     expect(r.restartTrack).toHaveBeenCalledTimes(1)
     expect(toast).not.toHaveBeenCalled()
+  })
+})
+
+describe('speaking off-delay', () => {
+  it('turns on at once, holds after silence and cancels the off when speech resumes', async () => {
+    vi.useFakeTimers()
+    try {
+      const { SPEAKING_HOLD_MS } = await import('../app/composables/useVoice')
+      const r = await setup()
+      const speaking = () => voice.tiles.value[0]!.speaking
+      r.emit('speakers', [r.localParticipant])
+      expect(speaking()).toBe(true)
+      r.emit('speakers', [])
+      vi.advanceTimersByTime(SPEAKING_HOLD_MS - 1)
+      expect(speaking()).toBe(true)
+      r.emit('speakers', [r.localParticipant])
+      vi.advanceTimersByTime(SPEAKING_HOLD_MS)
+      expect(speaking()).toBe(true)
+      r.emit('speakers', [])
+      vi.advanceTimersByTime(SPEAKING_HOLD_MS)
+      expect(speaking()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
