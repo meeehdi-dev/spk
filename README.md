@@ -15,6 +15,8 @@ The design document is [PLAN.md](PLAN.md).
 - A Cloudflare R2 bucket and API token (file uploads)
 - Optional: a [Klipy](https://klipy.com) API key (GIFs)
 
+Nuxt UI's built-in Nuxt Fonts integration detects Geist and Geist Mono from the CSS theme and downloads them during development and production builds. Fresh environments need network access to fetch them; production serves the generated font assets locally without browser requests to font providers.
+
 ## Local development
 
 With mise, run `mise install` for the pinned Node and Corepack versions, then use `mise exec -- corepack pnpm …` for pnpm commands. With mise activated in your shell, `corepack enable pnpm` also makes the plain `pnpm` command available.

@@ -16,7 +16,18 @@ export default defineNuxtConfig({
     experimental: { websocket: true, tasks: true },
     scheduledTasks: { '0 * * * *': ['attachments:cleanup'] } // hourly: unsent uploads older than 24 h
   },
-  vite: { optimizeDeps: { include: ['better-auth/client/plugins', 'better-auth/vue'] } },
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@vueuse/integrations/useSortable',
+        'better-auth/client/plugins',
+        'better-auth/vue',
+        'livekit-client',
+        'wavesurfer.js',
+        'wavesurfer.js/plugins/regions'
+      ]
+    }
+  },
   devtools: { enabled: false },
   runtimeConfig: {
     databasePath: './data/spk.db',
