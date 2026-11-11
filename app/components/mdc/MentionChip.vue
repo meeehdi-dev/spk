@@ -8,7 +8,7 @@ const el = ref<HTMLElement>()
 onMounted(() => {
   registerCtx(el.value, {
     kind: 'mention',
-    items: () => admin.userGroups(props.uid).flat()
+    items: () => admin.userGroups(props.uid).flat(),
   })
 })
 </script>

@@ -1,16 +1,19 @@
-import { beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { ChatError, createMessage, deleteMessage } from '../server/db/messages'
-import { searchMessages } from '../server/db/search'
 import { attachments, channelMembers, channels, user } from '../server/db/schema'
+import { searchMessages } from '../server/db/search'
 import { activeFilter, parseSearch } from '../shared/utils/searchQuery'
 
 describe('parseSearch', () => {
   it('splits words and filters', () => {
     const p = parseSearch('hello from:Alex mentions:@Bo in:#general has:file has:IMAGE has:link before:2026-11-01 after:2026-10-01 world')
     expect(p.terms).toEqual(['hello', 'world'])
-    expect(p.from).toEqual(['Alex']); expect(p.mentions).toEqual(['Bo']); expect(p.in).toEqual(['general'])
+    expect(p.from).toEqual(['Alex'])
+    expect(p.mentions).toEqual(['Bo'])
+    expect(p.in).toEqual(['general'])
     expect(p.has).toEqual(['file', 'image', 'link'])
     expect(p.before).toBe(Date.parse('2026-11-01T00:00:00Z'))
     expect(p.after).toBe(Date.parse('2026-10-02T00:00:00Z')) // after = from the next day on
@@ -51,7 +54,8 @@ describe('searchMessages', () => {
     expect(search('b', 'zzz')).toEqual([])
   })
   it('every word must match; filters-only works', () => {
-    createMessage(db, 'a', 'g', 'red apple'); createMessage(db, 'a', 'g', 'red car')
+    createMessage(db, 'a', 'g', 'red apple')
+    createMessage(db, 'a', 'g', 'red car')
     expect(search('b', 'red app')).toEqual(['red apple'])
     expect(search('b', 'from:alex').sort()).toEqual(['red apple', 'red car'])
     expect(search('b', 'from:Cy')).toEqual([])
@@ -85,7 +89,8 @@ describe('searchMessages', () => {
     expect(search('c', 'from:alexa')).toEqual(['hey <@b> look'])
   })
   it('no DM leaks, scopes, deleted and edited messages', () => {
-    createMessage(db, 'a', 'dm', 'secret plan'); createMessage(db, 'a', 'g', 'public plan')
+    createMessage(db, 'a', 'dm', 'secret plan')
+    createMessage(db, 'a', 'g', 'public plan')
     expect(search('c', 'plan')).toEqual(['public plan'])
     expect(search('c', 'from:alex')).toEqual(['public plan'])
     expect(() => search('c', 'plan', { scope: 'channel', channelId: 'dm' })).toThrow(ChatError)

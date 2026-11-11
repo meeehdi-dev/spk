@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
+import StarterKit from '@tiptap/starter-kit'
+import { describe, expect, it } from 'vitest'
+
 import { fixSpoilerSeams, Spoiler, SpkMention } from '../app/utils/editor-extensions'
 
 const names: Record<string, string> = { u1: 'Alex' }
@@ -10,7 +11,7 @@ function roundTrip(md: string) {
   const editor = new Editor({
     extensions: [Markdown.configure({ markedOptions: { gfm: true } }), StarterKit.configure({ underline: false }), SpkMention.configure({ getLabel: id => names[id] }), Spoiler],
     content: md,
-    contentType: 'markdown'
+    contentType: 'markdown',
   })
   return { out: fixSpoilerSeams(editor.getMarkdown()), json: editor.getJSON(), editor }
 }

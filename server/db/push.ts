@@ -1,12 +1,21 @@
-import { and, eq, inArray } from 'drizzle-orm'
 import type { Db } from './client'
-import { channelMembers, channels, messageMentions, pushSubscriptions, user } from './schema'
 import type { MessageDto } from './messages'
+
+import { and, eq, inArray } from 'drizzle-orm'
+
 import { allowedBy, notificationBody, type NotifyPrefs } from '../../shared/utils/notifyText'
+
+import { channelMembers, channels, messageMentions, pushSubscriptions, user } from './schema'
 
 export interface PushJob { endpoint: string, keys: { p256dh: string, auth: string }, payload: { title: string, body: string, url: string, tag: string } }
 
-const parse = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) } catch { return fallback } }
+const parse = <T>(s: string, fallback: T): T => {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return fallback
+  }
+}
 
 /** Pushes for a new message: DM partner or mentioned/replied-to users, only those with no open socket and whose settings allow it. */
 export function pushJobs(db: Db, m: MessageDto, onlineIds: string[]): PushJob[] {

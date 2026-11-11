@@ -19,6 +19,8 @@ Use Node 26.13.0 and pnpm 12.18.0, pinned in `package.json`. `mise.toml` pins th
 - `pnpm install --frozen-lockfile`: install locked dependencies; build permissions live in `pnpm-workspace.yaml`.
 - `pnpm dev`: start Nuxt at `http://localhost:3000`.
 - `livekit-server --dev`: start local voice services.
+- `pnpm lint`: check code style, import order, Tailwind class order, and unhandled promises after `pnpm exec nuxt prepare`.
+- `pnpm lint:fix`: apply ESLint autofixes across the repository. For a focused edit, use `pnpm exec eslint <file> --fix`.
 - `pnpm typecheck`: check TypeScript and Vue types.
 - `pnpm knip`: check unused code and dependencies after `pnpm exec nuxt prepare`.
 - `pnpm jscpd`: check source duplication against the 5% ceiling.
@@ -28,11 +30,11 @@ Use Node 26.13.0 and pnpm 12.18.0, pinned in `package.json`. `mise.toml` pins th
 
 ## Coding Style & Naming Conventions
 
-Follow existing two-space indentation, single-quoted TypeScript strings, and omitted statement-ending semicolons. Use Vue single-file components with `<script setup lang="ts">`, PascalCase component filenames, and `useX` composable names. Follow Nuxt file-based routing conventions. Reuse existing Nuxt UI components and shared helpers. No formatter or lint script is configured; match surrounding code.
+Formatting is enforced by ESLint through `@nuxt/eslint` stylistic rules: two-space indentation, single quotes, no semicolons, trailing commas on multiline structures, and `1tbs` braces. Use Vue single-file components with `<script setup lang="ts">`, PascalCase component filenames, and `useX` composable names. Follow Nuxt file-based routing conventions. Reuse existing Nuxt UI components and shared helpers. Import groups are type, Node builtins, external packages, internal aliases, then relative paths; groups are separated by blank lines and alphabetized. Tailwind class order is enforced using the app CSS entry point. App, server, and test promises must be awaited, handled, or intentionally marked with `void`; unused variables must be removed or prefixed with `_`. No separate formatter is used.
 
 ## Testing Guidelines
 
-Name tests `tests/<feature>.test.ts`; use Vitest `describe`, `it`, and `expect`. Database tests use in-memory SQLite; browser-dependent tests can use `happy-dom`. Run `pnpm exec nuxt prepare` before testing a fresh checkout. Add focused tests for risky logic, authorization, validation, and regressions. No coverage threshold or E2E suite is configured. Run Knip, jscpd, typecheck, tests, and build before opening a PR.
+Name tests `tests/<feature>.test.ts`; use Vitest `describe`, `it`, and `expect`. Database tests use in-memory SQLite; browser-dependent tests can use `happy-dom`. Run `pnpm exec nuxt prepare` before testing a fresh checkout. Add focused tests for risky logic, authorization, validation, and regressions. No coverage threshold or E2E suite is configured. Run lint, Knip, jscpd, typecheck, tests, and build before opening a PR.
 
 ## Commit & Pull Request Guidelines
 

@@ -1,9 +1,10 @@
+import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client'
+
 import { loadRnnoise, NoiseGateWorkletNode, RnnoiseWorkletNode } from '@sapphi-red/web-noise-suppressor'
 import noiseGateWorklet from '@sapphi-red/web-noise-suppressor/noiseGateWorklet.js?url&no-inline'
-import rnnoiseWorklet from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url&no-inline'
 import rnnoiseWasm from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url'
 import rnnoiseSimdWasm from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url'
-import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client'
+import rnnoiseWorklet from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url&no-inline'
 
 export interface MicProcessing { enhanced: boolean, thresholdDb: number }
 
@@ -63,7 +64,10 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
 
   private dispose() {
     this.src?.disconnect()
-    for (const n of this.chain) { n.disconnect(); (n as { destroy?: () => void }).destroy?.() }
+    for (const n of this.chain) {
+      n.disconnect();
+      (n as { destroy?: () => void }).destroy?.()
+    }
     this.chain = []
   }
 

@@ -1,7 +1,9 @@
 import { and, eq } from 'drizzle-orm'
+
+import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
 import { channels } from '../db/schema'
 import { getSound } from '../db/sounds'
-import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
+
 import { createLimiter } from './limiter'
 
 const allowSound = createLimiter(1, SOUND_COOLDOWN_MS) // one soundboard sound per user per 3 s
@@ -10,7 +12,7 @@ const presenceFrame = (p: { userId: string, channelId: string, muted: boolean, d
   ({ type: 'voice:presence', ...(p ?? { channelId: null, userId }) })
 
 /** `voice:*` frames from a signed-in socket. `owner` is the socket: its close clears the session. */
-export function handleVoiceFrame(userId: string, m: Record<string, any>, owner: unknown) {
+export function handleVoiceFrame(userId: string, m: Record<string, unknown>, owner: unknown) {
   const sid = typeof m.sid === 'string' ? m.sid : ''
   if (!sid) return
   if (m.type === 'voice:join') {
@@ -23,7 +25,7 @@ export function handleVoiceFrame(userId: string, m: Record<string, any>, owner: 
     if (replacedSid) sendToUser(userId, { type: 'voice:kicked', sid })
     broadcast(presenceFrame(updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened }), userId))
   } else if (m.type === 'voice:state') {
-    const p = updateVoice(userId, sid, { muted: m.muted, deafened: m.deafened, speaking: m.speaking, cam: m.cam, screen: m.screen })
+    const p = updateVoice(userId, sid, m)
     if (p) broadcast(presenceFrame(p, userId))
   } else if (m.type === 'voice:sound') {
     const audience = soundAudience(userId, sid)

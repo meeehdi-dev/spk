@@ -1,5 +1,5 @@
-import { allowedBy, notificationBody, type NotifyPrefs } from '#shared/utils/notifyText'
 import { extractMentionIds } from '#shared/utils/markdown'
+import { allowedBy, notificationBody, type NotifyPrefs } from '#shared/utils/notifyText'
 
 export interface NotifySettings extends Required<NotifyPrefs> { sound: boolean, volume: number }
 
@@ -11,7 +11,7 @@ export function useMute() {
   const s = useNotifySettings()
   return {
     isMuted: (id: string) => s.value.muted.includes(id),
-    toggle: (id: string) => { s.value = { ...s.value, muted: s.value.muted.includes(id) ? s.value.muted.filter(x => x !== id) : [...s.value.muted, id] } }
+    toggle: (id: string) => { s.value = { ...s.value, muted: s.value.muted.includes(id) ? s.value.muted.filter(x => x !== id) : [...s.value.muted, id] } },
   }
 }
 
@@ -27,7 +27,8 @@ export function playBlip(volume: number) {
       g.gain.setValueAtTime(0.3 * volume, t + i * 0.09)
       g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.09 + 0.12)
       o.connect(g).connect(audio.destination)
-      o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.13)
+      o.start(t + i * 0.09)
+      o.stop(t + i * 0.09 + 0.13)
     }
   } catch { /* autoplay policy: stay silent */ }
 }
@@ -39,7 +40,7 @@ export function useNotificationPermission() {
   const permission = ref<NotificationPermission | 'unsupported'>(notificationsSupported() ? Notification.permission : 'unsupported')
   return {
     permission,
-    ask: async () => { if (notificationsSupported()) permission.value = await Notification.requestPermission() }
+    ask: async () => { if (notificationsSupported()) permission.value = await Notification.requestPermission() },
   }
 }
 
@@ -59,9 +60,13 @@ function useNotify() {
         toast.add({ title: o.title, description: o.body, icon: 'i-lucide-message-circle', actions: [{ label: 'Open', icon: 'i-lucide-arrow-right', onClick: () => navigateTo(o.target) }] })
       } else if (notificationsSupported() && Notification.permission === 'granted') {
         const n = new Notification(o.title, { body: o.body, tag: o.tag, icon: '/icons/icon-192.png' })
-        n.onclick = () => { window.focus(); navigateTo(o.target); n.close() }
+        n.onclick = () => {
+          window.focus()
+          void navigateTo(o.target)
+          n.close()
+        }
       }
-    }
+    },
   }
 }
 
@@ -77,7 +82,9 @@ export function useIncomingNotifications() {
   const route = useRoute()
   const bc = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('spk-notify')
   const claims = new Map<string, number[]>()
-  bc?.addEventListener('message', (e) => { claims.get(e.data.id)?.push(e.data.rank) })
+  bc?.addEventListener('message', (e) => {
+    claims.get(e.data.id)?.push(e.data.rank)
+  })
   onScopeDispose(() => bc?.close())
 
   // The focused tab wins (rank 0), otherwise the lowest random rank. A focused tab on that channel then stays silent, so nobody notifies.
@@ -107,7 +114,7 @@ export function useIncomingNotifications() {
     notify.message({
       title: isDm ? author : `${author} in #${ch.name}`,
       body: notificationBody(msg.body, nameOf) || (msg.attachments.length ? 'Sent an attachment' : ''),
-      target: `/c/${ch.id}/m/${msg.id}`, tag: ch.id, focused
+      target: `/c/${ch.id}/m/${msg.id}`, tag: ch.id, focused,
     })
   })
 }

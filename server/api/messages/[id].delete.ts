@@ -1,5 +1,5 @@
-import { ChatError, deleteMessage } from '../../db/messages'
 import { purgeObjects } from '../../db/attachments'
+import { ChatError, deleteMessage } from '../../db/messages'
 import { readState } from '../../db/reads'
 import { isAdminRole } from '../../db/roles'
 

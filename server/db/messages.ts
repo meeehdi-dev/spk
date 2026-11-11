@@ -1,9 +1,12 @@
-import { and, asc, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import type { Db } from './client'
-import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePreviews, messages, reactions, user } from './schema'
-import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
+
+import { and, asc, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+
 import { MAX_FILES } from '../../shared/utils/files'
 import { extractUrls } from '../../shared/utils/links'
+import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
+
+import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePreviews, messages, reactions, user } from './schema'
 
 /** A database or a transaction handle. */
 type Conn = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>
@@ -17,9 +20,16 @@ interface ReplyRef { id: string, userId: string, preview: string, deleted: boole
 export interface PreviewDto { url: string, title: string | null, description: string | null, siteName: string | null, image: boolean }
 
 export interface MessageDto {
-  id: string, channelId: string, userId: string, body: string
-  createdAt: number, editedAt: number | null
-  replyTo: ReplyRef | null, attachments: AttachmentDto[], reactions: ReactionDto[], previews: PreviewDto[]
+  id: string
+  channelId: string
+  userId: string
+  body: string
+  createdAt: number
+  editedAt: number | null
+  replyTo: ReplyRef | null
+  attachments: AttachmentDto[]
+  reactions: ReactionDto[]
+  previews: PreviewDto[]
 }
 
 export class ChatError extends Error {
@@ -68,7 +78,7 @@ function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDt
       replyTo: m.replyToId ? { id: m.replyToId, userId: o?.userId ?? '', preview: o && !o.deletedAt ? preview(o.body) : '', deleted: !o || !!o.deletedAt } : null,
       attachments: files.filter(f => f.messageId === m.id).map(f => ({ id: f.id, filename: f.filename, mime: f.mime, size: f.size, spoiler: f.spoiler })),
       reactions: [...grouped].map(([emoji, userIds]) => ({ emoji, userIds })),
-      previews: cards.filter(c => c.messageId === m.id).map(c => ({ url: c.p.url, title: c.p.title, description: c.p.description, siteName: c.p.siteName, image: !!c.p.imageKey }))
+      previews: cards.filter(c => c.messageId === m.id).map(c => ({ url: c.p.url, title: c.p.title, description: c.p.description, siteName: c.p.siteName, image: !!c.p.imageKey })),
     }
   })
 }

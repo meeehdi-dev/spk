@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto'
+
+import { eq } from 'drizzle-orm'
 import ogs from 'open-graph-scraper'
 import sharp from 'sharp'
-import { attachPreviews, cachedPreview, savePreview, type ParsedPreview } from '../db/previews'
-import { eq } from 'drizzle-orm'
-import { messages } from '../db/schema'
+
 import { extractUrls, isImageUrl, MAX_PREVIEWS } from '../../shared/utils/links'
+import { attachPreviews, cachedPreview, savePreview, type ParsedPreview } from '../db/previews'
+import { messages } from '../db/schema'
+
 import { logBackground } from './errorLog'
 import { createLimiter } from './limiter'
 import { safeFetch } from './ssrf'
@@ -19,12 +22,14 @@ const clip = (v: unknown, n: number) => typeof v === 'string' && v.trim() ? v.tr
 export async function parseHtml(html: string, pageUrl: string) {
   const { result } = await ogs({ html })
   let image: string | null = null
-  try { image = result.ogImage?.[0]?.url ? new URL(result.ogImage[0].url, pageUrl).href : null } catch { /* bad image URL */ }
+  try {
+    image = result.ogImage?.[0]?.url ? new URL(result.ogImage[0].url, pageUrl).href : null
+  } catch { /* bad image URL */ }
   return {
     title: clip(result.ogTitle ?? result.twitterTitle, 200),
     description: clip(result.ogDescription ?? result.twitterDescription, 400),
     siteName: clip(result.ogSiteName, 100),
-    image
+    image,
   }
 }
 
@@ -56,7 +61,12 @@ export function queuePreviews(message: { id: string, channelId: string, userId: 
       let p = cachedPreview(db, url)
       if (!p) {
         if (!allowFetch(message.userId)) continue
-        try { savePreview(db, url, await fetchOne(url)) } catch (e) { console.error(`[error] preview fetch failed: ${(e as Error).message}`); continue } // failures aren't cached: the link may work next time
+        try {
+          savePreview(db, url, await fetchOne(url))
+        } catch (e) {
+          console.error(`[error] preview fetch failed: ${(e as Error).message}`)
+          continue
+        } // failures aren't cached: the link may work next time
         p = cachedPreview(db, url)
       }
       if (p?.title || p?.description) ready.push(url)

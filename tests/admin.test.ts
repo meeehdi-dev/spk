@@ -1,12 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { createDb, type Db } from '../server/db/client'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { listUsersWithStorage, setBanned, setRole } from '../server/db/admin'
 import { createChannel, deleteChannel, renameChannel, reorderChannels } from '../server/db/channelsAdmin'
+import { createDb, type Db } from '../server/db/client'
+import { createMessage } from '../server/db/messages'
 import { checkResetToken, createResetToken, resetPassword, RESET_TTL_MS } from '../server/db/reset'
 import { isAdminRole } from '../server/db/roles'
 import { account, attachments, channels, messages, session, user, verification } from '../server/db/schema'
-import { createMessage } from '../server/db/messages'
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
@@ -15,7 +16,9 @@ const addSession = (userId: string) => db.insert(session).values({ id: `s-${user
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a', 'admin'); addUser('b'); addUser('c', 'admin')
+  addUser('a', 'admin')
+  addUser('b')
+  addUser('c', 'admin')
 })
 
 describe('admin gate', () => {
@@ -45,7 +48,8 @@ describe('ban', () => {
   it('flags the user, deletes their sessions, keeps their messages, and can be undone', () => {
     db.insert(channels).values({ id: 't', type: 'text', name: 't' }).run()
     createMessage(db, 'b', 't', 'hi', 1000)
-    addSession('b'); addSession('a')
+    addSession('b')
+    addSession('a')
     setBanned(db, 'a', 'b', true, ' spam ')
     const u = db.select().from(user).where(eq(user.id, 'b')).get()!
     expect(u).toMatchObject({ banned: true, banReason: 'spam' })
@@ -54,7 +58,7 @@ describe('ban', () => {
     setBanned(db, 'a', 'b', false)
     expect(db.select().from(user).where(eq(user.id, 'b')).get()).toMatchObject({ banned: false, banReason: null })
   })
-  it("you can't ban yourself, or someone who doesn't exist", () => {
+  it('you can\'t ban yourself, or someone who doesn\'t exist', () => {
     expect(() => setBanned(db, 'a', 'a', true)).toThrow(/yourself/)
     expect(() => setBanned(db, 'a', 'nope', true)).toThrow(/not found/)
   })
@@ -63,7 +67,8 @@ describe('ban', () => {
 describe('reset password link', () => {
   const addCred = () => db.insert(account).values({ id: 'acc', accountId: 'b', providerId: 'credential', userId: 'b', password: 'old' }).run()
   it('stores only a hash and works exactly once, signing the user out', () => {
-    addCred(); addSession('b')
+    addCred()
+    addSession('b')
     const token = createResetToken(db, 'b')
     expect(db.select().from(verification).get()!.identifier).not.toContain(token)
     expect(checkResetToken(db, token)).toBe(true)
@@ -106,7 +111,7 @@ describe('channels', () => {
     expect(() => createChannel(db, 'text', '   ')).toThrow(/Name/)
     expect(() => renameChannel(db, x.id, 'x'.repeat(33))).toThrow(/Name/)
   })
-  it("DMs can't be renamed or deleted", () => {
+  it('DMs can\'t be renamed or deleted', () => {
     db.insert(channels).values({ id: 'dm', type: 'dm' }).run()
     expect(() => renameChannel(db, 'dm', 'x')).toThrow(/not found/)
     expect(() => deleteChannel(db, 'dm')).toThrow(/not found/)
@@ -137,7 +142,7 @@ describe('storage total', () => {
   it('sums attachments per uploader', () => {
     db.insert(attachments).values([
       { id: '1', uploaderId: 'b', r2Key: 'k1', filename: 'a', mime: 'x/y', size: 100 },
-      { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 }
+      { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 },
     ]).run()
     const r = listUsersWithStorage(db)
     expect(r.totalBytes).toBe(150)
@@ -149,7 +154,9 @@ describe('storage total', () => {
 describe('voice sessions for admin actions', () => {
   it('finds a user’s session and a channel’s members', () => {
     const o = {}
-    joinVoice('b', 'v1', 'sid-b', o); joinVoice('a', 'v1', 'sid-a', o); joinVoice('c', 'v2', 'sid-c', o)
+    joinVoice('b', 'v1', 'sid-b', o)
+    joinVoice('a', 'v1', 'sid-a', o)
+    joinVoice('c', 'v2', 'sid-c', o)
     expect(sessionOf('b')).toEqual({ sid: 'sid-b', channelId: 'v1' })
     expect(sessionsIn('v1').map(s => s.userId).sort()).toEqual(['a', 'b'])
     dropVoiceOwner(o)

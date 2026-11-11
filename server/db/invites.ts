@@ -1,6 +1,9 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { Db } from './client'
+
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
+
+import { and, eq, gt, isNull } from 'drizzle-orm'
+
 import { invites } from './schema'
 
 export const INVITE_TTL_MS = 5 * 60_000
@@ -20,7 +23,7 @@ export function createInvite(db: Db, o: { createdBy: string | null, note?: strin
   const id = randomUUID()
   db.insert(invites).values({
     id, tokenHash: hashToken(token), note: o.note || null, createdBy: o.createdBy,
-    createdAt: new Date(now), expiresAt: new Date(now + INVITE_TTL_MS)
+    createdAt: new Date(now), expiresAt: new Date(now + INVITE_TTL_MS),
   }).run()
   return { id, token }
 }
@@ -34,7 +37,7 @@ export function checkInvite(db: Db, token: string, now = Date.now()): InviteStat
 /** Atomically marks an active invite as used (single use). Returns true if this call got it. */
 export function claimInvite(db: Db, token: string, now = Date.now()) {
   const r = db.update(invites).set({ usedAt: new Date(now) }).where(and(
-    eq(invites.tokenHash, hashToken(token)), isNull(invites.usedAt), isNull(invites.revokedAt), gt(invites.expiresAt, new Date(now))
+    eq(invites.tokenHash, hashToken(token)), isNull(invites.usedAt), isNull(invites.revokedAt), gt(invites.expiresAt, new Date(now)),
   )).run()
   return r.changes === 1
 }

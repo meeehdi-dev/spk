@@ -1,5 +1,6 @@
-import { isAdminRole } from '../db/roles'
 import type { H3Event } from 'h3'
+
+import { isAdminRole } from '../db/roles'
 
 /** The signed-in user or a 401. */
 export async function requireUser(event: H3Event) {

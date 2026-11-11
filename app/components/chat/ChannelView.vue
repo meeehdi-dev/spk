@@ -38,7 +38,10 @@ const replyTarget = computed(() => {
   const m = replyId.value ? byIdMsg(replyId.value) : undefined
   return m ? { id: m.id, name: nameOf(m.userId), preview: previewText(m.body.split('\n').find(l => l.trim()) ?? '', nameOf).slice(0, 80) } : null
 })
-watch(() => props.channelId, () => { replyId.value = null; editingId.value = null })
+watch(() => props.channelId, () => {
+  replyId.value = null
+  editingId.value = null
+})
 
 const fetchPage = (query: Record<string, string>) =>
   $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
@@ -58,9 +61,13 @@ async function load() {
     messages.value = r.messages
     hasMoreBefore.value = r.hasMoreBefore
     hasMoreAfter.value = r.hasMoreAfter
-  } catch (e: any) {
+  } catch (cause) {
+    const e = cause as { statusCode?: number, statusMessage?: string, message?: string, data?: { statusMessage?: string } } | null
     if (mine !== gen) return
-    if (e?.statusCode === 404 && props.messageId) { toast.add({ title: 'That message no longer exists', color: 'warning', icon: 'i-lucide-info' }); return navigateTo(`/c/${props.channelId}`, { replace: true }) }
+    if (e?.statusCode === 404 && props.messageId) {
+      toast.add({ title: 'That message no longer exists', color: 'warning', icon: 'i-lucide-info' })
+      return navigateTo(`/c/${props.channelId}`, { replace: true })
+    }
     denied.value = true
   } finally {
     if (mine === gen) loading.value = false
@@ -69,14 +76,17 @@ async function load() {
   await nextTick()
   if (props.messageId) jumpTo(props.messageId)
   else if (dividerId.value) document.getElementById(`msg-${dividerId.value}`)?.scrollIntoView({ block: 'start' })
-  else { pinned = true; scrollToEnd() }
+  else {
+    pinned = true
+    scrollToEnd()
+  }
   maybeRead()
 }
 
 // Read only while the window is focused and the newest message is loaded.
 function maybeRead() {
   if (!focused.value || loading.value || denied.value || hasMoreAfter.value || holdRead) return
-  markChannelRead(props.channelId)
+  void markChannelRead(props.channelId)
 }
 watch(focused, maybeRead)
 watch(hasMoreAfter, maybeRead)
@@ -90,7 +100,9 @@ const markUnread = async (id: string) => {
 // Not defineShortcuts: it preventDefault()s, which stops modals from closing on Esc. An open dialog owns the key.
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
-  holdRead = false; dividerId.value = null; markChannelRead(props.channelId)
+  holdRead = false
+  dividerId.value = null
+  void markChannelRead(props.channelId)
 })
 
 function scrollToEnd() {
@@ -103,7 +115,10 @@ function jumpTo(id: string) {
   if (!el) return
   el.scrollIntoView({ block: 'center' })
   highlightId.value = id
-  setTimeout(() => { if (highlightId.value === id) highlightId.value = undefined }, 2500)
+  setTimeout(() => {
+    if (highlightId.value === id)
+      highlightId.value = undefined
+  }, 2500)
 }
 
 async function loadOlder() {
@@ -134,8 +149,7 @@ async function loadNewer() {
     const r = await fetchPage({ after: messages.value.at(-1)!.id })
     messages.value = [...messages.value, ...r.messages]
     hasMoreAfter.value = r.hasMoreAfter
-  }
-  finally { loadingNewer = false }
+  } finally { loadingNewer = false }
 }
 
 async function toPresent() {
@@ -148,15 +162,15 @@ function onScroll() {
   if (!el) return
   pinned = pinAfterScroll(pinned, lastTop, el) // keyboard, drag and find-in-page going up release it; late content growth doesn't
   lastTop = el.scrollTop
-  loadOlder()
-  if (hasMoreAfter.value && el.scrollHeight - el.scrollTop - el.clientHeight < 200) loadNewer()
+  void loadOlder()
+  if (hasMoreAfter.value && el.scrollHeight - el.scrollTop - el.clientHeight < 200) void loadNewer()
 }
 
 // Content or viewport height changed: keep the bottom while pinned, and keep fetching while the page doesn't fill the view
 // (no scroll event fires then). Browser scroll anchoring stays on: it holds the view while bodies above it render late.
 useResizeObserver([content, scroller], () => {
   if (pinned) scrollToEnd()
-  loadOlder()
+  void loadOlder()
 })
 
 // --- live events ---
@@ -171,17 +185,17 @@ const typingText = computed(() => {
 socket.on((m) => {
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
-    pending.delete(m.nonce)
+    if (m.nonce) pending.delete(m.nonce)
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
     if (dividerId.value === null && m.message.userId !== me.value?.id && !focused.value) dividerId.value = m.message.id
     const el = scroller.value
     const atBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120 || m.message.userId === me.value?.id
     messages.value.push(m.message)
-    if (atBottom) nextTick(scrollToEnd)
-    if (m.message.userId !== me.value?.id) nextTick(maybeRead)
+    if (atBottom) void nextTick(scrollToEnd)
+    if (m.message.userId !== me.value?.id) void nextTick(maybeRead)
   } else if (m.type === 'message:error') {
-    const sent = pending.get(m.nonce)
-    pending.delete(m.nonce)
+    const sent = pending.get(m.nonce ?? '')
+    if (m.nonce) pending.delete(m.nonce)
     toast.add({ title: m.error, color: 'error', icon: 'i-lucide-circle-alert' })
     if (sent) input.value?.restore(sent.md, sent.files)
   } else if (m.type === 'message:edit' && m.message.channelId === props.channelId) {
@@ -214,7 +228,7 @@ function send(md: string, files: Upload[]) {
   pending.set(nonce, { md, files })
   const ok = socket.send({
     type: 'message:send', channelId: props.channelId, body: md, nonce, replyToId: replyId.value,
-    attachments: files.map(f => ({ id: f.id, spoiler: f.spoiler }))
+    attachments: files.map(f => ({ id: f.id, spoiler: f.spoiler })),
   })
   if (!ok) {
     pending.delete(nonce)
@@ -226,7 +240,10 @@ function send(md: string, files: Upload[]) {
 }
 
 // --- edit, delete, react, reply ---
-const apiError = (e: any, fallback: string) => toast.add({ title: e?.statusMessage || e?.data?.statusMessage || fallback, color: 'error', icon: 'i-lucide-circle-alert' })
+const apiError = (error: unknown, fallback: string) => {
+  const e = error as { statusMessage?: string, data?: { statusMessage?: string } } | null
+  toast.add({ title: e?.statusMessage || e?.data?.statusMessage || fallback, color: 'error', icon: 'i-lucide-circle-alert' })
+}
 
 provide(chatActionsKey, {
   async edit(id, body) {
@@ -235,10 +252,18 @@ provide(chatActionsKey, {
       const i = messages.value.findIndex(x => x.id === id)
       if (i >= 0) messages.value[i] = updated
       return true
-    } catch (e) { apiError(e, 'Could not save the edit'); return false }
+    } catch (e) {
+      apiError(e, 'Could not save the edit')
+      return false
+    }
   },
   async remove(id) {
-    try { await $fetch(`/api/messages/${id}`, { method: 'DELETE' }); removeMessage(id) } catch (e) { apiError(e, 'Could not delete the message') }
+    try {
+      await $fetch(`/api/messages/${id}`, { method: 'DELETE' })
+      removeMessage(id)
+    } catch (e) {
+      apiError(e, 'Could not delete the message')
+    }
   },
   async react(id, emoji, on) {
     try {
@@ -247,15 +272,23 @@ provide(chatActionsKey, {
       if (x) x.reactions = r.reactions
     } catch (e) { apiError(e, 'Could not react') }
   },
-  reply(id) { replyId.value = id; editingId.value = null; nextTick(() => input.value?.focus()) },
+  reply(id) {
+    replyId.value = id
+    editingId.value = null
+    void nextTick(() => input.value?.focus())
+  },
   jump(id) {
     if (byIdMsg(id)) jumpTo(id)
-    else navigateTo(`/c/${props.channelId}/m/${id}`)
+    else void navigateTo(`/c/${props.channelId}/m/${id}`)
   },
   async removePreview(id, url) {
-    try { await $fetch(`/api/messages/${id}/previews`, { method: 'DELETE', body: { url } }) } catch (e) { apiError(e, 'Could not remove the preview') }
+    try {
+      await $fetch(`/api/messages/${id}/previews`, { method: 'DELETE', body: { url } })
+    } catch (e) {
+      apiError(e, 'Could not remove the preview')
+    }
   },
-  openImage: f => { lightbox.value = f }
+  openImage: (f) => { lightbox.value = f },
 })
 
 // `↑` in an empty input edits your last message.
@@ -263,7 +296,10 @@ function editLast() {
   const mine = [...messages.value].reverse().find(m => m.userId === me.value?.id)
   if (mine) editingId.value = mine.id
 }
-const endEdit = () => { editingId.value = null; nextTick(() => input.value?.focus()) }
+const endEdit = () => {
+  editingId.value = null
+  void nextTick(() => input.value?.focus())
+}
 
 // --- rendering helpers: grouping and date dividers ---
 const rows = computed(() => {
@@ -281,55 +317,134 @@ const rows = computed(() => {
 // Client only: history needs the session cookie, which a server-side $fetch doesn't carry.
 onMounted(() => watch(() => [props.channelId, props.messageId], load, { immediate: true }))
 // After a reconnect, pull what we missed while offline.
-socket.onOpen(() => { if (!loading.value && !hasMoreAfter.value && messages.value.length) fetchPage({ after: messages.value.at(-1)!.id }).then((r) => { const seen = new Set(messages.value.map(x => x.id)); messages.value.push(...r.messages.filter(x => !seen.has(x.id))) }).catch(() => {}) })
+socket.onOpen(() => {
+  if (!loading.value && !hasMoreAfter.value && messages.value.length)
+    fetchPage({ after: messages.value.at(-1)!.id }).then((r) => {
+      const seen = new Set(messages.value.map(x => x.id))
+      messages.value.push(...r.messages.filter(x => !seen.has(x.id)))
+    }).catch(() => {})
+})
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted">
+    <div
+      v-if="denied"
+      class="flex flex-1 items-center justify-center gap-2 text-muted"
+    >
       <UIcon name="i-lucide-lock" /> No access
     </div>
     <template v-else>
-      <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto pb-9" @scroll.passive="onScroll">
+      <div
+        ref="scroller"
+        class="min-h-0 flex-1 overflow-y-auto pb-9"
+        @scroll.passive="onScroll"
+      >
         <div ref="content">
-        <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
-        <template v-else>
-          <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
-            <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-5" />
-            <div class="font-bold text-default">{{ channel?.type === 'dm' ? `This is the start of your conversation with ${label(channel).slice(1)}` : `Welcome to ${label(channel)}` }}</div>
-            <div v-if="!messages.length">No messages yet. Say something!</div>
+          <div
+            v-if="loading"
+            class="p-6 text-center text-sm text-muted"
+          >
+            Loading…
           </div>
-          <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
-            <template v-if="loadingMore"><UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages…</template>
-          </div>
-          <template v-for="r in rows" :key="r.key">
-            <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted">
-              <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
-            </div>
-            <template v-else>
-              <div v-if="dividerId === r.message!.id" class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error">
-                <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
-              </div>
-              <ChatMessage
-                :message="r.message!" :grouped="r.grouped! && dividerId !== r.message!.id" :highlighted="highlightId === r.message!.id"
-                :editing="editingId === r.message!.id" @quote="input?.quote($event)" @mark-unread="markUnread"
-                @edit-start="editingId = $event" @edit-end="endEdit"
+          <template v-else>
+            <div
+              v-if="!hasMoreBefore"
+              class="px-4 pt-6 pb-2 text-sm text-muted"
+            >
+              <UIcon
+                :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'"
+                class="size-5"
               />
+              <div class="font-bold text-default">
+                {{ channel?.type === 'dm' ? `This is the start of your conversation with ${label(channel).slice(1)}` : `Welcome to ${label(channel)}` }}
+              </div>
+              <div v-if="!messages.length">
+                No messages yet. Say something!
+              </div>
+            </div>
+            <div
+              v-else
+              class="flex h-9 items-center justify-center gap-2 text-xs text-muted"
+            >
+              <template v-if="loadingMore">
+                <UIcon
+                  name="i-lucide-loader-circle"
+                  class="size-4 animate-spin"
+                /> Loading older messages…
+              </template>
+            </div>
+            <template
+              v-for="r in rows"
+              :key="r.key"
+            >
+              <div
+                v-if="r.divider"
+                class="my-3 flex items-center gap-3 px-4 text-xs text-muted"
+              >
+                <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
+              </div>
+              <template v-else>
+                <div
+                  v-if="dividerId === r.message!.id"
+                  class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error"
+                >
+                  <USeparator
+                    color="error"
+                    class="flex-1"
+                  /><span>New messages</span><USeparator
+                    color="error"
+                    class="flex-1"
+                  />
+                </div>
+                <ChatMessage
+                  :message="r.message!"
+                  :grouped="r.grouped! && dividerId !== r.message!.id"
+                  :highlighted="highlightId === r.message!.id"
+                  :editing="editingId === r.message!.id"
+                  @quote="input?.quote($event)"
+                  @mark-unread="markUnread"
+                  @edit-start="editingId = $event"
+                  @edit-end="endEdit"
+                />
+              </template>
             </template>
           </template>
-        </template>
         </div>
       </div>
-      <div v-if="hasMoreAfter" class="flex justify-center py-1">
-        <UButton label="Jump to present" icon="i-lucide-chevrons-down" size="xs" @click="toPresent" />
+      <div
+        v-if="hasMoreAfter"
+        class="flex justify-center py-1"
+      >
+        <UButton
+          label="Jump to present"
+          icon="i-lucide-chevrons-down"
+          size="xs"
+          @click="toPresent"
+        />
       </div>
-      <div class="h-5 px-4 text-xs text-muted" aria-live="polite">{{ typingText }}</div>
+      <div
+        class="h-5 px-4 text-xs text-muted"
+        aria-live="polite"
+      >
+        {{ typingText }}
+      </div>
       <ClientOnly>
         <ChatMessageInput
-          :key="channelId" ref="input" :channel-id="channelId" :channel-name="label(channel)" :reply-to="replyTarget"
-          @send="send" @typing="socket.send({ type: 'typing', channelId })" @cancel-reply="replyId = null" @edit-last="editLast"
+          :key="channelId"
+          ref="input"
+          :channel-id="channelId"
+          :channel-name="label(channel)"
+          :reply-to="replyTarget"
+          @send="send"
+          @typing="socket.send({ type: 'typing', channelId })"
+          @cancel-reply="replyId = null"
+          @edit-last="editLast"
         />
-        <ChatImageLightbox :file="lightbox" @close="lightbox = null" />
+        <ChatImageLightbox
+          :file="lightbox"
+          @close="lightbox = null"
+        />
       </ClientOnly>
     </template>
   </div>

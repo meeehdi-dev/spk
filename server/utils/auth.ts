@@ -3,8 +3,9 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { admin } from 'better-auth/plugins'
 import { eq } from 'drizzle-orm'
-import * as schema from '../db/schema'
+
 import { claimInvite, linkInviteUser, releaseInvite } from '../db/invites'
+import * as schema from '../db/schema'
 
 import { logBackground } from './errorLog'
 
@@ -22,7 +23,7 @@ function create() {
     rateLimit: { enabled: true },
     user: { additionalFields: {
       displayName: { type: 'string', required: false, input: false },
-      avatarKey: { type: 'string', required: false, input: false }
+      avatarKey: { type: 'string', required: false, input: false },
     } },
     // Failures are logged with their path in server/api/auth/[...all].ts; this adds the stack of unexpected (5xx) ones.
     onAPIError: { onError: (e) => { if (!isAPIError(e) || e.statusCode >= 500) logBackground('auth', e) } },
@@ -48,8 +49,8 @@ function create() {
         if (linkInviteUser(db, token, userId) === null) {
           db.update(schema.user).set({ role: 'admin' }).where(eq(schema.user.id, userId)).run()
         }
-      })
-    }
+      }),
+    },
   })
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { SHORTCUT_GROUPS, stepChannel, stepUnread } from '../shared/utils/shortcuts'
 
 describe('channel stepping', () => {

@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
-import { createDb, type Db } from '../server/db/client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cancelPending, createPendingAttachment, purgeObjects, sweepOrphans } from '../server/db/attachments'
+import { createDb, type Db } from '../server/db/client'
 import { ChatError, createMessage, deleteMessage, editMessage, isEmoji, listMessages, setReaction } from '../server/db/messages'
 import { attachments, channelMembers, channels, messageMentions, reactions, user } from '../server/db/schema'
 import { cleanMime, formatBytes, MAX_FILE_BYTES } from '../shared/utils/files'
@@ -13,7 +14,9 @@ const fts = (q: string) => db.all<{ rowid: number }>(sql`SELECT rowid FROM messa
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a'); addUser('b'); addUser('c')
+  addUser('a')
+  addUser('b')
+  addUser('c')
   db.insert(channels).values([{ id: 't', type: 'text', name: 't' }, { id: 'dm', type: 'dm' }]).run()
   db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
 })
@@ -53,7 +56,10 @@ describe('delete', () => {
     expect(() => deleteMessage(db, 'a', false, m.id)).toThrow(/not found/)
   })
   it('calls R2 delete for each file and keeps going after a failure', async () => {
-    const del = vi.fn(async (k: string) => { if (k === 'b') throw new Error('boom') })
+    const del = vi.fn(async (k: string) => {
+      if (k === 'b')
+        throw new Error('boom')
+    })
     expect(await purgeObjects(['a', 'b', 'c'], del)).toEqual(['b'])
     expect(del).toHaveBeenCalledTimes(3)
   })
@@ -120,7 +126,9 @@ describe('attachments', () => {
     createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, day) // fresh
     const sent = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 1000)
     createMessage(db, 'a', 't', 'x', 1, { attachments: [{ id: sent.id }] })
-    const del = vi.fn(async () => { throw new Error('r2 down') })
+    const del = vi.fn(async () => {
+      throw new Error('r2 down')
+    })
     expect(await sweepOrphans(db, del, day + 2000)).toBe(0)
     expect(db.select().from(attachments).all()).toHaveLength(3)
     const ok = vi.fn(async () => {})

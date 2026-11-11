@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { checkInvite, claimInvite, createInvite, hashToken, releaseInvite, revokeInvite, linkInviteUser } from '../server/db/invites'
-import { invites, user } from '../server/db/schema'
 import { wouldRemoveLastAdmin } from '../server/db/roles'
+import { invites, user } from '../server/db/schema'
 
 let db: Db
 const addUser = (id: string, role = 'user') =>

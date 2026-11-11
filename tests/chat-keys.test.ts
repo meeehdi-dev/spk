@@ -1,15 +1,16 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
+import StarterKit from '@tiptap/starter-kit'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { chatKeys, fenceLanguage } from '../app/utils/editor-extensions'
 
 function press(content: string, key = 'ArrowUp') {
   const onArrowUp = vi.fn(() => true)
   const editor = new Editor({
     extensions: [Markdown, StarterKit, chatKeys({ onEnter: () => {}, onArrowUp })],
-    content, contentType: 'markdown'
+    content, contentType: 'markdown',
   })
   const handled = editor.view.someProp('handleKeyDown', f => f(editor.view, new KeyboardEvent('keydown', { key })))
   editor.destroy()
@@ -48,7 +49,11 @@ describe('chatKeys Enter on a fence line', () => {
     editor.view.someProp('handleKeyDown', f => f(editor.view, new KeyboardEvent('keydown', { key: 'Enter' })))
     return { onEnter, editor }
   }
-  afterEach(() => { for (const e of made) e.destroy(); made.length = 0 })
+  afterEach(() => {
+    for (const e of made)
+      e.destroy()
+    made.length = 0
+  })
   it('turns ```json into a json code block instead of sending', () => {
     const { onEnter, editor } = run('```json')
     expect(onEnter).not.toHaveBeenCalled()

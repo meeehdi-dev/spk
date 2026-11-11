@@ -1,5 +1,7 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { Db } from './client'
+
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+
 import { ChatError, accessibleChannel, messageDto } from './messages'
 import { linkPreviews, messagePreviews, messages } from './schema'
 

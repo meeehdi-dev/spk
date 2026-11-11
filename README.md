@@ -31,6 +31,8 @@ livekit-server --dev     # voice; dev key/secret are devkey / secret
 
 On first start with an empty database, the server logs an admin invite link. Open it to create the first admin. `localhost` allows mic and camera without HTTPS; elsewhere you need HTTPS.
 
+Run `pnpm lint` to check formatting, import order, Tailwind class order, and promise handling. Use `pnpm lint:fix` to apply autofixes, or `pnpm exec eslint <file> --fix` for individual files. ESLint uses Nuxt's generated configuration, so run `pnpm exec nuxt prepare` first in a fresh checkout. CI requires lint to pass alongside the existing checks.
+
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.

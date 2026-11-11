@@ -42,5 +42,5 @@ export default defineWebSocketHandler({
     const id = userOf.get(peer)
     const p = id ? removePeer(id, peer) : null
     if (id && p) broadcast({ type: 'presence:update', userId: id, status: p })
-  }
+  },
 })

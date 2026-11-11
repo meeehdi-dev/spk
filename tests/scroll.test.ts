@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { atBottom, pinAfterScroll, keepPosition, needsOlder } from '../app/utils/scroll'
 
 describe('scroll math', () => {

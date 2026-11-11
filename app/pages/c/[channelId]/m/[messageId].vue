@@ -3,5 +3,8 @@ const route = useRoute()
 </script>
 
 <template>
-  <ChatChannelView :channel-id="String(route.params.channelId)" :message-id="String(route.params.messageId)" />
+  <ChatChannelView
+    :channel-id="String(route.params.channelId)"
+    :message-id="String(route.params.messageId)"
+  />
 </template>

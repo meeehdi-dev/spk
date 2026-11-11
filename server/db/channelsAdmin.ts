@@ -1,13 +1,19 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Db } from './client'
-import { attachments, channels, messages } from './schema'
+
+import { and, asc, eq, sql } from 'drizzle-orm'
+
 import { ChatError } from './messages'
+import { attachments, channels, messages } from './schema'
 
 type Kind = 'text' | 'voice'
-const kind = (v: unknown): Kind => { if (v === 'text' || v === 'voice') return v; throw new ChatError(400, 'Type must be text or voice') }
+const kind = (v: unknown): Kind => {
+  if (v === 'text' || v === 'voice')
+    return v
+  throw new ChatError(400, 'Type must be text or voice')
+}
 
 function cleanChannelName(v: unknown) {
-  const name = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim() : ''
+  const name = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '' // eslint-disable-line no-control-regex -- Strip control characters from user-provided names.
   if (name.length < 1 || name.length > 32) throw new ChatError(400, 'Name must be 1–32 characters')
   return name
 }

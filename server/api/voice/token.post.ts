@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+
 import { channels } from '../../db/schema'
 
 // Only real voice channels get a token.

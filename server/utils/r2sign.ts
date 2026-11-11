@@ -17,7 +17,7 @@ export async function presignPut(c: R2Config, key: string, o: { size: number, ty
   const url = new URL(r2Url(c, key))
   url.searchParams.set('X-Amz-Expires', String(o.expiresIn ?? 600))
   const req = await r2Client(c).sign(url.toString(), {
-    method: 'PUT', headers: { 'content-type': o.type, 'content-length': String(o.size) }, aws: { signQuery: true, allHeaders: true }
+    method: 'PUT', headers: { 'content-type': o.type, 'content-length': String(o.size) }, aws: { signQuery: true, allHeaders: true },
   })
   return req.url
 }

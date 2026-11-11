@@ -10,7 +10,7 @@ export async function parseChatMarkdown(body: string): Promise<MDCRoot> {
   processor ??= import('@nuxtjs/mdc/runtime').then(m => m.createParseProcessor({
     remark: { plugins: { 'remark-mdc': false, 'spk': { instance: remarkSpk } } },
     highlight: false,
-    toc: false
+    toc: false,
   }) as never)
   const file = await (await processor).process({ value: body })
   if (cache.size > 500) cache.delete(cache.keys().next().value!)

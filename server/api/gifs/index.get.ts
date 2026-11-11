@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { createLimiter } from '../../utils/limiter'
+
 import { mapGifs } from '../../utils/klipy'
+import { createLimiter } from '../../utils/limiter'
 
 const allow = createLimiter(30, 60_000)
 
@@ -15,7 +16,7 @@ export default defineEventHandler(async (event) => {
   try {
     const json = await $fetch(`https://api.klipy.com/api/v1/${encodeURIComponent(key)}/gifs/${q ? 'search' : 'trending'}`, {
       query: { page, per_page: 24, ...(q ? { q } : {}), customer_id: createHash('sha256').update(u.id).digest('hex').slice(0, 32) },
-      timeout: 5000
+      timeout: 5000,
     })
     return mapGifs(json)
   } catch {

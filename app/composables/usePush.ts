@@ -9,9 +9,14 @@ export function usePush() {
   const prefs = () => ({ dms: settings.value.dms, pings: settings.value.pings, dnd: settings.value.dnd, muted: settings.value.muted })
   const current = async () => supported ? (await navigator.serviceWorker.ready).pushManager.getSubscription() : null
 
-  onMounted(async () => { subscribed.value = !!(await current()) })
+  onMounted(async () => {
+    subscribed.value = !!(await current())
+  })
   // Keep the server's copy of the settings current, so it never pushes what this browser would hide.
-  watchDebounced(() => JSON.stringify(prefs()), () => { if (subscribed.value) $fetch('/api/push', { method: 'PUT', body: { prefs: prefs() } }).catch(() => {}) }, { debounce: 500 })
+  watchDebounced(() => JSON.stringify(prefs()), () => {
+    if (subscribed.value)
+      $fetch('/api/push', { method: 'PUT', body: { prefs: prefs() } }).catch(() => {})
+  }, { debounce: 500 })
 
   return {
     supported,
@@ -24,8 +29,11 @@ export function usePush() {
     },
     async unsubscribe() {
       const sub = await current()
-      if (sub) { await $fetch('/api/push', { method: 'DELETE', body: { endpoint: sub.endpoint } }); await sub.unsubscribe() }
+      if (sub) {
+        await $fetch('/api/push', { method: 'DELETE', body: { endpoint: sub.endpoint } })
+        await sub.unsubscribe()
+      }
       subscribed.value = false
-    }
+    },
   }
 }

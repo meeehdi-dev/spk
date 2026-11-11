@@ -1,5 +1,5 @@
-import { deleteChannel } from '../../../db/channelsAdmin'
 import { purgeObjects } from '../../../db/attachments'
+import { deleteChannel } from '../../../db/channelsAdmin'
 
 // Deleting a voice channel kicks whoever is in it; deleting any channel removes its messages and their files.
 export default defineEventHandler(async (event) => {

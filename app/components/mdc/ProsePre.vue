@@ -35,7 +35,10 @@ const wrap = ref(false)
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
 const pickerOpen = ref(false)
 const langs = ref<string[]>(['text'])
-watch(pickerOpen, async (o) => { if (o && langs.value.length < 2) langs.value = await languageList() })
+watch(pickerOpen, async (o) => {
+  if (o && langs.value.length < 2)
+    langs.value = await languageList()
+})
 const label = computed(() => !explicit.value && !picked.value && detected.value ? `auto: ${detected.value}` : lang.value)
 
 const root = ref<HTMLElement>()
@@ -46,31 +49,64 @@ onMounted(() => {
       { label: 'Copy code', icon: 'i-lucide-copy', onSelect: () => copyText(code.value) },
       { label: 'Copy as Markdown', icon: 'i-lucide-file-code', onSelect: () => copyText('```' + (lang.value === 'text' ? '' : lang.value) + '\n' + code.value + '\n```') },
       { label: wrap.value ? 'Unwrap lines' : 'Wrap lines', icon: 'i-lucide-wrap-text', onSelect: () => { wrap.value = !wrap.value } },
-      { label: 'Change language', icon: 'i-lucide-languages', onSelect: () => { pickerOpen.value = true } }
-    ]
+      { label: 'Change language', icon: 'i-lucide-languages', onSelect: () => { pickerOpen.value = true } },
+    ],
   })
 })
 </script>
 
 <template>
-  <div ref="root" :data-codeblock="code" class="my-1 overflow-hidden rounded-md border border-default bg-muted text-sm">
+  <div
+    ref="root"
+    :data-codeblock="code"
+    class="my-1 overflow-hidden rounded-md border border-default bg-muted text-sm"
+  >
     <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">
       <USelectMenu
         v-model:open="pickerOpen"
-        :model-value="lang" :items="langs" searchable search-input-placeholder="Search language"
-        size="xs" variant="ghost" color="neutral" class="w-40" :ui="{ content: 'min-w-48' }"
-        icon="i-lucide-languages" aria-label="Code language"
+        :model-value="lang"
+        :items="langs"
+        searchable
+        search-input-placeholder="Search language"
+        size="xs"
+        variant="ghost"
+        color="neutral"
+        class="w-40"
+        :ui="{ content: 'min-w-48' }"
+        icon="i-lucide-languages"
+        aria-label="Code language"
         @update:model-value="pick($event as string)"
       >
-        <template #default>{{ label }}</template>
+        <template #default>
+          {{ label }}
+        </template>
       </USelectMenu>
       <span class="ml-1">{{ lines }} {{ lines === 1 ? 'line' : 'lines' }}</span>
-      <UButton v-if="huge && !forced" label="Highlight" icon="i-lucide-sparkles" size="xs" color="neutral" variant="ghost" @click="forced = true" />
       <UButton
-        class="ml-auto" :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" size="xs" color="neutral" variant="ghost"
-        aria-label="Copy code" @click="copy(code)"
+        v-if="huge && !forced"
+        label="Highlight"
+        icon="i-lucide-sparkles"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        @click="forced = true"
+      />
+      <UButton
+        class="ml-auto"
+        :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        aria-label="Copy code"
+        @click="copy(code)"
       />
     </div>
-    <div class="code-body" :class="wrap ? 'code-wrap' : 'overflow-x-auto'" v-html="html" />
+    <!-- eslint-disable vue/no-v-html -- HTML comes from Shiki or the escaped plainHtml fallback. -->
+    <div
+      class="code-body"
+      :class="wrap ? 'code-wrap' : 'overflow-x-auto'"
+      v-html="html"
+    />
+    <!-- eslint-enable vue/no-v-html -->
   </div>
 </template>

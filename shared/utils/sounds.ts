@@ -19,12 +19,23 @@ export function cropMono(channels: Float32Array[], sampleRate: number, startS: n
 export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
   const buf = new ArrayBuffer(44 + samples.length * 2)
   const v = new DataView(buf)
-  const text = (at: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)) }
-  text(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVE')
-  text(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true) // PCM
-  v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true) // mono, byte rate
-  v.setUint16(32, 2, true); v.setUint16(34, 16, true) // block align, bits
-  text(36, 'data'); v.setUint32(40, samples.length * 2, true)
+  const text = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++)
+      v.setUint8(at + i, s.charCodeAt(i))
+  }
+  text(0, 'RIFF')
+  v.setUint32(4, 36 + samples.length * 2, true)
+  text(8, 'WAVE')
+  text(12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true) // PCM
+  v.setUint16(22, 1, true)
+  v.setUint32(24, sampleRate, true)
+  v.setUint32(28, sampleRate * 2, true) // mono, byte rate
+  v.setUint16(32, 2, true)
+  v.setUint16(34, 16, true) // block align, bits
+  text(36, 'data')
+  v.setUint32(40, samples.length * 2, true)
   samples.forEach((s, i) => v.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, s)) * (s < 0 ? 0x8000 : 0x7fff)), true))
   return new Uint8Array(buf)
 }

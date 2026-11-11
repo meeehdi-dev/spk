@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { cropMono, encodeWav, MAX_SOUND_BYTES } from '../shared/utils/sounds'
+
 import { createDb, type Db } from '../server/db/client'
 import { user } from '../server/db/schema'
 import { checkSoundSize, createSound, deleteSound, listSounds, updateSound } from '../server/db/sounds'
 import { createLimiter } from '../server/utils/limiter'
 import { joinVoice, leaveVoice, soundAudience } from '../server/utils/voicePresence'
-import { SOUND_COOLDOWN_MS } from '../shared/utils/sounds'
+import { cropMono, encodeWav, MAX_SOUND_BYTES, SOUND_COOLDOWN_MS } from '../shared/utils/sounds'
 
 describe('WAV encoder', () => {
   it('writes a mono 16-bit PCM header and the right length', () => {
@@ -44,7 +44,10 @@ describe('cooldown', () => {
 describe('sounds', () => {
   let db: Db
   const id = '11111111-1111-4111-8111-111111111111'
-  beforeEach(() => { db = createDb(':memory:'); db.insert(user).values({ id: 'a', name: 'a', email: 'a@x.dev', role: 'admin' }).run() })
+  beforeEach(() => {
+    db = createDb(':memory:')
+    db.insert(user).values({ id: 'a', name: 'a', email: 'a@x.dev', role: 'admin' }).run()
+  })
 
   it('presign accepts only small files', () => {
     expect(checkSoundSize(1000)).toBe(1000)
@@ -69,7 +72,9 @@ describe('sounds', () => {
 
 describe('sound relay audience', () => {
   it('is the channel of the current session only', () => {
-    joinVoice('s1', 'ch', 'x', {}); joinVoice('s2', 'ch', 'y', {}); joinVoice('s3', 'other', 'z', {})
+    joinVoice('s1', 'ch', 'x', {})
+    joinVoice('s2', 'ch', 'y', {})
+    joinVoice('s3', 'other', 'z', {})
     expect(soundAudience('s1', 'x')?.sort()).toEqual(['s1', 's2'])
     expect(soundAudience('s1', 'stale')).toBeNull()
     expect(soundAudience('nobody', 'x')).toBeNull()

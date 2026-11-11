@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { listChannelsFor, openDm } from '../server/db/dms'
 import { accessibleChannel, createMessage, listMessages } from '../server/db/messages'
@@ -10,7 +11,9 @@ const addUser = (id: string, createdAt = new Date(0)) => db.insert(user).values(
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a'); addUser('b'); addUser('c')
+  addUser('a')
+  addUser('b')
+  addUser('c')
   db.insert(channels).values({ id: 't', type: 'text', name: 't' }).run()
 })
 
@@ -27,7 +30,9 @@ describe('DM access', () => {
   })
   it('lists only your own DMs, newest activity first', () => {
     const ab = openDm(db, 'a', 'b'), ac = openDm(db, 'a', 'c'), bc = openDm(db, 'b', 'c')
-    createMessage(db, 'a', ab.id, 'x', 1000); createMessage(db, 'a', ac.id, 'y', 2000); createMessage(db, 'b', bc.id, 'z', 3000)
+    createMessage(db, 'a', ab.id, 'x', 1000)
+    createMessage(db, 'a', ac.id, 'y', 2000)
+    createMessage(db, 'b', bc.id, 'z', 3000)
     const dms = listChannelsFor(db, 'a').filter(c => c.type === 'dm')
     expect(dms.map(d => [d.id, d.otherUserId])).toEqual([[ac.id, 'c'], [ab.id, 'b']])
   })

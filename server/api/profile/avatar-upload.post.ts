@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+
 import { AVATAR_MAX_UPLOAD, AVATAR_TYPES } from '../../utils/avatar'
 
 // Step 1: presigned PUT for the raw image. Step 2 (avatar.post) crops it and replaces it.

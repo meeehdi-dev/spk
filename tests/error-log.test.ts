@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { logFailure, safePath } from '../server/utils/errorLog'
 
 describe('safePath', () => {

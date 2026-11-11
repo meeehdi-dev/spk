@@ -6,7 +6,10 @@ const items = computed(() => admin.userGroups(props.userId))
 </script>
 
 <template>
-  <UContextMenu :items="items as never" :disabled="disabled || !items.length">
+  <UContextMenu
+    :items="items as never"
+    :disabled="disabled || !items.length"
+  >
     <slot />
   </UContextMenu>
 </template>

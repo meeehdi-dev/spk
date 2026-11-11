@@ -1,7 +1,10 @@
-import { sql, type SQL } from 'drizzle-orm'
 import type { Db } from './client'
-import { accessibleChannel, ChatError } from './messages'
+
+import { sql, type SQL } from 'drizzle-orm'
+
 import { ftsTerm, hasAnything, parseSearch } from '../../shared/utils/searchQuery'
+
+import { accessibleChannel, ChatError } from './messages'
 
 type SearchScope = 'channel' | 'channels' | 'dms' | 'everything'
 const PAGE = 20
@@ -68,10 +71,12 @@ export function searchMessages(db: Db, userId: string, opts: { q?: unknown, scop
       (SELECT count(*) FROM attachments a WHERE a.message_id = m.id) AS files
     FROM messages m
     JOIN channels c ON c.id = m.channel_id
-    ${ranked ? sql`LEFT JOIN (
+    ${ranked
+      ? sql`LEFT JOIN (
       SELECT rowid AS r, bm25(messages_fts) AS rank, snippet(messages_fts, 0, ${MARK_START}, ${MARK_END}, '…', 16) AS snip
       FROM messages_fts WHERE messages_fts MATCH ${p.terms.map(ftsTerm).join(' OR ')}
-    ) h ON h.r = m.rowid` : sql``}
+    ) h ON h.r = m.rowid`
+      : sql``}
     WHERE ${sql.join(where, sql` AND `)}
     ORDER BY ${ranked ? sql`h.rank IS NULL, h.rank, ` : sql``}m.created_at DESC, m.id DESC
     LIMIT ${PAGE + 1} OFFSET ${offset}`)
@@ -79,8 +84,8 @@ export function searchMessages(db: Db, userId: string, opts: { q?: unknown, scop
   return {
     results: rows.slice(0, PAGE).map(r => ({
       messageId: r.id, channelId: r.channel_id, userId: r.user_id, createdAt: r.created_at,
-      snippet: r.snip ?? r.body.replace(/\s+/g, ' ').trim().slice(0, 160), text: r.body, attachments: r.files
+      snippet: r.snip ?? r.body.replace(/\s+/g, ' ').trim().slice(0, 160), text: r.body, attachments: r.files,
     })),
-    nextCursor: rows.length > PAGE ? String(offset + PAGE) : null
+    nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
   }
 }

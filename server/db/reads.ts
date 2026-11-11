@@ -1,5 +1,7 @@
-import { and, eq, sql } from 'drizzle-orm'
 import type { Db } from './client'
+
+import { and, eq, sql } from 'drizzle-orm'
+
 import { channelReads, messages } from './schema'
 
 export interface UnreadState { unread: number, mentions: number }

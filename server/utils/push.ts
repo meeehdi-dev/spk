@@ -1,6 +1,9 @@
-import * as webpush from 'web-push'
 import type { MessageDto } from '../db/messages'
+
+import * as webpush from 'web-push'
+
 import { pushJobs, removePush } from '../db/push'
+
 import { onlineUserIds } from './peers'
 
 let ready: boolean | undefined

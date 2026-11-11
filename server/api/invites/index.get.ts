@@ -1,4 +1,5 @@
 import { desc, eq } from 'drizzle-orm'
+
 import { inviteStatus } from '../../db/invites'
 import { invites, user } from '../../db/schema'
 
@@ -8,6 +9,6 @@ export default defineEventHandler(async (event) => {
     .from(invites).leftJoin(user, eq(user.id, invites.usedBy)).orderBy(desc(invites.createdAt)).all()
   return rows.map(({ i, usedByName, usedByEmail }) => ({
     id: i.id, note: i.note, createdAt: i.createdAt, expiresAt: i.expiresAt, status: inviteStatus(i),
-    usedBy: i.usedBy ? { id: i.usedBy, name: usedByName ?? usedByEmail } : null
+    usedBy: i.usedBy ? { id: i.usedBy, name: usedByName ?? usedByEmail } : null,
   }))
 })

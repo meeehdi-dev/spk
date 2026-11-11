@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { CAMERA_CAPTURE, SCREEN_AUDIO_PUBLISH, VOICE_PUBLISH_DEFAULTS, SCREEN_AUDIO_CAPTURE, initialMute, matchDevice, sensitivityToDb, toggleDeafen, toggleMute } from '../shared/utils/voice'
+
 import { dropVoiceOwner, joinVoice, leaveVoice, updateVoice, voiceSnapshot } from '../server/utils/voicePresence'
 import { createVoiceToken } from '../server/utils/voiceToken'
+import { CAMERA_CAPTURE, SCREEN_AUDIO_PUBLISH, VOICE_PUBLISH_DEFAULTS, SCREEN_AUDIO_CAPTURE, initialMute, matchDevice, sensitivityToDb, toggleDeafen, toggleMute } from '../shared/utils/voice'
 
 describe('mute / deafen', () => {
   it('deafening also mutes; undeafening restores the earlier mute state', () => {
@@ -59,7 +60,8 @@ describe('voice presence', () => {
   })
   it('closing the socket clears its sessions only', () => {
     const a = {}, b = {}
-    joinVoice('u3', 'c1', 's', a); joinVoice('u4', 'c1', 't', b)
+    joinVoice('u3', 'c1', 's', a)
+    joinVoice('u4', 'c1', 't', b)
     expect(dropVoiceOwner(a)).toEqual([{ userId: 'u3', channelId: 'c1' }])
     expect(voiceSnapshot().map(p => p.userId)).toEqual(['u4'])
     dropVoiceOwner(b)

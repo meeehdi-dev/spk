@@ -1,14 +1,17 @@
-import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import type { Db } from './client'
-import { attachments } from './schema'
-import { ChatError } from './messages'
+
+import { and, eq, isNull, lt, sql } from 'drizzle-orm'
+
 import { cleanMime, MAX_FILE_BYTES } from '../../shared/utils/files'
+
+import { ChatError } from './messages'
+import { attachments } from './schema'
 
 const MAX_PENDING_PER_USER = 30
 const ORPHAN_AGE_MS = 24 * 3600_000
 
 const cleanName = (v: unknown) =>
-  (typeof v === 'string' ? v : '').replace(/[\u0000-\u001f\u007f/\\]/g, '').trim().slice(0, 200) || 'file'
+  (typeof v === 'string' ? v : '').replace(/[\u0000-\u001f\u007f/\\]/g, '').trim().slice(0, 200) || 'file' // eslint-disable-line no-control-regex -- Strip control characters from user-provided names.
 
 /** The presign request: validates size and type, inserts the row with message_id = null. */
 export function createPendingAttachment(db: Db, userId: string, input: { filename?: unknown, mime?: unknown, size?: unknown }, now = Date.now()) {
@@ -21,7 +24,7 @@ export function createPendingAttachment(db: Db, userId: string, input: { filenam
   if (pending >= MAX_PENDING_PER_USER) throw new ChatError(429, 'Too many unsent uploads')
   const id = crypto.randomUUID()
   return db.insert(attachments).values({
-    id, uploaderId: userId, r2Key: `attachments/${userId}/${id}`, filename: cleanName(input.filename), mime, size, createdAt: new Date(now)
+    id, uploaderId: userId, r2Key: `attachments/${userId}/${id}`, filename: cleanName(input.filename), mime, size, createdAt: new Date(now),
   }).returning().get()
 }
 
@@ -35,7 +38,13 @@ export function cancelPending(db: Db, userId: string, id: string) {
 /** Deletes R2 objects; one failure doesn't stop the rest. Returns the keys that failed. */
 export async function purgeObjects(keys: string[], deleteKey: (key: string) => Promise<void>) {
   const failed: string[] = []
-  for (const k of keys) { try { await deleteKey(k) } catch { failed.push(k) } }
+  for (const k of keys) {
+    try {
+      await deleteKey(k)
+    } catch {
+      failed.push(k)
+    }
+  }
   return failed
 }
 
@@ -45,7 +54,11 @@ export async function sweepOrphans(db: Db, deleteKey: (key: string) => Promise<v
     .where(and(isNull(attachments.messageId), lt(attachments.createdAt, new Date(now - ORPHAN_AGE_MS)))).all()
   let removed = 0
   for (const o of old) {
-    try { await deleteKey(o.key) } catch { continue } // keep the row, try again next run
+    try {
+      await deleteKey(o.key)
+    } catch {
+      continue
+    } // keep the row, try again next run
     db.delete(attachments).where(eq(attachments.id, o.id)).run()
     removed++
   }

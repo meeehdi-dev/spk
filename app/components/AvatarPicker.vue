@@ -25,8 +25,25 @@ async function pick(e: Event) {
 
 <template>
   <div class="flex items-center gap-3">
-    <UAvatar :src="avatarSrc(me ?? undefined)" icon="i-lucide-user" size="xl" />
-    <input ref="input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" @change="pick">
-    <UButton label="Choose avatar" icon="i-lucide-image-up" color="neutral" variant="outline" :loading="busy" @click="input?.click()" />
+    <UAvatar
+      :src="avatarSrc(me ?? undefined)"
+      icon="i-lucide-user"
+      size="xl"
+    />
+    <input
+      ref="input"
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif"
+      class="hidden"
+      @change="pick"
+    >
+    <UButton
+      label="Choose avatar"
+      icon="i-lucide-image-up"
+      color="neutral"
+      variant="outline"
+      :loading="busy"
+      @click="input?.click()"
+    />
   </div>
 </template>

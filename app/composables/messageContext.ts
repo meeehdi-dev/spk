@@ -1,7 +1,11 @@
 import type { InjectionKey } from 'vue'
 
 export interface MessageCtx {
-  id: string, channelId: string, userId: string, body: string, own: boolean
+  id: string
+  channelId: string
+  userId: string
+  body: string
+  own: boolean
   /** Put `> text` into the input. */
   quote: (text: string) => void
   /** Own messages only: saves a new language for the Nth fenced block with this code as an edit. False if it can't be located. */

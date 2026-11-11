@@ -18,7 +18,7 @@ export const user = sqliteTable('users', {
   banReason: text('ban_reason'),
   banExpires: ts('ban_expires'),
   displayName: text('display_name'),
-  avatarKey: text('avatar_key')
+  avatarKey: text('avatar_key'),
 }, t => [uniqueIndex('users_display_name_nocase').on(sql`lower(${t.displayName})`)])
 
 export const session = sqliteTable('sessions', {
@@ -30,7 +30,7 @@ export const session = sqliteTable('sessions', {
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  impersonatedBy: text('impersonated_by')
+  impersonatedBy: text('impersonated_by'),
 }, t => [index('sessions_user').on(t.userId)])
 
 export const account = sqliteTable('accounts', {
@@ -46,7 +46,7 @@ export const account = sqliteTable('accounts', {
   scope: text('scope'),
   password: text('password'),
   createdAt: ts('created_at').notNull().default(now),
-  updatedAt: ts('updated_at').notNull().default(now)
+  updatedAt: ts('updated_at').notNull().default(now),
 }, t => [index('accounts_user').on(t.userId)])
 
 export const verification = sqliteTable('verifications', {
@@ -55,7 +55,7 @@ export const verification = sqliteTable('verifications', {
   value: text('value').notNull(),
   expiresAt: ts('expires_at').notNull(),
   createdAt: ts('created_at').notNull().default(now),
-  updatedAt: ts('updated_at').notNull().default(now)
+  updatedAt: ts('updated_at').notNull().default(now),
 })
 
 // --- app tables ---
@@ -69,7 +69,7 @@ export const invites = sqliteTable('invites', {
   expiresAt: ts('expires_at').notNull(),
   usedAt: ts('used_at'),
   usedBy: text('used_by').references(() => user.id),
-  revokedAt: ts('revoked_at')
+  revokedAt: ts('revoked_at'),
 })
 
 export const channels = sqliteTable('channels', {
@@ -78,7 +78,7 @@ export const channels = sqliteTable('channels', {
   name: text('name'),
   lastActivityAt: ts('last_activity_at'),
   position: integer('position'),
-  createdAt: ts('created_at').notNull().default(now)
+  createdAt: ts('created_at').notNull().default(now),
 })
 
 export const sounds = sqliteTable('sounds', {
@@ -89,12 +89,12 @@ export const sounds = sqliteTable('sounds', {
   durationMs: integer('duration_ms').notNull(),
   size: integer('size').notNull(),
   createdBy: text('created_by').notNull().references(() => user.id),
-  createdAt: ts('created_at').notNull().default(now)
+  createdAt: ts('created_at').notNull().default(now),
 })
 
 export const channelMembers = sqliteTable('channel_members', {
   channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => user.id)
+  userId: text('user_id').notNull().references(() => user.id),
 }, t => [primaryKey({ columns: [t.channelId, t.userId] })])
 
 export const messages = sqliteTable('messages', {
@@ -106,12 +106,12 @@ export const messages = sqliteTable('messages', {
   createdAt: ts('created_at').notNull().default(now),
   editedAt: ts('edited_at'),
   deletedAt: ts('deleted_at'),
-  suppressPreviews: integer('suppress_previews', { mode: 'boolean' }).notNull().default(false)
+  suppressPreviews: integer('suppress_previews', { mode: 'boolean' }).notNull().default(false),
 }, t => [index('messages_channel_created').on(t.channelId, t.createdAt)])
 
 export const messageMentions = sqliteTable('message_mentions', {
   messageId: text('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => user.id)
+  userId: text('user_id').notNull().references(() => user.id),
 }, t => [primaryKey({ columns: [t.messageId, t.userId] })])
 
 export const attachments = sqliteTable('attachments', {
@@ -123,13 +123,13 @@ export const attachments = sqliteTable('attachments', {
   mime: text('mime').notNull(),
   size: integer('size').notNull(),
   spoiler: integer('spoiler', { mode: 'boolean' }).notNull().default(false),
-  createdAt: ts('created_at').notNull().default(now)
+  createdAt: ts('created_at').notNull().default(now),
 })
 
 export const reactions = sqliteTable('reactions', {
   messageId: text('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => user.id),
-  emoji: text('emoji').notNull()
+  emoji: text('emoji').notNull(),
 }, t => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })])
 
 export const linkPreviews = sqliteTable('link_previews', {
@@ -138,20 +138,20 @@ export const linkPreviews = sqliteTable('link_previews', {
   description: text('description'),
   siteName: text('site_name'),
   imageKey: text('image_key'),
-  fetchedAt: ts('fetched_at').notNull()
+  fetchedAt: ts('fetched_at').notNull(),
 })
 
 /** Which cached previews a message shows (removing one deletes only this row). */
 export const messagePreviews = sqliteTable('message_previews', {
   messageId: text('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
   url: text('url').notNull().references(() => linkPreviews.url, { onDelete: 'cascade' }),
-  position: integer('position').notNull()
+  position: integer('position').notNull(),
 }, t => [primaryKey({ columns: [t.messageId, t.url] })])
 
 export const channelReads = sqliteTable('channel_reads', {
   userId: text('user_id').notNull().references(() => user.id),
   channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  lastReadAt: ts('last_read_at').notNull()
+  lastReadAt: ts('last_read_at').notNull(),
 }, t => [primaryKey({ columns: [t.userId, t.channelId] })])
 
 export const pushSubscriptions = sqliteTable('push_subscriptions', {
@@ -159,5 +159,5 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
   endpoint: text('endpoint').primaryKey(),
   keys: text('keys').notNull(),
   // The browser's notification settings ({dms, pings, dnd, muted[]}), so the server never pushes what the client would hide.
-  prefs: text('prefs').notNull().default('{}')
+  prefs: text('prefs').notNull().default('{}'),
 })

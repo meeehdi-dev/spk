@@ -29,7 +29,8 @@ export async function playSound(id: string, force = false) {
     const buf = await load(id)
     await ctx!.resume()
     const src = ctx!.createBufferSource(), gain = ctx!.createGain()
-    src.buffer = buf; gain.gain.value = volume
+    src.buffer = buf
+    gain.gain.value = volume
     src.connect(gain).connect(ctx!.destination)
     src.start(0, 0, Math.min(buf.duration, MAX_SOUND_MS / 1000))
   } catch { /* autoplay policy or a missing file: stay silent */ }
@@ -45,7 +46,9 @@ export function useSoundboard() {
     if (!v.channelId.value || Date.now() - lastSent < SOUND_COOLDOWN_MS) return
     lastSent = Date.now()
     cooling.value = true
-    setTimeout(() => { cooling.value = false }, SOUND_COOLDOWN_MS)
+    setTimeout(() => {
+      cooling.value = false
+    }, SOUND_COOLDOWN_MS)
     socket.send({ type: 'voice:sound', sid: v.sid, soundId: id })
     void load(id) // warm the cache; the relay frame plays it
   }

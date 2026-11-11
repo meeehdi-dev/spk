@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { settingsTabFromPath } from '../shared/utils/settings'
 
 describe('settingsTabFromPath', () => {

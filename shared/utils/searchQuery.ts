@@ -7,10 +7,13 @@ const MAX_TERMS = 8
 export interface ParsedSearch {
   /** Plain words (prefix-matched). */
   terms: string[]
-  from: string[], mentions: string[], in: string[]
+  from: string[]
+  mentions: string[]
+  in: string[]
   has: Array<typeof HAS_VALUES[number]>
   /** Day boundaries as ms (UTC midnight); `before` = older than that day, `after` = newer than the end of that day. */
-  before?: number, after?: number
+  before?: number
+  after?: number
 }
 
 const DAY = 86_400_000
@@ -35,10 +38,19 @@ export function parseSearch(q: string): ParsedSearch {
       if (!value) continue // still being typed
       if (key === 'has') {
         const v = value.toLowerCase() as typeof HAS_VALUES[number]
-        if ((HAS_VALUES as readonly string[]).includes(v)) { if (!out.has.includes(v)) out.has.push(v); continue }
+        if ((HAS_VALUES as readonly string[]).includes(v)) {
+          if (!out.has.includes(v))
+            out.has.push(v)
+          continue
+        }
       } else if (key === 'before' || key === 'after') {
         const day = parseDay(value)
-        if (day !== null) { if (key === 'before') out.before = day; else out.after = day + DAY; continue }
+        if (day !== null) {
+          if (key === 'before')
+            out.before = day; else
+            out.after = day + DAY
+          continue
+        }
       } else {
         out[key].push(value.replace(/^[@#]/, ''))
         continue

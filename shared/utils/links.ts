@@ -16,7 +16,10 @@ const trimEnd = (s: string) => {
   for (;;) {
     const t = s.replace(/[.,;:!?*_~'"]+$/, '')
     const unbalanced = t.endsWith(')') && (t.match(/\)/g)!.length > (t.match(/\(/g) ?? []).length)
-    if (unbalanced) { s = t.slice(0, -1); continue }
+    if (unbalanced) {
+      s = t.slice(0, -1)
+      continue
+    }
     return t
   }
 }

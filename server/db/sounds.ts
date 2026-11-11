@@ -1,15 +1,18 @@
-import { eq } from 'drizzle-orm'
 import type { Db } from './client'
-import { sounds } from './schema'
-import { ChatError } from './messages'
+
+import { eq } from 'drizzle-orm'
+
 import { MAX_SOUND_BYTES, MAX_SOUND_MS } from '../../shared/utils/sounds'
+
+import { ChatError } from './messages'
+import { sounds } from './schema'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const soundKey = (id: string) => `sounds/${id}`
 
 /** Name (1–32 characters) and Lucide icon name, trimmed and checked. */
 function cleanSoundMeta(input: { name?: unknown, icon?: unknown }) {
-  const name = typeof input.name === 'string' ? input.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : ''
+  const name = typeof input.name === 'string' ? input.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '' // eslint-disable-line no-control-regex -- Strip control characters from user-provided names.
   if (name.length < 1 || name.length > 32) throw new ChatError(400, 'Name must be 1–32 characters')
   if (typeof input.icon !== 'string' || !/^[a-z0-9-]{1,64}$/.test(input.icon)) throw new ChatError(400, 'Bad icon')
   return { name, icon: input.icon }

@@ -14,7 +14,10 @@ export const cleanMime = (v: unknown): string | null => typeof v === 'string' &&
 export function formatBytes(n: number) {
   const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const
   let i = 0
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024
+    i++
+  }
   return new Intl.NumberFormat([], { style: 'unit', unit: units[i], unitDisplay: 'short', maximumFractionDigits: i ? 1 : 0 }).format(n)
 }
 
@@ -23,7 +26,7 @@ const ext = (name: string) => name.includes('.') ? name.split('.').pop()!.toLowe
 const CODE_EXT: Record<string, string> = {
   ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx', mjs: 'javascript', json: 'json', py: 'python', vue: 'vue', css: 'css',
   html: 'html', xml: 'xml', yml: 'yaml', yaml: 'yaml', sh: 'bash', sql: 'sql', go: 'go', rs: 'rust', java: 'java', c: 'c',
-  cpp: 'cpp', h: 'c', cs: 'csharp', php: 'php', rb: 'ruby', toml: 'toml', ini: 'ini', diff: 'diff', md: 'markdown'
+  cpp: 'cpp', h: 'c', cs: 'csharp', php: 'php', rb: 'ruby', toml: 'toml', ini: 'ini', diff: 'diff', md: 'markdown',
 }
 const TEXT_EXT = new Set(['txt', 'log', 'csv', 'conf', 'env'])
 

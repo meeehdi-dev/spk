@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { reducePresence } from '../shared/utils/presence'
 
 describe('presence reducer', () => {

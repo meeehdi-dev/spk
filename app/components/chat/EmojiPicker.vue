@@ -11,7 +11,7 @@ onMounted(async () => {
   const style = document.createElement('style')
   style.textContent = '.favorites, .skintone-button-wrapper { display: none !important; }'
   picker.shadowRoot?.appendChild(style)
-  picker.addEventListener('emoji-click', (e) => emit('pick', e.detail.unicode ?? ''))
+  picker.addEventListener('emoji-click', e => emit('pick', e.detail.unicode ?? ''))
   host.value?.appendChild(picker)
 })
 </script>

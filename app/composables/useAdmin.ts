@@ -1,16 +1,19 @@
 import type { ChannelEntry } from '~/composables/useUsers'
 
-type AdminDialog =
-  | { kind: 'create', type: 'text' | 'voice' }
-  | { kind: 'rename' | 'delete', channel: ChannelEntry }
-  | { kind: 'ban', userId: string }
-  | { kind: 'profile', userId: string }
+type AdminDialog
+  = | { kind: 'create', type: 'text' | 'voice' }
+    | { kind: 'rename' | 'delete', channel: ChannelEntry }
+    | { kind: 'ban', userId: string }
+    | { kind: 'profile', userId: string }
 
 const dialog = ref<AdminDialog | null>(null)
 /** The message input watches this to insert `<@id>`. */
 const mentionRequest = ref<{ id: string, n: number } | null>(null)
 
-const fail = (title: string) => (e: any) => useToast().add({ title, description: e?.statusMessage ?? e?.message, color: 'error', icon: 'i-lucide-circle-alert' })
+const fail = (title: string) => (error: unknown) => {
+  const e = error as { statusMessage?: string, message?: string } | null
+  return useToast().add({ title, description: e?.statusMessage ?? e?.message, color: 'error', icon: 'i-lucide-circle-alert' })
+}
 
 /** Keeps channels, the user directory and our session current when an admin changes them (or bans us). Layout only. */
 export function useAdminLive() {
@@ -43,7 +46,11 @@ export function useAdmin() {
 
   const refreshChannels = () => refreshNuxtData('channels')
   async function reorder(type: 'text' | 'voice', ids: string[]) {
-    try { await $fetch('/api/admin/channels/order', { method: 'POST', body: { type, ids } }) } catch (e) { fail('Could not reorder')(e) }
+    try {
+      await $fetch('/api/admin/channels/order', { method: 'POST', body: { type, ids } })
+    } catch (e) {
+      fail('Could not reorder')(e)
+    }
     await refreshChannels()
   }
   const section = (type: string) => channels.value.filter(c => c.type === type)
@@ -62,7 +69,7 @@ export function useAdmin() {
       { label: 'Rename', icon: 'i-lucide-pencil', onSelect: () => { dialog.value = { kind: 'rename', channel: c } } },
       { label: 'Move up', icon: 'i-lucide-arrow-up', disabled: i <= 0, onSelect: () => step(c, -1) },
       { label: 'Move down', icon: 'i-lucide-arrow-down', disabled: i < 0 || i >= ids.length - 1, onSelect: () => step(c, 1) },
-      { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { dialog.value = { kind: 'delete', channel: c } } }
+      { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { dialog.value = { kind: 'delete', channel: c } } },
     ]
   }
 
@@ -71,7 +78,10 @@ export function useAdmin() {
       await $fetch(url, { method: 'POST', body })
       if (ok) useToast().add({ title: ok, icon: 'i-lucide-check' })
       return true
-    } catch (e) { fail(title)(e); return false }
+    } catch (e) {
+      fail(title)(e)
+      return false
+    }
   }
   const setRole = (id: string, role: 'admin' | 'user') => post(`/api/admin/users/${id}/role`, { role }, 'Could not change the role', `${nameOf(id)} is now ${role === 'admin' ? 'an admin' : 'a user'}`)
   const setBanned = (id: string, banned: boolean, reason?: string) => post(`/api/admin/users/${id}/ban`, { banned, reason }, banned ? 'Could not ban' : 'Could not unban', banned ? `${nameOf(id)} was banned` : `${nameOf(id)} was unbanned`)
@@ -87,7 +97,7 @@ export function useAdmin() {
       { label: 'Profile', icon: 'i-lucide-user', onSelect: () => { dialog.value = { kind: 'profile', userId: id } } },
       ...(mine ? [] : [{ label: 'Send DM', icon: 'i-lucide-message-circle', onSelect: () => openDmWith(id) }]),
       ...(inChat ? [{ label: 'Mention', icon: 'i-lucide-at-sign', onSelect: () => { mentionRequest.value = { id, n: Date.now() } } }] : []),
-      { label: 'Copy name', icon: 'i-lucide-copy', onSelect: () => copyText(nameOf(id)) }
+      { label: 'Copy name', icon: 'i-lucide-copy', onSelect: () => copyText(nameOf(id)) },
     ], voice.volumeItems(id)]
     if (isAdmin.value) {
       const at = voiceChannelOf(id)
@@ -96,15 +106,19 @@ export function useAdmin() {
       groups.push([
         { label: 'Change role', icon: 'i-lucide-shield', children: [
           { label: 'Admin', icon: 'i-lucide-shield-check', type: 'checkbox', checked: target?.role === 'admin', onSelect: () => setRole(id, 'admin') },
-          { label: 'User', icon: 'i-lucide-user', type: 'checkbox', checked: target?.role !== 'admin', onSelect: () => setRole(id, 'user') }
+          { label: 'User', icon: 'i-lucide-user', type: 'checkbox', checked: target?.role !== 'admin', onSelect: () => setRole(id, 'user') },
         ] },
-        ...(at ? [
-          ...(others.length ? [{ label: 'Move to', icon: 'i-lucide-move-right', children: others }] : []),
-          { label: 'Disconnect from voice', icon: 'i-lucide-phone-off', onSelect: () => disconnect(id) }
-        ] : []),
-        ...(mine ? [] : [target?.banned
-          ? { label: 'Unban', icon: 'i-lucide-user-check', onSelect: () => setBanned(id, false) }
-          : { label: 'Ban', icon: 'i-lucide-ban', color: 'error' as const, onSelect: () => { dialog.value = { kind: 'ban', userId: id } } }])
+        ...(at
+          ? [
+              ...(others.length ? [{ label: 'Move to', icon: 'i-lucide-move-right', children: others }] : []),
+              { label: 'Disconnect from voice', icon: 'i-lucide-phone-off', onSelect: () => disconnect(id) },
+            ]
+          : []),
+        ...(mine
+          ? []
+          : [target?.banned
+              ? { label: 'Unban', icon: 'i-lucide-user-check', onSelect: () => setBanned(id, false) }
+              : { label: 'Ban', icon: 'i-lucide-ban', color: 'error' as const, onSelect: () => { dialog.value = { kind: 'ban', userId: id } } }]),
       ])
     }
     return groups.filter(g => g.length)

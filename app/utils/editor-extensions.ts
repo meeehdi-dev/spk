@@ -1,3 +1,5 @@
+import type { MentionOptions } from '@tiptap/extension-mention'
+
 import { Extension, Mark, markInputRule, mergeAttributes } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
 
@@ -13,12 +15,12 @@ export const SpkMention = Mention.extend<{ getLabel?: (id: string) => string | u
     tokenize(src: string) {
       const m = MENTION_TOKEN.exec(src)
       return m ? { type: 'spkMention', raw: m[0], id: m[1] } : undefined
-    }
+    },
   },
-  parseMarkdown(token: any, h: any) {
+  parseMarkdown(token, h) {
     return h.createNode('mention', { id: token.id, label: this.options.getLabel?.(token.id) ?? token.id })
   },
-  renderMarkdown: (node: any) => `<@${node.attrs?.id}>`
+  renderMarkdown: node => `<@${node.attrs?.id}>`,
 })
 
 /** `||hidden||` mark, shown blurred until clicked. */
@@ -29,23 +31,23 @@ export const Spoiler = Mark.create({
     name: 'spoiler',
     level: 'inline',
     start: (src: string) => src.indexOf('||'),
-    tokenize(src: string, _tokens: any, lexer: any) {
+    tokenize(src: string, _tokens, lexer) {
       const m = /^\|\|(?=\S)([\s\S]*?\S)\|\|/.exec(src)
       return m ? { type: 'spoiler', raw: m[0], text: m[1], tokens: lexer.inlineTokens(m[1]!) } : undefined
-    }
+    },
   },
-  parseMarkdown(token: any, h: any) {
+  parseMarkdown(token, h) {
     // The parser only marks text nodes; mentions inside a spoiler need the mark added by hand.
-    const content = h.parseInline(token.tokens || []).map((n: any) =>
+    const content = h.parseInline(token.tokens || []).map(n =>
       n.type === 'mention' ? { ...n, marks: [...(n.marks || []), { type: 'spoiler' }] } : n)
     return h.applyMark('spoiler', content)
   },
-  renderMarkdown: (node: any, h: any) => `||${h.renderChildren(node)}||`,
+  renderMarkdown: (node, h) => `||${h.renderChildren(node)}||`,
   parseHTML: () => [{ tag: 'span[data-spoiler]' }],
   renderHTML: ({ HTMLAttributes }) => ['span', mergeAttributes({ 'data-spoiler': '' }, HTMLAttributes), 0],
   addInputRules() {
     return [markInputRule({ find: /(?:^|\s)\|\|([^|\s][^|]*)\|\|$/, type: this.type })]
-  }
+  },
 })
 
 // shortcut: a spoiler holding only a mention loses the spoiler on serialize (the mark never opens), fix if it matters.
@@ -76,12 +78,17 @@ export const chatKeys = (o: { onEnter: () => void, onEscape?: () => boolean, onA
         let breakAt = -1
         let line = ''
         $from.parent.forEach((n, off) => {
-          if (n.type.name === 'hardBreak') breakAt = $from.start() + off, line = ''
-          else line += n.isText ? n.text : '\0'
+          if (n.type.name === 'hardBreak') {
+            breakAt = $from.start() + off
+            line = ''
+          } else line += n.isText ? n.text : '\0'
         })
         const lang = fenceLanguage(line)
         if (lang === null) return o.onEnter(), true
-        const c = editor.chain().command(({ tr }) => { tr.delete(breakAt >= 0 ? breakAt : $from.start(), $from.end()); return true })
+        const c = editor.chain().command(({ tr }) => {
+          tr.delete(breakAt >= 0 ? breakAt : $from.start(), $from.end())
+          return true
+        })
         if (breakAt >= 0) c.splitBlock()
         return c.setCodeBlock(lang ? { language: lang } : undefined).run()
       },
@@ -91,9 +98,9 @@ export const chatKeys = (o: { onEnter: () => void, onEscape?: () => boolean, onA
       'Mod-Alt-c': ({ editor }) => editor.commands.toggleCodeBlock(),
       'Mod-Shift-.': ({ editor }) => editor.commands.toggleBlockquote(),
       'Mod-Shift->': ({ editor }) => editor.commands.toggleBlockquote(),
-      'Mod-Shift-x': ({ editor }) => editor.commands.toggleStrike()
+      'Mod-Shift-x': ({ editor }) => editor.commands.toggleStrike(),
     }
-  }
+  },
 })
 
 /** Mention node (labels follow current nicknames) + spoiler mark. */
@@ -101,8 +108,8 @@ export const chatMarkExtensions = (getLabel: (id: string) => string | undefined)
   SpkMention.configure({
     HTMLAttributes: { class: 'mention' },
     getLabel,
-    renderText: ({ node }: any) => `@${node.attrs.label ?? node.attrs.id}`,
-    renderHTML: ({ options, node }: any) => ['span', { 'data-type': 'mention', ...options.HTMLAttributes }, `@${node.attrs.label ?? node.attrs.id}`]
+    renderText: ({ node }: Parameters<MentionOptions['renderText']>[0]) => `@${node.attrs.label ?? node.attrs.id}`,
+    renderHTML: ({ options, node }: Parameters<MentionOptions['renderHTML']>[0]) => ['span', { 'data-type': 'mention', ...options.HTMLAttributes }, `@${node.attrs.label ?? node.attrs.id}`],
   } as never),
-  Spoiler
+  Spoiler,
 ]

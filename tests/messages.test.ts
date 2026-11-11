@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { accessibleChannel, ChatError, createMessage, listMessages } from '../server/db/messages'
 import { channelMembers, channels, messageMentions, user } from '../server/db/schema'
-import { extractMentionIds, remarkSpk, safeHref } from '../shared/utils/markdown'
 import { createLimiter } from '../server/utils/limiter'
+import { extractMentionIds, remarkSpk, safeHref } from '../shared/utils/markdown'
 
 let db: Db
 const addUser = (id: string) => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id }).run()
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a'); addUser('b'); addUser('c')
+  addUser('a')
+  addUser('b')
+  addUser('c')
   db.insert(channels).values([{ id: 't', type: 'text', name: 't' }, { id: 'dm', type: 'dm' }]).run()
   db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
 })
@@ -37,7 +40,10 @@ describe('createMessage', () => {
 })
 
 describe('listMessages', () => {
-  beforeEach(() => { for (let i = 0; i < 30; i++) createMessage(db, 'a', 't', `m${i}`, 1000 + i) })
+  beforeEach(() => {
+    for (let i = 0; i < 30; i++)
+      createMessage(db, 'a', 't', `m${i}`, 1000 + i)
+  })
   const bodies = (r: { messages: { body: string }[] }) => r.messages.map(m => m.body)
 
   it('latest page then older page', () => {
@@ -78,14 +84,14 @@ describe('markdown helpers', () => {
     expect(safeHref('data:text/html,x')).toBeNull()
   })
   it('remark plugin turns <@id> and ||x|| into nodes, html into text', () => {
-    const tree: any = { type: 'root', children: [
+    const tree: Parameters<ReturnType<typeof remarkSpk>>[0] = { type: 'root', children: [
       { type: 'paragraph', children: [{ type: 'text', value: 'a <@u1> ||sec|| ||open' }] },
-      { type: 'html', value: '<img src=x onerror=1>' }
+      { type: 'html', value: '<img src=x onerror=1>' },
     ] }
-    remarkSpk()(tree)
-    const kids = tree.children[0].children
-    expect(kids.map((k: any) => k.type)).toEqual(['text', 'spkMention', 'text', 'spkSpoiler', 'text', 'text', 'text'])
-    expect(kids[1].data.hProperties.uid).toBe('u1')
-    expect(tree.children[1]).toEqual({ type: 'paragraph', children: [{ type: 'text', value: '<img src=x onerror=1>' }] })
+    remarkSpk()(tree, {})
+    const kids = tree.children![0]!.children!
+    expect(kids.map(k => k.type)).toEqual(['text', 'spkMention', 'text', 'spkSpoiler', 'text', 'text', 'text'])
+    expect(kids[1]!.data).toMatchObject({ hProperties: { uid: 'u1' } })
+    expect(tree.children![1]).toEqual({ type: 'paragraph', children: [{ type: 'text', value: '<img src=x onerror=1>' }] })
   })
 })

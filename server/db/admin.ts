@@ -1,8 +1,10 @@
-import { eq, sql } from 'drizzle-orm'
 import type { Db } from './client'
-import { attachments, session, sounds, user } from './schema'
+
+import { eq, sql } from 'drizzle-orm'
+
 import { ChatError } from './messages'
 import { wouldRemoveLastAdmin } from './roles'
+import { attachments, session, sounds, user } from './schema'
 
 const exists = (db: Db, id: unknown) => typeof id === 'string' && !!db.select({ id: user.id }).from(user).where(eq(user.id, id)).get()
 
@@ -17,7 +19,7 @@ export function setRole(db: Db, targetId: unknown, role: unknown) {
 /** Ban or unban. A ban also deletes the user's sessions (the caller closes sockets and voice). Messages are kept. */
 export function setBanned(db: Db, actorId: string, targetId: unknown, banned: boolean, reason?: unknown) {
   if (!exists(db, targetId)) throw new ChatError(404, 'User not found')
-  if (banned && targetId === actorId) throw new ChatError(400, "You can't ban yourself")
+  if (banned && targetId === actorId) throw new ChatError(400, 'You can\'t ban yourself')
   const id = targetId as string
   db.transaction((tx) => {
     tx.update(user).set({ banned, banReason: banned && typeof reason === 'string' ? reason.trim().slice(0, 200) || null : null, banExpires: null }).where(eq(user.id, id)).run()
@@ -32,7 +34,7 @@ export function listUsersWithStorage(db: Db) {
   add(db.select({ id: attachments.uploaderId, n: sql<number>`sum(${attachments.size})` }).from(attachments).groupBy(attachments.uploaderId).all())
   add(db.select({ id: sounds.createdBy, n: sql<number>`sum(${sounds.size})` }).from(sounds).groupBy(sounds.createdBy).all())
   const users = db.select({
-    id: user.id, email: user.email, displayName: user.displayName, avatarKey: user.avatarKey, role: user.role, banned: user.banned, createdAt: user.createdAt
+    id: user.id, email: user.email, displayName: user.displayName, avatarKey: user.avatarKey, role: user.role, banned: user.banned, createdAt: user.createdAt,
   }).from(user).orderBy(user.createdAt).all().map(u => ({ ...u, createdAt: u.createdAt.getTime(), bytes: bytes.get(u.id) ?? 0 }))
   return { users, totalBytes: [...bytes.values()].reduce((a, b) => a + b, 0) }
 }

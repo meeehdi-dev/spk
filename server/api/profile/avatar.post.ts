@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
+
 import { eq } from 'drizzle-orm'
+
 import { user } from '../../db/schema'
 import { AVATAR_MAX_UPLOAD, isAvatarRawKey, processAvatar } from '../../utils/avatar'
 

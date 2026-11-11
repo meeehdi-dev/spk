@@ -1,19 +1,22 @@
-import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+
+import http from 'node:http'
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { createMessage, deleteMessage, editMessage, listMessages } from '../server/db/messages'
 import { attachPreviews, cachedPreview, previewImageKey, removePreview, savePreview } from '../server/db/previews'
 import { channelMembers, channels, user } from '../server/db/schema'
-import { isBlockedIp, safeFetch, SsrfError } from '../server/utils/ssrf'
 import { mapGifs } from '../server/utils/klipy'
 import { parseHtml } from '../server/utils/previews'
+import { isBlockedIp, safeFetch, SsrfError } from '../server/utils/ssrf'
 import { composeBody, extractUrls, isImageUrl } from '../shared/utils/links'
 
 describe('isBlockedIp', () => {
   it.each([
     '127.0.0.1', '127.1.2.3', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '0.0.0.0', '100.64.0.1',
-    '224.0.0.1', '255.255.255.255', '::1', '::', 'fe80::1', 'fc00::1', 'fd12:3456::1', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe', 'ff02::1', 'not-an-ip'
+    '224.0.0.1', '255.255.255.255', '::1', '::', 'fe80::1', 'fc00::1', 'fd12:3456::1', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe', 'ff02::1', 'not-an-ip',
   ])('blocks %s', ip => expect(isBlockedIp(ip)).toBe(true))
   it.each(['8.8.8.8', '1.1.1.1', '172.32.0.1', '93.184.216.34', '2606:4700:4700::1111', '::ffff:8.8.8.8'])('allows %s', ip => expect(isBlockedIp(ip)).toBe(false))
 })
@@ -26,21 +29,55 @@ describe('safeFetch', () => {
     server = http.createServer((req, res) => {
       hits.push(`${req.headers.host}${req.url}`)
       const url = req.url!
-      if (url === '/page') { res.setHeader('content-type', 'text/html; charset=utf-8'); res.end('<title>x</title>') }
-      else if (url === '/big') { res.setHeader('content-type', 'text/html'); res.end('a'.repeat(5000)) }
-      else if (url === '/json') { res.setHeader('content-type', 'application/json'); res.end('{}') }
-      else if (url === '/img') { res.setHeader('content-type', 'image/png'); res.end(Buffer.alloc(5000)) }
-      else if (url === '/loop') { res.statusCode = 302; res.setHeader('location', '/loop'); res.end() }
-      else if (url === '/to-private') { res.statusCode = 302; res.setHeader('location', 'http://internal.test/secret'); res.end() }
-      else if (url === '/slow') { res.setHeader('content-type', 'text/html'); res.write('<title>'); /* never ends */ }
-      else if (url === '/redir') { res.statusCode = 301; res.setHeader('location', '/page'); res.end() }
-      else { res.statusCode = 404; res.end() }
+      if (url === '/page') {
+        res.setHeader('content-type', 'text/html; charset=utf-8')
+        res.end('<title>x</title>')
+      } else
+        if (url === '/big') {
+          res.setHeader('content-type', 'text/html')
+          res.end('a'.repeat(5000))
+        } else
+          if (url === '/json') {
+            res.setHeader('content-type', 'application/json')
+            res.end('{}')
+          } else
+            if (url === '/img') {
+              res.setHeader('content-type', 'image/png')
+              res.end(Buffer.alloc(5000))
+            } else
+              if (url === '/loop') {
+                res.statusCode = 302
+                res.setHeader('location', '/loop')
+                res.end()
+              } else
+                if (url === '/to-private') {
+                  res.statusCode = 302
+                  res.setHeader('location', 'http://internal.test/secret')
+                  res.end()
+                } else
+                  if (url === '/slow') {
+                    res.setHeader('content-type', 'text/html')
+                    res.write('<title>') /* never ends */
+                  } else
+                    if (url === '/redir') {
+                      res.statusCode = 301
+                      res.setHeader('location', '/page')
+                      res.end()
+                    } else {
+                      res.statusCode = 404
+                      res.end()
+                    }
     })
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     port = (server.address() as AddressInfo).port
   })
-  afterAll(() => { server.closeAllConnections(); server.close() })
-  beforeEach(() => { hits.length = 0 })
+  afterAll(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+  beforeEach(() => {
+    hits.length = 0
+  })
 
   // The test server is on loopback, so the real IP rule is swapped for "only 127.0.0.1" and the port rule for its port.
   const local = { allowIp: (ip: string) => ip === '127.0.0.1', allowPort: (p: number) => p === port }
@@ -107,7 +144,7 @@ describe('links', () => {
     const body = [
       'see https://a.example/x?y=1, and (https://b.example/p_(q)). also https://a.example/x?y=1',
       '<https://skip.example/> `https://code.example` ||https://spoiler.example||',
-      '```\nhttps://fence.example\n```', 'http://localhost:3000/c/abc/m/def', 'ftp://nope.example', '**https://bold.example**'
+      '```\nhttps://fence.example\n```', 'http://localhost:3000/c/abc/m/def', 'ftp://nope.example', '**https://bold.example**',
     ].join('\n')
     expect(extractUrls(body, 'http://localhost:3000')).toEqual(['https://a.example/x?y=1', 'https://b.example/p_(q)', 'https://bold.example/'])
   })
@@ -137,7 +174,7 @@ describe('links', () => {
     const r = mapGifs({ data: { has_next: true, data: [
       { id: 1, title: 'a', file: { md: { gif: { url: 'https://static.klipy.com/a.gif', width: 2, height: 3 } }, sm: { webp: { url: 'https://static.klipy.com/a.webp' } } } },
       { type: 'ad', content: '<script>' },
-      { id: 2, title: 'b', file: { md: { gif: { url: 'https://static.klipy.com/b.gif' } } } }
+      { id: 2, title: 'b', file: { md: { gif: { url: 'https://static.klipy.com/b.gif' } } } },
     ] } })
     expect(r.hasNext).toBe(true)
     expect(r.items.map(i => [i.id, i.url, i.preview])).toEqual([['1', 'https://static.klipy.com/a.gif', 'https://static.klipy.com/a.webp'], ['2', 'https://static.klipy.com/b.gif', 'https://static.klipy.com/b.gif']])

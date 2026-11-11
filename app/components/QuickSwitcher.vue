@@ -4,7 +4,10 @@ const { dms, textChannels, voiceChannels } = useNavChannels()
 const { data: users, nameOf } = useUsers()
 const { data: me } = useMe()
 const colorMode = useColorMode()
-const go = (to: string) => () => { open.value = false; navigateTo(to) }
+const go = (to: string) => () => {
+  open.value = false
+  void navigateTo(to)
+}
 const shortcutsOpen = useShortcutsOverlay()
 const settingsTab = useSettingsModal()
 const groups = computed(() => [
@@ -13,23 +16,45 @@ const groups = computed(() => [
   { id: 'dms', label: 'Direct messages', items: dms.value.map(c => ({ label: nameOf(c.otherUserId ?? ''), icon: 'i-lucide-message-circle', onSelect: go(`/c/${c.id}`) })) },
   {
     id: 'people', label: 'People',
-    items: users.value.filter(u => u.id !== me.value?.id && u.displayName).map(u => ({ label: u.displayName!, suffix: 'Send a message', icon: 'i-lucide-user', onSelect: () => { open.value = false; openDmWith(u.id) } }))
+    items: users.value.filter(u => u.id !== me.value?.id && u.displayName).map(u => ({ label: u.displayName!, suffix: 'Send a message', icon: 'i-lucide-user', onSelect: () => {
+      open.value = false
+      void openDmWith(u.id)
+    } })),
   },
   {
     id: 'actions', label: 'Actions',
     items: [
-      { label: 'Settings', icon: 'i-lucide-settings', onSelect: () => { open.value = false; settingsTab.value = 'profile' } },
-      { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', onSelect: () => { open.value = false; shortcutsOpen.value = true } },
-      { label: 'Toggle theme', icon: 'i-lucide-sun-moon', onSelect: () => { open.value = false; colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark' } }
-    ]
-  }
+      { label: 'Settings', icon: 'i-lucide-settings', onSelect: () => {
+        open.value = false
+        settingsTab.value = 'profile'
+      } },
+      { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', onSelect: () => {
+        open.value = false
+        shortcutsOpen.value = true
+      } },
+      { label: 'Toggle theme', icon: 'i-lucide-sun-moon', onSelect: () => {
+        open.value = false
+        colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+      } },
+    ],
+  },
 ])
 </script>
 
 <template>
-  <UModal v-model:open="open" title="Quick switcher" description="Jump to a channel, a conversation or a person">
+  <UModal
+    v-model:open="open"
+    title="Quick switcher"
+    description="Jump to a channel, a conversation or a person"
+  >
     <template #content>
-      <UCommandPalette :groups="groups" placeholder="Jump to…" aria-label="Quick switcher" close @update:open="open = $event" />
+      <UCommandPalette
+        :groups="groups"
+        placeholder="Jump to…"
+        aria-label="Quick switcher"
+        close
+        @update:open="open = $event"
+      />
     </template>
   </UModal>
 </template>

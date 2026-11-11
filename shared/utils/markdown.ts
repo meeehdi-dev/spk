@@ -46,8 +46,15 @@ function pairSpoilers(nodes: Node[]): Node[] {
   const out: Node[] = []
   let open = -1
   for (const n of nodes) {
-    if (n.type !== 'spkMarker') { out.push(n); continue }
-    if (open < 0) { open = out.length; out.push(n); continue }
+    if (n.type !== 'spkMarker') {
+      out.push(n)
+      continue
+    }
+    if (open < 0) {
+      open = out.length
+      out.push(n)
+      continue
+    }
     const inner = out.splice(open + 1)
     out.pop() // the opening marker
     if (inner.some(c => c.type !== 'text' || c.value?.trim())) {

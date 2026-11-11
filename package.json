@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "nuxt typecheck",
     "knip": "knip",
     "jscpd": "jscpd app server shared",
@@ -51,13 +53,17 @@
     "web-push": "^4.0.0"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/sortablejs": "^1.15.9",
     "@types/web-push": "^3.6.4",
     "crossws": "0.3.5",
     "drizzle-kit": "^0.31.11",
+    "eslint": "^10.14.0",
+    "eslint-plugin-better-tailwindcss": "^4.11.0",
     "h3": "1.15.11",
     "happy-dom": "^21.0.4",
+    "jiti": "^2.7.0",
     "jscpd": "5.4.3",
     "knip": "6.45.0",
     "typescript": "^5.9.3",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { isAvatarRawKey } from '../server/utils/avatar'
 import { r2Url } from '../server/utils/r2sign'
 

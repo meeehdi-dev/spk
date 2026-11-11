@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+
 import { channels } from '../../../db/schema'
 
 export default defineEventHandler(async (event) => {

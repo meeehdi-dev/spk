@@ -7,7 +7,7 @@ export default defineNitroPlugin((nitroApp) => {
     logFailure({
       method: event?.method, url: event?.path, status,
       message: (error as { statusMessage?: string }).statusMessage || error.message,
-      userId: event?.context.userId as string | undefined, error: status >= 500 ? (error.cause ?? error) : undefined
+      userId: event?.context.userId as string | undefined, error: status >= 500 ? (error.cause ?? error) : undefined,
     })
   })
 })

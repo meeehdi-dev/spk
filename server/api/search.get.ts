@@ -1,6 +1,6 @@
-import { createLimiter } from '../utils/limiter'
 import { ChatError } from '../db/messages'
 import { searchMessages } from '../db/search'
+import { createLimiter } from '../utils/limiter'
 
 const allow = createLimiter(60, 60_000)
 

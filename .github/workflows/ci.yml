@@ -47,6 +47,9 @@ jobs:
       - name: Prepare Nuxt
         run: pnpm exec nuxt prepare
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Check unused code and dependencies
         run: pnpm knip
 
