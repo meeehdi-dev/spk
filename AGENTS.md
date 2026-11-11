@@ -9,7 +9,7 @@ spk is a self-hosted chat and voice app built with Nuxt 4, Vue, Nuxt UI, SQLite/
 - `server/db/`: schema, queries, and SQL migrations; `server/utils/` contains server helpers.
 - `server/routes/`, `server/plugins/`, `server/tasks/`: WebSocket handling, startup hooks, and scheduled work.
 - `shared/`: utilities shared by frontend and server.
-- `tests/`: Vitest tests; `public/`: static icons, fonts, and service worker.
+- `tests/`: Vitest tests; `public/`: static icons and service worker.
 - `deploy/livekit/`: voice server deployment configuration. See `README.md` for setup and `PLAN.md` for design context.
 
 ## Build, Test, and Development Commands

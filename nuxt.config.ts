@@ -16,7 +16,39 @@ export default defineNuxtConfig({
     experimental: { websocket: true, tasks: true },
     scheduledTasks: { '0 * * * *': ['attachments:cleanup'] } // hourly: unsent uploads older than 24 h
   },
-  vite: { optimizeDeps: { include: ['better-auth/client/plugins', 'better-auth/vue'] } },
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@vueuse/integrations/useSortable',
+        'better-auth/client/plugins',
+        'better-auth/vue',
+        'emoji-picker-element',
+        'highlight.js/lib/core',
+        'highlight.js/lib/languages/bash',
+        'highlight.js/lib/languages/c',
+        'highlight.js/lib/languages/cpp',
+        'highlight.js/lib/languages/csharp',
+        'highlight.js/lib/languages/css',
+        'highlight.js/lib/languages/diff',
+        'highlight.js/lib/languages/go',
+        'highlight.js/lib/languages/java',
+        'highlight.js/lib/languages/javascript',
+        'highlight.js/lib/languages/json',
+        'highlight.js/lib/languages/php',
+        'highlight.js/lib/languages/python',
+        'highlight.js/lib/languages/ruby',
+        'highlight.js/lib/languages/rust',
+        'highlight.js/lib/languages/sql',
+        'highlight.js/lib/languages/typescript',
+        'highlight.js/lib/languages/xml',
+        'highlight.js/lib/languages/yaml',
+        'livekit-client',
+        'shiki',
+        'wavesurfer.js',
+        'wavesurfer.js/plugins/regions'
+      ]
+    }
+  },
   devtools: { enabled: false },
   runtimeConfig: {
     databasePath: './data/spk.db',
