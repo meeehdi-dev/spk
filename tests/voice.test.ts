@@ -39,6 +39,20 @@ describe('sensitivity', () => {
 })
 
 describe('voice presence', () => {
+  it('replaces the middle member in place and transfers socket ownership', () => {
+    const old = {}, replacement = {}, others = {}
+    joinVoice('first', 'c1', 'a', others)
+    joinVoice('middle', 'c1', 'old', old)
+    joinVoice('last', 'c1', 'z', others)
+    joinVoice('middle', 'c1', 'new', replacement)
+    expect(voiceSnapshot().map(p => p.userId)).toEqual(['first', 'middle', 'last'])
+    expect(leaveVoice('middle', 'old')).toBeNull()
+    expect(updateVoice('middle', 'old', { muted: true })).toBeNull()
+    expect(dropVoiceOwner(old)).toEqual([])
+    expect(voiceSnapshot().map(p => p.userId)).toEqual(['first', 'middle', 'last'])
+    expect(dropVoiceOwner(replacement)).toEqual([{ userId: 'middle', channelId: 'c1' }])
+    dropVoiceOwner(others)
+  })
   it('one session per account: a second join replaces the first, the old leave is ignored', () => {
     const a = {}, b = {}
     expect(joinVoice('u1', 'c1', 's1', a).replacedSid).toBeUndefined()

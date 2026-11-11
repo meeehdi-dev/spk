@@ -29,6 +29,7 @@ let room: Room | undefined
 let processor: MicProcessor | undefined
 let pendingJoin: AbortController | undefined
 let pendingJoinDone: Promise<void> | undefined
+let moveEpoch = 0
 
 const asSaved = (d: SavedDevice): SavedDevice => ({ deviceId: d.deviceId, label: d.label })
 
@@ -215,15 +216,18 @@ export function useVoice() {
   }
 
   async function move(id: string) {
+    const epoch = ++moveEpoch
     if (pendingJoin) {
       const done = pendingJoinDone
       pendingJoin.abort()
       await done
     }
+    if (epoch !== moveEpoch) return
     await join(id)
   }
 
   async function leave(sound = true, reason?: string) {
+    moveEpoch++
     const pending = pendingJoin
     pending?.abort()
     const r = room

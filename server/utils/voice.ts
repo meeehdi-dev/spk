@@ -1,3 +1,4 @@
+import type { Peer } from 'crossws'
 import { and, eq } from 'drizzle-orm'
 import { channels } from '../db/schema'
 import { getSound } from '../db/sounds'
@@ -22,6 +23,8 @@ export function handleVoiceFrame(userId: string, m: Record<string, any>, owner: 
     // Every tab of the account hears this; the one holding another sid leaves.
     if (replacedSid) sendToUser(userId, { type: 'voice:kicked', sid })
     broadcast(presenceFrame(updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened }), userId))
+    const peer = owner as Peer | undefined
+    peer?.send(JSON.stringify({ type: 'voice:joined', sid, channelId: ch.id, nonce: typeof m.nonce === 'string' ? m.nonce : undefined }))
   } else if (m.type === 'voice:state') {
     const p = updateVoice(userId, sid, { muted: m.muted, deafened: m.deafened, speaking: m.speaking, cam: m.cam, screen: m.screen })
     if (p) broadcast(presenceFrame(p, userId))

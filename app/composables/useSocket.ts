@@ -27,8 +27,13 @@ export function useSocket() {
   return {
     connected,
     send: (data: unknown) => { if (ws?.readyState !== WebSocket.OPEN) return false; ws.send(JSON.stringify(data)); return true },
-    /** Subscribe until the calling component unmounts. */
-    on(h: Handler) { handlers.add(h); onScopeDispose(() => handlers.delete(h)) },
+    /** Subscribe until explicitly removed or the calling component unmounts. */
+    on(h: Handler) {
+      handlers.add(h)
+      const off = () => { handlers.delete(h) }
+      if (getCurrentScope()) onScopeDispose(off)
+      return off
+    },
     onOpen(h: () => void) { openHandlers.add(h); onScopeDispose(() => openHandlers.delete(h)) }
   }
 }
