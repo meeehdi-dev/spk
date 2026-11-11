@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+
+import { errorText } from '../app/utils/errorText'
 import { ChatError } from '../server/db/messages'
 import { asHttp } from '../server/utils/http'
-import { errorText } from '../app/utils/errorText'
 
 describe('errorText', () => {
   it('prefers the JSON body message, intact', () => {
@@ -17,7 +18,11 @@ describe('errorText', () => {
 describe('asHttp', () => {
   it('maps a ChatError into message, non-ASCII intact', async () => {
     vi.stubGlobal('createError', (o: unknown) => o)
-    await expect(asHttp(() => { throw new ChatError(409, 'Name must be 1–32 characters') })).rejects.toEqual({ statusCode: 409, message: 'Name must be 1–32 characters' })
+    await expect(
+      asHttp(() => {
+        throw new ChatError(409, 'Name must be 1–32 characters')
+      }),
+    ).rejects.toEqual({ statusCode: 409, message: 'Name must be 1–32 characters' })
     vi.unstubAllGlobals()
   })
 })

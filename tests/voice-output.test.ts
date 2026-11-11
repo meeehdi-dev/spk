@@ -1,33 +1,59 @@
+import type { Ref } from 'vue'
+
 // @vitest-environment happy-dom
+import type { VoiceSettings } from '../app/composables/useVoiceSettings'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, shallowRef, watch } from 'vue'
 
-const media = vi.hoisted(() => ({ rooms: [] as any[], connect: undefined as undefined | (() => void) }))
-vi.mock('~/utils/voice-processor', () => ({ MicProcessor: class { update() {} } }))
-vi.mock('livekit-client', () => ({
-  Track: { Kind: { Audio: 'audio' } },
-  RoomEvent: { TrackSubscribed: 'subscribed', TrackUnsubscribed: 'unsubscribed', Disconnected: 'disconnected', ActiveDeviceChanged: 'activeDeviceChanged' },
-  Room: class {
-    events = new Map<string, Function[]>()
+const { media, MockRoom } = vi.hoisted(() => {
+  class MockRoom {
+    events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
     restartTrack = vi.fn(async () => {})
-    localParticipant = { identity: 'local', isLocal: true, getTrackPublication: () => ({ audioTrack: { restartTrack: this.restartTrack, setProcessor: async () => {}, mute: vi.fn(), unmute: vi.fn() } }), setMicrophoneEnabled: vi.fn() }
-    on(event: string, fn: Function) { this.events.set(event, [...(this.events.get(event) ?? []), fn]); return this }
-    emit(event: string, ...args: any[]) { for (const fn of this.events.get(event) ?? []) fn(...args) }
-    connect = vi.fn(async () => { media.connect?.() })
+    localParticipant = {
+      identity: 'local',
+      isLocal: true,
+      getTrackPublication: () => ({ audioTrack: { restartTrack: this.restartTrack, setProcessor: async () => {}, mute: vi.fn(), unmute: vi.fn() } }),
+      setMicrophoneEnabled: vi.fn(),
+    }
+    on(event: string, fn: (...args: unknown[]) => void) {
+      this.events.set(event, [...(this.events.get(event) ?? []), fn])
+      return this
+    }
+    emit(event: string, ...args: unknown[]) {
+      for (const fn of this.events.get(event) ?? []) fn(...args)
+    }
+    connect = vi.fn(async () => {
+      media.connect?.()
+    })
     startAudio = vi.fn(async () => {})
     disconnect = vi.fn(async () => {})
     switchActiveDevice = vi.fn(async () => {})
     getActiveDevice = vi.fn(() => 'default')
-    constructor(public options: any) { media.rooms.push(this) }
+    constructor(public options: { audioOutput?: unknown }) {
+      media.rooms.push(this)
+    }
   }
+  const media = { rooms: [] as MockRoom[], connect: undefined as undefined | (() => void) }
+  return { media, MockRoom }
+})
+vi.mock('~/utils/voice-processor', () => ({
+  MicProcessor: class {
+    update() {}
+  },
+}))
+vi.mock('livekit-client', () => ({
+  Track: { Kind: { Audio: 'audio' } },
+  RoomEvent: { TrackSubscribed: 'subscribed', TrackUnsubscribed: 'unsubscribed', Disconnected: 'disconnected', ActiveDeviceChanged: 'activeDeviceChanged' },
+  Room: MockRoom,
 }))
 
 const device = (deviceId: string) => ({ deviceId, label: deviceId, kind: 'audiooutput' })
 const mic = (deviceId: string, label = deviceId) => ({ deviceId, label, kind: 'audioinput' })
 const toast = vi.fn()
-let settings: ReturnType<typeof ref<any>>
-let available: Array<{ deviceId: string, label: string, kind: string }>
+let settings: Ref<Partial<VoiceSettings>>
+let available: Array<{ deviceId: string; label: string; kind: string }>
 let deviceChange: () => Promise<void>
 let voice: ReturnType<typeof import('../app/composables/useVoice').useVoice>
 
@@ -47,33 +73,54 @@ async function setup(supported = true) {
   voice = mod.useVoice()
   await voice.join('channel')
   expect(voice.channelId.value).toBe('channel')
-  return media.rooms[0]
+  return media.rooms[0]!
 }
 
 beforeEach(() => {
   vi.resetModules()
-  media.rooms = []; media.connect = undefined; toast.mockClear()
+  media.rooms = []
+  media.connect = undefined
+  toast.mockClear()
   available = [device('voice'), device('screen'), device('other')]
   settings = ref({ speaker: device('voice'), screenSpeaker: device('screen'), noise: 'standard', sensitivity: 50, outputVolume: 0.8 })
-  vi.stubGlobal('ref', ref); vi.stubGlobal('computed', computed); vi.stubGlobal('shallowRef', shallowRef); vi.stubGlobal('watch', watch)
+  vi.stubGlobal('ref', ref)
+  vi.stubGlobal('computed', computed)
+  vi.stubGlobal('shallowRef', shallowRef)
+  vi.stubGlobal('watch', watch)
   vi.stubGlobal('useLocalStorage', (_: string, value: unknown) => ref(value))
   vi.stubGlobal('useVoiceSettings', () => settings)
   vi.stubGlobal('useToast', () => ({ add: toast }))
   vi.stubGlobal('useMe', () => ({ data: ref({ id: 'local' }) }))
   vi.stubGlobal('playVoiceSound', vi.fn())
   vi.stubGlobal('onMounted', vi.fn())
-  vi.stubGlobal('useEventListener', (_target: unknown, event: string, fn: () => Promise<void>) => { if (event === 'devicechange') deviceChange = fn })
+  vi.stubGlobal('useEventListener', (_target: unknown, event: string, fn: () => Promise<void>) => {
+    if (event === 'devicechange') deviceChange = fn
+  })
   vi.stubGlobal('useWakeLock', () => ({ request: async () => {}, release: async () => {} }))
-  vi.stubGlobal('$fetch', vi.fn(async () => ({ token: 'token', url: 'url' })))
-  const handlers = new Set<Function>()
+  vi.stubGlobal(
+    '$fetch',
+    vi.fn(async () => ({ token: 'token', url: 'url' })),
+  )
+  const handlers = new Set<(m: Record<string, unknown>) => void>()
   vi.stubGlobal('useSocket', () => ({
-    connected: ref(true), onOpen: vi.fn(),
-    on: (fn: Function) => { handlers.add(fn); return () => handlers.delete(fn) },
-    send: (m: any) => { if (m.type === 'voice:join') for (const fn of handlers) fn({ ...m, type: 'voice:joined' }); return true }
+    connected: ref(true),
+    onOpen: vi.fn(),
+    on: (fn: (m: Record<string, unknown>) => void) => {
+      handlers.add(fn)
+      return () => handlers.delete(fn)
+    },
+    send: (m: Record<string, unknown>) => {
+      if (m.type === 'voice:join') for (const fn of handlers) fn({ ...m, type: 'voice:joined' })
+      return true
+    },
   }))
-  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
-    getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }] }), enumerateDevices: async () => available
-  } })
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }] }),
+      enumerateDevices: async () => available,
+    },
+  })
 })
 afterEach(async () => {
   await voice?.leave(false)
@@ -83,13 +130,15 @@ afterEach(async () => {
 })
 
 describe('independent remote audio outputs', () => {
-  it.each([true, false])('defaults screen audio independently for a saved voice preference: %s', async (savedVoice) => {
+  it.each([true, false])('defaults screen audio independently for a saved voice preference: %s', async savedVoice => {
     settings.value.screenSpeaker = undefined
     if (!savedVoice) settings.value.speaker = undefined
-    const mic = track('microphone'), screen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
     media.connect = () => {
-      const r = media.rooms.at(-1)
-      r.emit('subscribed', mic); r.emit('subscribed', screen)
+      const r = media.rooms.at(-1)!
+      r.emit('subscribed', mic)
+      r.emit('subscribed', screen)
     }
     await setup()
     expect(mic.setSinkId).toHaveBeenLastCalledWith(savedVoice ? 'voice' : '')
@@ -99,11 +148,13 @@ describe('independent remote audio outputs', () => {
   })
 
   it('routes subscriptions before room assignment, later subscriptions and rejoins using saved preferences', async () => {
-    const mic = track('microphone'), screen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
     media.connect = () => {
-      const r = media.rooms.at(-1)
+      const r = media.rooms.at(-1)!
       expect(voice.activeRoom()).toBeUndefined()
-      r.emit('subscribed', mic); r.emit('subscribed', screen)
+      r.emit('subscribed', mic)
+      r.emit('subscribed', screen)
     }
     const r = await setup()
     expect(r.options.audioOutput).toBeUndefined()
@@ -120,12 +171,14 @@ describe('independent remote audio outputs', () => {
     settings.value.screenSpeaker = undefined
     await voice.join('channel')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('')
-    expect(settings.value.speaker.deviceId).toBe('voice')
+    expect(settings.value.speaker!.deviceId).toBe('voice')
   })
 
   it('switches only the selected category across participants, including explicit system default, without changing volumes', async () => {
     const r = await setup()
-    const mic = track('microphone'), screen = track('screen_share_audio'), otherScreen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio'),
+      otherScreen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))
     r.remoteParticipants.set('two', participant('two', [otherScreen]))
     await voice.pickDevice('screenSpeaker', device('other'))
@@ -134,7 +187,7 @@ describe('independent remote audio outputs', () => {
     expect(otherScreen.setSinkId).toHaveBeenLastCalledWith('other')
     await voice.pickDevice('speaker', device('default'))
     expect(settings.value.speaker).toBeUndefined()
-    expect(settings.value.screenSpeaker.deviceId).toBe('other')
+    expect(settings.value.screenSpeaker!.deviceId).toBe('other')
     expect(mic.setSinkId).toHaveBeenLastCalledWith('')
     expect(screen.setSinkId).toHaveBeenCalledTimes(1)
     await voice.pickDevice('screenSpeaker', device('default'))
@@ -177,13 +230,14 @@ describe('independent remote audio outputs', () => {
 
   it('falls back on unplug keeping the preference, and routes back on replug', async () => {
     const r = await setup()
-    const mic = track('microphone'), screen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))
     available = [device('screen'), device('other')]
     await deviceChange()
     expect(mic.setSinkId).toHaveBeenLastCalledWith('')
     expect(screen.setSinkId).not.toHaveBeenCalled()
-    expect(settings.value.speaker.deviceId).toBe('voice')
+    expect(settings.value.speaker!.deviceId).toBe('voice')
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Your voice output was unplugged' }))
     await deviceChange()
     expect(toast).toHaveBeenCalledTimes(1)
@@ -191,14 +245,15 @@ describe('independent remote audio outputs', () => {
     await deviceChange()
     expect(mic.setSinkId).toHaveBeenLastCalledWith('voice')
     expect(screen.setSinkId).not.toHaveBeenCalled()
-    expect(settings.value.speaker.deviceId).toBe('voice')
+    expect(settings.value.speaker!.deviceId).toBe('voice')
     expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Switched back to voice', color: 'info' }))
     expect(r.switchActiveDevice).not.toHaveBeenCalled()
   })
 
   it('restores per-category sinks after LiveKit switches the output itself', async () => {
     const r = await setup()
-    const mic = track('microphone'), screen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))
     r.emit('activeDeviceChanged', 'audioinput', 'x')
     expect(mic.setSinkId).not.toHaveBeenCalled()
@@ -210,7 +265,8 @@ describe('independent remote audio outputs', () => {
   it('falls back both categories sharing the missing device', async () => {
     const r = await setup()
     settings.value.screenSpeaker = device('voice')
-    const mic = track('microphone'), screen = track('screen_share_audio')
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))
     available = [device('other')]
     await deviceChange()
@@ -240,14 +296,14 @@ describe('microphone device changes', () => {
     available = [mic('b')]
     await deviceChange()
     expect(r.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'default', false)
-    expect(settings.value.mic.deviceId).toBe('a')
+    expect(settings.value.mic!.deviceId).toBe('a')
     expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Your microphone was unplugged' }))
     r.getActiveDevice.mockReturnValue('b')
     available = [mic('a'), mic('b')]
     await deviceChange()
     expect(r.switchActiveDevice).toHaveBeenLastCalledWith('audioinput', 'a')
     expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Switched back to a', color: 'info' }))
-    expect(settings.value.mic.deviceId).toBe('a')
+    expect(settings.value.mic!.deviceId).toBe('a')
   })
 
   it('shows the switch-failure toast without throwing when switching back fails', async () => {

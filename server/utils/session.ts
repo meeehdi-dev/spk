@@ -1,5 +1,6 @@
-import { isAdminRole } from '../db/roles'
 import type { H3Event } from 'h3'
+
+import { isAdminRole } from '../db/roles'
 
 /** The signed-in user or a 401. */
 export async function requireUser(event: H3Event) {
@@ -8,7 +9,7 @@ export async function requireUser(event: H3Event) {
   for (const c of headers.getSetCookie()) appendResponseHeader(event, 'set-cookie', c)
   if (!s) throw createError({ statusCode: 401, message: 'Not signed in' })
   event.context.userId = s.user.id // for the error log
-  return s.user as typeof s.user & { role?: string | null, displayName?: string | null, avatarKey?: string | null }
+  return s.user as typeof s.user & { role?: string | null; displayName?: string | null; avatarKey?: string | null }
 }
 
 /** Every admin route calls this: the role is checked on the server, never trusted from the client. */

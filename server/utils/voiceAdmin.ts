@@ -1,4 +1,5 @@
 import { RoomServiceClient } from 'livekit-server-sdk'
+
 import { broadcast, peersOf, sendToUser } from './peers'
 import { leaveVoice, sessionOf, sessionsIn } from './voicePresence'
 
@@ -6,7 +7,11 @@ import { leaveVoice, sessionOf, sessionsIn } from './voicePresence'
 async function livekit(fn: (c: RoomServiceClient) => Promise<unknown>) {
   const cfg = useRuntimeConfig()
   if (!cfg.livekit.apiKey || !cfg.livekit.apiSecret || !cfg.public.livekitUrl) return
-  try { await fn(new RoomServiceClient(cfg.public.livekitUrl.replace(/^ws/, 'http'), cfg.livekit.apiKey, cfg.livekit.apiSecret)) } catch (e) { console.warn('[livekit] admin call failed', (e as Error).message) }
+  try {
+    await fn(new RoomServiceClient(cfg.public.livekitUrl.replace(/^ws/, 'http'), cfg.livekit.apiKey, cfg.livekit.apiSecret))
+  } catch (e) {
+    console.warn('[livekit] admin call failed', (e as Error).message)
+  }
 }
 
 /** Ends the user's voice session on the server, tells their client, and removes them from the LiveKit room. */
@@ -39,5 +44,5 @@ export function endUserConnections(userId: string, reason: 'banned' | 'reset') {
   const banned = reason === 'banned'
   disconnectVoice(userId, banned ? 'You have been banned' : 'You have been signed out')
   sendToUser(userId, { type: banned ? 'banned' : 'signed-out' })
-  for (const p of [...peersOf(userId)]) banned ? p.close(4003, 'banned') : p.close(4001, 'signed out')
+  for (const p of [...peersOf(userId)]) p.close(banned ? 4003 : 4001, banned ? 'banned' : 'signed out')
 }

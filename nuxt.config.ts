@@ -1,23 +1,32 @@
 import { noiseSuppressionAudioWorkletVitePlugin } from '@workadventure/noise-suppression/vite'
 
 export default defineNuxtConfig({
-  compatibilityDate: '2025-07-15',
-  modules: ['@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc'],
+  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc'],
+  devtools: { enabled: false },
   app: {
     head: {
       link: [
         { rel: 'manifest', href: '/manifest.webmanifest' },
-        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' }
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
       ],
-      meta: [{ name: 'theme-color', content: '#18181b' }]
-    }
+      meta: [{ name: 'theme-color', content: '#18181b' }],
+    },
   },
   experimental: { emitRouteChunkError: 'manual' },
   css: ['~/assets/css/main.css'],
-  icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
+  runtimeConfig: {
+    databasePath: './data/spk.db',
+    r2: { accountId: '', accessKeyId: '', secretAccessKey: '', bucket: '' },
+    livekit: { apiKey: '', apiSecret: '' },
+    vapidPrivateKey: '',
+    vapidSubject: '',
+    klipyApiKey: '',
+    public: { livekitUrl: '', vapidPublicKey: '' },
+  },
+  compatibilityDate: '2025-07-15',
   nitro: {
     experimental: { websocket: true, tasks: true },
-    scheduledTasks: { '0 * * * *': ['attachments:cleanup'] } // hourly: unsent uploads older than 24 h
+    scheduledTasks: { '0 * * * *': ['attachments:cleanup'] }, // hourly: unsent uploads older than 24 h
   },
   vite: {
     plugins: [noiseSuppressionAudioWorkletVitePlugin()],
@@ -49,25 +58,17 @@ export default defineNuxtConfig({
         'livekit-client',
         'shiki',
         'wavesurfer.js',
-        'wavesurfer.js/plugins/regions'
-      ]
-    }
+        'wavesurfer.js/plugins/regions',
+      ],
+    },
   },
   hooks: {
     // Nuxt's bare `assets` alias breaks the package's `new URL('assets/…', import.meta.url)`, so its worklet/wasm/model aren't emitted.
     'vite:extendConfig'(config) {
       const alias = config.resolve?.alias
-      if (alias && !Array.isArray(alias)) delete (alias as Record<string, string>).assets
-    }
+      if (alias && !Array.isArray(alias)) Reflect.deleteProperty(alias, 'assets')
+    },
   },
-  devtools: { enabled: false },
-  runtimeConfig: {
-    databasePath: './data/spk.db',
-    r2: { accountId: '', accessKeyId: '', secretAccessKey: '', bucket: '' },
-    livekit: { apiKey: '', apiSecret: '' },
-    vapidPrivateKey: '',
-    vapidSubject: '',
-    klipyApiKey: '',
-    public: { livekitUrl: '', vapidPublicKey: '' }
-  }
+  eslint: { config: { stylistic: false } },
+  icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
 })

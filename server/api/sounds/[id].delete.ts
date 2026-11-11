@@ -1,6 +1,6 @@
 import { deleteSound } from '../../db/sounds'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   await requireAdmin(event)
   const key = deleteSound(useDb(), getRouterParam(event, 'id')!)
   if (!key) throw createError({ statusCode: 404, message: 'Not found' })

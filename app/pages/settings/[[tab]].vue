@@ -3,4 +3,6 @@
 onMounted(() => navigateTo('/', { replace: true }))
 </script>
 
-<template><div /></template>
+<template>
+  <div />
+</template>

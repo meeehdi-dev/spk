@@ -1,7 +1,7 @@
 import { createResetToken } from '../../../../db/reset'
 
 // One-time link the admin sends by hand. Shown once; only a hash is stored.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const admin = await requireAdmin(event)
   const id = getRouterParam(event, 'id')
   const token = await asHttp(() => createResetToken(useDb(), id))

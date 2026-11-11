@@ -10,7 +10,9 @@ const registry = new WeakMap<Element, CtxTarget>()
 
 export function registerCtx(el: Element | null | undefined, target: CtxTarget) {
   if (el) registry.set(el, target)
-  return () => { if (el) registry.delete(el) }
+  return () => {
+    if (el) registry.delete(el)
+  }
 }
 
 export function findCtx(from: EventTarget | null, root: Element): CtxTarget | null {
@@ -32,13 +34,19 @@ export async function copyImage(url: string) {
   try {
     const bmp = await createImageBitmap(await (await fetch(url)).blob())
     const canvas = document.createElement('canvas')
-    canvas.width = bmp.width; canvas.height = bmp.height
+    canvas.width = bmp.width
+    canvas.height = bmp.height
     canvas.getContext('2d')!.drawImage(bmp, 0, 0)
-    const png = await new Promise<Blob>((ok, no) => canvas.toBlob(b => b ? ok(b) : no(new Error('encode')), 'image/png'))
+    const png = await new Promise<Blob>((ok, no) => canvas.toBlob(b => (b ? ok(b) : no(new Error('encode'))), 'image/png'))
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
     toast.add({ title: 'Image copied', icon: 'i-lucide-check', duration: 1500 })
   } catch {
-    toast.add({ title: 'Could not copy the image', description: 'Its host may not allow it. Try Copy image link.', color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({
+      title: 'Could not copy the image',
+      description: 'Its host may not allow it. Try Copy image link.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert',
+    })
   }
 }
 

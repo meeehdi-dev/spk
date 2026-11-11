@@ -3,7 +3,9 @@ const { data: me, refresh } = useMe()
 const toast = useToast()
 const nickname = ref(me.value?.displayName ?? '')
 const nickError = ref('')
-watch(me, (m) => { if (!nickname.value) nickname.value = m?.displayName ?? '' })
+watch(me, m => {
+  if (!nickname.value) nickname.value = m?.displayName ?? ''
+})
 const pw = reactive({ currentPassword: '', newPassword: '' })
 const pwError = ref('')
 
@@ -25,13 +27,14 @@ async function changePassword() {
   pw.currentPassword = pw.newPassword = ''
   toast.add({ title: 'Password changed', icon: 'i-lucide-check' })
 }
-
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
     <UCard>
-      <template #header><h2 class="font-bold">Profile</h2></template>
+      <template #header>
+        <h2 class="font-bold">Profile</h2>
+      </template>
       <div class="flex flex-col gap-4">
         <AvatarPicker />
         <form class="flex items-end gap-2" @submit.prevent="saveNickname">
@@ -43,9 +46,13 @@ async function changePassword() {
       </div>
     </UCard>
     <UCard>
-      <template #header><h2 class="font-bold">Change password</h2></template>
+      <template #header>
+        <h2 class="font-bold">Change password</h2>
+      </template>
       <form class="flex flex-col gap-3" @submit.prevent="changePassword">
-        <UFormField label="Current password"><UInput v-model="pw.currentPassword" type="password" autocomplete="current-password" required class="w-full" /></UFormField>
+        <UFormField label="Current password">
+          <UInput v-model="pw.currentPassword" type="password" autocomplete="current-password" required class="w-full" />
+        </UFormField>
         <UFormField label="New password" hint="At least 8 characters" :error="pwError">
           <UInput v-model="pw.newPassword" type="password" autocomplete="new-password" minlength="8" required class="w-full" />
         </UFormField>

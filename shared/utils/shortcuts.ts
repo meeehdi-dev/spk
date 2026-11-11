@@ -2,8 +2,16 @@
  * The one list behind the `?` overlay and Settings → Shortcuts. Keep it in sync with the real bindings:
  * `where` names the file that wires each entry. `planned` marks an entry with no binding yet (none right now).
  */
-interface ShortcutEntry { keys: string[], label: string, planned?: boolean, where?: string }
-export interface ShortcutGroup { title: string, items: ShortcutEntry[] }
+interface ShortcutEntry {
+  keys: string[]
+  label: string
+  planned?: boolean
+  where?: string
+}
+export interface ShortcutGroup {
+  title: string
+  items: ShortcutEntry[]
+}
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
@@ -15,8 +23,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['alt', 'shift', 'arrowup'], label: 'Previous unread channel', where: 'layouts/default.vue' },
       { keys: ['alt', 'shift', 'arrowdown'], label: 'Next unread channel', where: 'layouts/default.vue' },
       { keys: ['meta', 'B'], label: 'Show / hide the sidebar (not while typing in a text field: there it is Bold)', where: 'layouts/default.vue' },
-      { keys: ['?'], label: 'Show all shortcuts', where: 'layouts/default.vue' }
-    ]
+      { keys: ['?'], label: 'Show all shortcuts', where: 'layouts/default.vue' },
+    ],
   },
   {
     title: 'Messages',
@@ -25,8 +33,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['R'], label: 'Reply (message focused)', where: 'ChatMessage.vue' },
       { keys: ['escape'], label: 'Mark channel as read, cancel an edit or reply, close search', where: 'ChannelView.vue' },
       { keys: ['enter'], label: 'Send', where: 'editor-extensions.ts' },
-      { keys: ['shift', 'enter'], label: 'New line', where: 'editor-extensions.ts' }
-    ]
+      { keys: ['shift', 'enter'], label: 'New line', where: 'editor-extensions.ts' },
+    ],
   },
   {
     title: 'Search',
@@ -36,8 +44,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['meta', 'shift', 'F'], label: 'Search everything', where: 'layouts/default.vue' },
       { keys: ['arrowup'], label: 'Previous result (in search)', where: 'SearchPanel.vue' },
       { keys: ['arrowdown'], label: 'Next result (in search)', where: 'SearchPanel.vue' },
-      { keys: ['enter'], label: 'Open result (in search)', where: 'SearchPanel.vue' }
-    ]
+      { keys: ['enter'], label: 'Open result (in search)', where: 'SearchPanel.vue' },
+    ],
   },
   {
     title: 'Formatting (in the input)',
@@ -48,8 +56,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['meta', 'E'], label: 'Inline code' },
       // Ctrl/⌘ Shift C is the inspector in Chrome and Firefox (decision 11); both work, Alt C is the one to use.
       { keys: ['meta', 'alt', 'C'], label: 'Code block (Ctrl/⌘ Shift C also works where the browser allows it)' },
-      { keys: ['meta', 'shift', '.'], label: 'Quote' }
-    ]
+      { keys: ['meta', 'shift', '.'], label: 'Quote' },
+    ],
   },
   {
     // Ctrl/⌘ Shift M / D are kept by the browsers (decision 11), so mute and deafen add Alt (Alt alone clashes with ⌘⌥M minimize, ⌘⌥D Dock, Ctrl Alt L lock).
@@ -65,9 +73,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['meta', 'alt', 'shift', 'G'], label: 'Auto gain on / off', where: 'layouts/default.vue' },
       { keys: ['T'], label: 'Theater mode (hovered or focused tile)', where: 'components/VoiceTile.vue' },
       { keys: ['F'], label: 'Fullscreen (hovered or focused tile)', where: 'components/VoiceTile.vue' },
-      { keys: ['W'], label: 'Watch / stop watching (hovered or focused tile)', where: 'components/VoiceTile.vue' }
-    ]
-  }
+      { keys: ['W'], label: 'Watch / stop watching (hovered or focused tile)', where: 'components/VoiceTile.vue' },
+    ],
+  },
 ]
 
 /** Id of the channel `step` places away from `current` (wraps around); the first or last one when `current` isn't in the list. */

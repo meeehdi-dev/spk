@@ -8,22 +8,50 @@ export const TEXT_PREVIEW_RANGE = 64 * 1024
 const MIME_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i
 
 /** A well-formed `type/subtype` (lower-cased), or null. Parameters like `; charset=` are not accepted. */
-export const cleanMime = (v: unknown): string | null => typeof v === 'string' && MIME_RE.test(v) ? v.toLowerCase() : null
+export const cleanMime = (v: unknown): string | null => (typeof v === 'string' && MIME_RE.test(v) ? v.toLowerCase() : null)
 
 /** "20 MB", "1.5 MB", "300 B" (1024-based steps, localized number). */
 export function formatBytes(n: number) {
   const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const
   let i = 0
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024
+    i++
+  }
   return new Intl.NumberFormat([], { style: 'unit', unit: units[i], unitDisplay: 'short', maximumFractionDigits: i ? 1 : 0 }).format(n)
 }
 
-const ext = (name: string) => name.includes('.') ? name.split('.').pop()!.toLowerCase() : ''
+const ext = (name: string) => (name.includes('.') ? name.split('.').pop()!.toLowerCase() : '')
 
 const CODE_EXT: Record<string, string> = {
-  ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx', mjs: 'javascript', json: 'json', py: 'python', vue: 'vue', css: 'css',
-  html: 'html', xml: 'xml', yml: 'yaml', yaml: 'yaml', sh: 'bash', sql: 'sql', go: 'go', rs: 'rust', java: 'java', c: 'c',
-  cpp: 'cpp', h: 'c', cs: 'csharp', php: 'php', rb: 'ruby', toml: 'toml', ini: 'ini', diff: 'diff', md: 'markdown'
+  ts: 'typescript',
+  tsx: 'tsx',
+  js: 'javascript',
+  jsx: 'jsx',
+  mjs: 'javascript',
+  json: 'json',
+  py: 'python',
+  vue: 'vue',
+  css: 'css',
+  html: 'html',
+  xml: 'xml',
+  yml: 'yaml',
+  yaml: 'yaml',
+  sh: 'bash',
+  sql: 'sql',
+  go: 'go',
+  rs: 'rust',
+  java: 'java',
+  c: 'c',
+  cpp: 'cpp',
+  h: 'c',
+  cs: 'csharp',
+  php: 'php',
+  rb: 'ruby',
+  toml: 'toml',
+  ini: 'ini',
+  diff: 'diff',
+  md: 'markdown',
 }
 const TEXT_EXT = new Set(['txt', 'log', 'csv', 'conf', 'env'])
 

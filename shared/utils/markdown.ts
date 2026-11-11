@@ -16,10 +16,17 @@ export function safeHref(url: unknown): string | null {
   try {
     const u = new URL(url, 'http://relative.invalid')
     return ['http:', 'https:', 'mailto:'].includes(u.protocol) && !/^\s*\/\//.test(url) ? url : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
-interface Node { type: string, value?: string, children?: Node[], [k: string]: unknown }
+interface Node {
+  type: string
+  value?: string
+  children?: Node[]
+  [k: string]: unknown
+}
 
 const BLOCK_PARENTS = new Set(['root', 'blockquote', 'listItem'])
 
@@ -31,9 +38,7 @@ function splitText(value: string): Node[] {
     let last = 0
     for (const m of line.matchAll(/<@([\w-]+)>|\|\|/g)) {
       push(line.slice(last, m.index))
-      out.push(m[1]
-        ? { type: 'spkMention', data: { hName: 'mention-chip', hProperties: { uid: m[1] } } }
-        : { type: 'spkMarker' })
+      out.push(m[1] ? { type: 'spkMention', data: { hName: 'mention-chip', hProperties: { uid: m[1] } } } : { type: 'spkMarker' })
       last = m.index + m[0].length
     }
     push(line.slice(last))
@@ -46,8 +51,15 @@ function pairSpoilers(nodes: Node[]): Node[] {
   const out: Node[] = []
   let open = -1
   for (const n of nodes) {
-    if (n.type !== 'spkMarker') { out.push(n); continue }
-    if (open < 0) { open = out.length; out.push(n); continue }
+    if (n.type !== 'spkMarker') {
+      out.push(n)
+      continue
+    }
+    if (open < 0) {
+      open = out.length
+      out.push(n)
+      continue
+    }
     const inner = out.splice(open + 1)
     out.pop() // the opening marker
     if (inner.some(c => c.type !== 'text' || c.value?.trim())) {
@@ -57,7 +69,7 @@ function pairSpoilers(nodes: Node[]): Node[] {
     }
     open = -1
   }
-  return out.map(n => n.type === 'spkMarker' ? { type: 'text', value: '||' } : n)
+  return out.map(n => (n.type === 'spkMarker' ? { type: 'text', value: '||' } : n))
 }
 
 function walk(parent: Node, src: string) {
@@ -90,7 +102,7 @@ export function remarkSpk() {
   return (tree: Node, file: { value?: unknown }) => walk(tree, String(file?.value ?? ''))
 }
 
-export type InternalLink = { channelId: string, messageId?: string }
+export type InternalLink = { channelId: string; messageId?: string }
 
 /** `https://<this app>/c/:channelId[/m/:messageId]` -> ids, else null. */
 export function parseInternalLink(href: string, origin: string): InternalLink | null {
@@ -99,7 +111,9 @@ export function parseInternalLink(href: string, origin: string): InternalLink | 
     if (u.origin !== origin) return null
     const m = /^\/c\/([\w-]+)(?:\/m\/([\w-]+))?\/?$/.exec(u.pathname)
     return m ? { channelId: m[1]!, messageId: m[2] } : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -111,14 +125,17 @@ export function setFenceLanguage(body: string, occurrence: number, lang: string,
   const lines = body.split('\n')
   const quote = /^(?:[ \t]*>)*[ \t]?/
   let seen = -1
-  let open: { ch: string, len: number, at: number, prefix: string, mark: string, info: string } | null = null
+  let open: { ch: string; len: number; at: number; prefix: string; mark: string; info: string } | null = null
   for (let i = 0; i < lines.length; i++) {
     const m = /^((?:[ \t]*>)*[ \t]*)(`{3,}|~{3,})(.*)$/.exec(lines[i]!)
     if (!open) {
       if (!m || (m[2]![0] === '`' && m[3]!.includes('`'))) continue // not a fence (or inline code)
       open = { ch: m[2]![0]!, len: m[2]!.length, at: i, prefix: m[1]!, mark: m[2]!, info: m[3]! }
     } else if (m && m[2]![0] === open.ch && m[2]!.length >= open.len && !m[3]!.trim()) {
-      const inner = lines.slice(open.at + 1, i).map(l => l.replace(quote, '')).join('\n')
+      const inner = lines
+        .slice(open.at + 1, i)
+        .map(l => l.replace(quote, ''))
+        .join('\n')
       if (inner === code && ++seen === occurrence) {
         lines[open.at] = open.prefix + open.mark + open.info.replace(/^\s*\S*/, lang)
         return lines.join('\n')

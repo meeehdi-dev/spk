@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { checkInvite, claimInvite, createInvite, hashToken, releaseInvite, revokeInvite, linkInviteUser } from '../server/db/invites'
-import { invites, user } from '../server/db/schema'
 import { wouldRemoveLastAdmin } from '../server/db/roles'
+import { invites, user } from '../server/db/schema'
 
 let db: Db
 const addUser = (id: string, role = 'user') =>
-  db.insert(user).values({ id, name: id, email: `${id}@x.dev`, role }).run()
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, role })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')

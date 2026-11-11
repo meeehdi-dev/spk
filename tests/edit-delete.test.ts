@@ -1,21 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
-import { createDb, type Db } from '../server/db/client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cancelPending, createPendingAttachment, purgeObjects, sweepOrphans } from '../server/db/attachments'
+import { createDb, type Db } from '../server/db/client'
 import { ChatError, createMessage, deleteMessage, editMessage, isEmoji, listMessages, setReaction } from '../server/db/messages'
 import { attachments, channelMembers, channels, messageMentions, reactions, user } from '../server/db/schema'
 import { cleanMime, formatBytes, MAX_FILE_BYTES } from '../shared/utils/files'
 import { setFenceLanguage } from '../shared/utils/markdown'
 
 let db: Db
-const addUser = (id: string) => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id }).run()
+const addUser = (id: string) =>
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, displayName: id })
+    .run()
 const fts = (q: string) => db.all<{ rowid: number }>(sql`SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${q}`).length
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a'); addUser('b'); addUser('c')
-  db.insert(channels).values([{ id: 't', type: 'text', name: 't' }, { id: 'dm', type: 'dm' }]).run()
-  db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
+  addUser('a')
+  addUser('b')
+  addUser('c')
+  db.insert(channels)
+    .values([
+      { id: 't', type: 'text', name: 't' },
+      { id: 'dm', type: 'dm' },
+    ])
+    .run()
+  db.insert(channelMembers)
+    .values([
+      { channelId: 'dm', userId: 'a' },
+      { channelId: 'dm', userId: 'b' },
+    ])
+    .run()
 })
 
 describe('edit', () => {
@@ -25,7 +42,13 @@ describe('edit', () => {
     const e = editMessage(db, 'a', m.id, 'hi <@c>', 9_999_999_999)
     expect(e.body).toBe('hi <@c>')
     expect(e.editedAt).toBe(9_999_999_999)
-    expect(db.select().from(messageMentions).all().map(r => r.userId)).toEqual(['c'])
+    expect(
+      db
+        .select()
+        .from(messageMentions)
+        .all()
+        .map(r => r.userId),
+    ).toEqual(['c'])
     expect(fts('hacked')).toBe(0)
     expect(() => editMessage(db, 'a', m.id, '   ')).toThrow(/empty/)
   })
@@ -53,7 +76,9 @@ describe('delete', () => {
     expect(() => deleteMessage(db, 'a', false, m.id)).toThrow(/not found/)
   })
   it('calls R2 delete for each file and keeps going after a failure', async () => {
-    const del = vi.fn(async (k: string) => { if (k === 'b') throw new Error('boom') })
+    const del = vi.fn(async (k: string) => {
+      if (k === 'b') throw new Error('boom')
+    })
     expect(await purgeObjects(['a', 'b', 'c'], del)).toEqual(['b'])
     expect(del).toHaveBeenCalledTimes(3)
   })
@@ -64,7 +89,13 @@ describe('replies', () => {
     const o = createMessage(db, 'a', 't', '\n first line\nsecond', 1000)
     const r = createMessage(db, 'b', 't', 'yes', 2000, { replyToId: o.id })
     expect(r.replyTo).toMatchObject({ id: o.id, userId: 'a', preview: 'first line', deleted: false })
-    expect(db.select().from(messageMentions).all().map(x => [x.messageId, x.userId])).toEqual([[r.id, 'a']])
+    expect(
+      db
+        .select()
+        .from(messageMentions)
+        .all()
+        .map(x => [x.messageId, x.userId]),
+    ).toEqual([[r.id, 'a']])
     expect(() => createMessage(db, 'b', 'dm', 'x', 3000, { replyToId: o.id })).toThrow(/no longer exists/) // other channel / no access
     deleteMessage(db, 'a', false, o.id)
     expect(listMessages(db, 't', {}).messages[0]!.replyTo).toMatchObject({ deleted: true, preview: '' })
@@ -92,13 +123,15 @@ describe('attachments', () => {
     const ok = { filename: 'a.txt', mime: 'text/plain', size: 5 }
     expect(createPendingAttachment(db, 'a', ok).messageId).toBeNull()
     for (const size of [0, -1, 1.5, MAX_FILE_BYTES + 1, '5', undefined]) expect(() => createPendingAttachment(db, 'a', { ...ok, size })).toThrow(ChatError)
-    for (const mime of ['', 'text', 'text/plain; charset=x', '../x/y', undefined, 5]) expect(() => createPendingAttachment(db, 'a', { ...ok, mime })).toThrow(/type/)
+    for (const mime of ['', 'text', 'text/plain; charset=x', '../x/y', undefined, 5])
+      expect(() => createPendingAttachment(db, 'a', { ...ok, mime })).toThrow(/type/)
     expect(createPendingAttachment(db, 'a', { ...ok, size: MAX_FILE_BYTES }).size).toBe(MAX_FILE_BYTES)
     expect(createPendingAttachment(db, 'a', { ...ok, filename: '../a/b\u0000.txt' }).filename).toBe('..ab.txt')
   })
   it('links in the send transaction, only your own unsent files, max 10', () => {
     const mk = (u: string) => createPendingAttachment(db, u, { filename: 'f', mime: 'a/b', size: 1 })
-    const mine = mk('a'), theirs = mk('b')
+    const mine = mk('a'),
+      theirs = mk('b')
     expect(() => createMessage(db, 'a', 't', 'x', 1, { attachments: [{ id: theirs.id }] })).toThrow(/attachment/)
     expect(db.select().from(messageMentions).all()).toEqual([])
     expect(listMessages(db, 't', {}).messages).toEqual([]) // rolled back with the message
@@ -120,7 +153,9 @@ describe('attachments', () => {
     createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, day) // fresh
     const sent = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 1000)
     createMessage(db, 'a', 't', 'x', 1, { attachments: [{ id: sent.id }] })
-    const del = vi.fn(async () => { throw new Error('r2 down') })
+    const del = vi.fn(async () => {
+      throw new Error('r2 down')
+    })
     expect(await sweepOrphans(db, del, day + 2000)).toBe(0)
     expect(db.select().from(attachments).all()).toHaveLength(3)
     const ok = vi.fn(async () => {})
@@ -137,15 +172,29 @@ describe('attachments', () => {
     const del = vi.fn(async () => {})
     expect(await sweepOrphans(db, del, 30 * h)).toBe(1)
     expect(del).toHaveBeenCalledWith(stale.r2Key)
-    expect(db.select().from(attachments).all().map(a => a.id)).toEqual([ok.id])
+    expect(
+      db
+        .select()
+        .from(attachments)
+        .all()
+        .map(a => a.id),
+    ).toEqual([ok.id])
   })
   it('the sweep keeps a row that gets linked to a message while R2 is being deleted', async () => {
     const raced = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 0)
     const m = createMessage(db, 'a', 't', 'x', 1)
-    const link = vi.fn(async () => { db.update(attachments).set({ messageId: m.id }).where(eq(attachments.id, raced.id)).run() })
+    const link = vi.fn(async () => {
+      db.update(attachments).set({ messageId: m.id }).where(eq(attachments.id, raced.id)).run()
+    })
     await sweepOrphans(db, link, 30 * 3600_000)
     expect(link).toHaveBeenCalledWith(raced.r2Key)
-    expect(db.select().from(attachments).all().map(a => [a.id, a.messageId])).toEqual([[raced.id, m.id]])
+    expect(
+      db
+        .select()
+        .from(attachments)
+        .all()
+        .map(a => [a.id, a.messageId]),
+    ).toEqual([[raced.id, m.id]])
   })
 })
 

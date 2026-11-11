@@ -4,8 +4,14 @@ export function useSearch() {
   return reactive({
     ...toRefs(s.value),
     /** Open (or refocus) the panel with a scope. */
-    show(scope: 'channel' | 'everything') { s.value.scope = scope; s.value.open = true; s.value.focusTick++ },
-    close() { s.value.open = false }
+    show(scope: 'channel' | 'everything') {
+      s.value.scope = scope
+      s.value.open = true
+      s.value.focusTick++
+    },
+    close() {
+      s.value.open = false
+    },
   })
 }
 

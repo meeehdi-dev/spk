@@ -2,7 +2,7 @@
 export default defineNuxtPlugin(() => {
   if (!('serviceWorker' in navigator)) return
   navigator.serviceWorker.register('/sw.js').catch(() => {})
-  navigator.serviceWorker.addEventListener('message', (e) => {
-    if (e.data?.type === 'navigate') navigateTo(e.data.url)
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'navigate') void navigateTo(e.data.url)
   })
 })

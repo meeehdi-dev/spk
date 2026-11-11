@@ -1,14 +1,17 @@
 // @vitest-environment happy-dom
+import type { SocketFrame } from '../app/composables/useSocket'
+import type { MessageDto } from '../server/db/messages'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, effectScope, onScopeDispose, reactive, ref } from 'vue'
 
-const send = vi.fn((_data: unknown) => true)
+const send = vi.fn((_data: { nonce: string }) => true)
 const toast = vi.fn()
 const fetch = vi.fn()
 let xhrs: FakeXHR[]
-let handlers: Set<(m: any) => void>
+let handlers: Set<(m: SocketFrame) => void>
 class FakeXHR {
-  upload = { onprogress: null as any }
+  upload = { onprogress: (_event: Pick<ProgressEvent, 'lengthComputable' | 'loaded' | 'total'>) => {} }
   status = 200
   onload = () => {}
   onabort = () => {}
@@ -17,7 +20,9 @@ class FakeXHR {
   setRequestHeader = vi.fn()
   send = vi.fn()
   abort = vi.fn(() => this.onabort())
-  constructor() { xhrs.push(this) }
+  constructor() {
+    xhrs.push(this)
+  }
 }
 
 beforeEach(() => {
@@ -29,19 +34,31 @@ beforeEach(() => {
   handlers = new Set()
   fetch.mockResolvedValue({ id: 'file-id', url: 'https://upload.test', headers: {} })
   for (const [key, value] of Object.entries({
-    ref, reactive, computed, useToast: () => ({ add: toast }),
-    useSocket: () => ({ send, on: (h: (m: any) => void) => {
-      handlers.add(h)
-      onScopeDispose(() => handlers.delete(h))
-    } }),
-    $fetch: fetch, XMLHttpRequest: FakeXHR, errorText: (e: Error) => e.message,
-    formatBytes: (n: number) => String(n)
-  })) vi.stubGlobal(key, value)
+    ref,
+    reactive,
+    computed,
+    useToast: () => ({ add: toast }),
+    useSocket: () => ({
+      send,
+      on: (h: (m: SocketFrame) => void) => {
+        handlers.add(h)
+        onScopeDispose(() => handlers.delete(h))
+      },
+    }),
+    $fetch: fetch,
+    XMLHttpRequest: FakeXHR,
+    errorText: (e: Error) => e.message,
+    formatBytes: (n: number) => String(n),
+  }))
+    vi.stubGlobal(key, value)
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview')
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 })
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 const setup = async () => (await import('../app/composables/useDrafts')).useDrafts()
 const reply = { id: 'original', name: 'Alice', preview: 'Outside the history slice' }
@@ -56,7 +73,7 @@ describe('per-channel drafts', () => {
     const a = composer.run(() => drafts.get('A'))!
     a.text.value = 'sent before navigating'
     drafts.send('A', a.text.value, drafts.take('A'))
-    const frame = send.mock.calls[0]![0] as any
+    const frame = send.mock.calls[0]![0]
     composer.stop()
     drafts.get('B')
     expect(handlers.size).toBe(1)
@@ -91,8 +108,12 @@ describe('per-channel drafts', () => {
   })
 
   it('keeps presign and PUT running off-screen; explicit cancellation still cleans up', async () => {
-    let presign!: (value: any) => void
-    fetch.mockReturnValueOnce(new Promise(resolve => { presign = resolve }))
+    let presign!: (value: unknown) => void
+    fetch.mockReturnValueOnce(
+      new Promise(resolve => {
+        presign = resolve
+      }),
+    )
     const drafts = await setup()
     const scope = effectScope()
     const a = scope.run(() => drafts.get('A'))!
@@ -122,8 +143,12 @@ describe('per-channel drafts', () => {
     await vi.waitFor(() => expect(a.uploads.items.value[0]!.state).toBe('error'))
     expect(drafts.get('A').uploads.items.value[0]!.error).toBe('Network failed')
     a.uploads.cancel(a.uploads.items.value[0]!.key)
-    let presign!: (value: any) => void
-    fetch.mockReturnValueOnce(new Promise(resolve => { presign = resolve }))
+    let presign!: (value: unknown) => void
+    fetch.mockReturnValueOnce(
+      new Promise(resolve => {
+        presign = resolve
+      }),
+    )
     a.uploads.add([new File(['a'], 'a.txt')])
     a.uploads.cancel(a.uploads.items.value[0]!.key)
     presign({ id: 'cancelled', url: 'https://upload.test', headers: {} })
@@ -154,9 +179,11 @@ describe('per-channel drafts', () => {
     const a = drafts.get('A')
     a.text.value = 'A message'
     a.reply.value = reply
-    a.uploads.items.value = [{ key: 'a', id: 'file', name: 'a', mime: 'image/png', size: 1, spoiler: true, state: 'done', progress: 1, preview: 'blob:preview' }]
+    a.uploads.items.value = [
+      { key: 'a', id: 'file', name: 'a', mime: 'image/png', size: 1, spoiler: true, state: 'done', progress: 1, preview: 'blob:preview' },
+    ]
     drafts.send('A', 'A message', drafts.take('A'))
-    const frame = send.mock.calls[0]![0] as any
+    const frame = send.mock.calls[0]![0]
     expect(a.uploads.items.value).toEqual([])
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
     const b = drafts.get('B')
@@ -174,7 +201,7 @@ describe('per-channel drafts', () => {
     a.text.value = 'old'
     a.gif.value = 'old gif'
     drafts.send('A', 'old body', drafts.take('A'))
-    const frame = send.mock.calls[0]![0] as any
+    const frame = send.mock.calls[0]![0]
     a.text.value = 'new'
     a.gif.value = 'new gif'
     a.reply.value = { ...reply, id: 'new reply' }
@@ -185,9 +212,9 @@ describe('per-channel drafts', () => {
     expect(a.reply.value.id).toBe('new reply')
     expect(a.uploads.items.value[0]!.key).toBe('new')
     drafts.send('A', 'new body', drafts.take('A'))
-    const success = send.mock.calls[1]![0] as any
+    const success = send.mock.calls[1]![0]
     a.text.value = 'third message'
-    drafts.onMessage({ type: 'message:new', nonce: success.nonce, message: { channelId: 'A' } })
+    drafts.onMessage({ type: 'message:new', nonce: success.nonce, message: { channelId: 'A' } as MessageDto })
     drafts.onMessage({ type: 'message:error', nonce: success.nonce, error: 'Unrelated' })
     expect(a.text.value).toBe('third message')
     expect(a.gif.value).toBeNull()
@@ -204,7 +231,7 @@ describe('per-channel drafts', () => {
     expect(a.reply.value).toEqual(reply)
     drafts.onMessage({ type: 'message:delete', channelId: 'A', id: reply.id })
     expect(a.reply.value).toBeNull()
-    const frame = send.mock.calls[0]![0] as any
+    const frame = send.mock.calls[0]![0]
     drafts.onMessage({ type: 'message:error', nonce: frame.nonce, error: 'Deleted' })
     expect(a.reply.value).toBeNull()
   })

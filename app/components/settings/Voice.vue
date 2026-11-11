@@ -1,20 +1,32 @@
 <script setup lang="ts">
 import { matchDevice } from '#shared/utils/voice'
+
 const v = useVoice()
 const s = v.settings
-const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' }]
-const items = (list: MediaDeviceInfo[]) => [{ label: 'System default', value: 'default' }, ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))]
-const current = (saved: { deviceId: string, label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
+const noiseItems = [
+  { label: 'Off', value: 'off' },
+  { label: 'Standard (browser)', value: 'standard' },
+  { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' },
+]
+const items = (list: MediaDeviceInfo[]) => [
+  { label: 'System default', value: 'default' },
+  ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId })),
+]
+const current = (saved: { deviceId: string; label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
 const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
   if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
-  if (d) v.pickDevice(kind, d)
+  if (d) void v.pickDevice(kind, d)
   else s.value = { ...s.value, [kind]: undefined }
 }
 // Labels are blank until the browser grants a device permission; this button asks once.
 const labelsHidden = computed(() => [...v.devices.value.mics, ...v.devices.value.speakers].some(d => !d.label))
 async function allow() {
-  try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop()) } catch { useToast().add({ title: 'Microphone access was denied', color: 'error', icon: 'i-lucide-mic-off' }) }
+  try {
+    ;(await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
+  } catch {
+    useToast().add({ title: 'Microphone access was denied', color: 'error', icon: 'i-lucide-mic-off' })
+  }
   await v.refreshDevices()
 }
 onMounted(v.refreshDevices)
@@ -23,18 +35,33 @@ onMounted(v.refreshDevices)
 const level = ref(0)
 let stopMeter: (() => void) | undefined
 async function meter(on: boolean) {
-  stopMeter?.(); stopMeter = undefined; level.value = 0
+  stopMeter?.()
+  stopMeter = undefined
+  level.value = 0
   if (!on) return
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: matchDevice(s.value.mic, v.devices.value.mics).deviceId } })
-    const ctx = new AudioContext(), an = ctx.createAnalyser(), buf = new Float32Array(1024)
+    const ctx = new AudioContext(),
+      an = ctx.createAnalyser(),
+      buf = new Float32Array(1024)
     an.fftSize = 1024
     ctx.createMediaStreamSource(stream).connect(an)
     let raf = 0
-    const tick = () => { an.getFloatTimeDomainData(buf); level.value = Math.min(1, Math.sqrt(buf.reduce((a, x) => a + x * x, 0) / buf.length) * 4); raf = requestAnimationFrame(tick) }
+    const tick = () => {
+      an.getFloatTimeDomainData(buf)
+      level.value = Math.min(1, Math.sqrt(buf.reduce((a, x) => a + x * x, 0) / buf.length) * 4)
+      raf = requestAnimationFrame(tick)
+    }
     tick()
-    stopMeter = () => { cancelAnimationFrame(raf); stream.getTracks().forEach(t => t.stop()); void ctx.close() }
-  } catch { useToast().add({ title: 'Could not open the microphone', color: 'error', icon: 'i-lucide-mic-off' }); testing.value = false }
+    stopMeter = () => {
+      cancelAnimationFrame(raf)
+      stream.getTracks().forEach(t => t.stop())
+      void ctx.close()
+    }
+  } catch {
+    useToast().add({ title: 'Could not open the microphone', color: 'error', icon: 'i-lucide-mic-off' })
+    testing.value = false
+  }
 }
 const testing = ref(false)
 watch(testing, meter)
@@ -44,8 +71,12 @@ onBeforeUnmount(() => stopMeter?.())
 const camPreview = ref(false)
 const videoEl = ref<HTMLVideoElement>()
 let camStream: MediaStream | undefined
-const stopCam = () => { camStream?.getTracks().forEach(t => t.stop()); camStream = undefined; if (videoEl.value) videoEl.value.srcObject = null }
-watch(camPreview, async (on) => {
+const stopCam = () => {
+  camStream?.getTracks().forEach(t => t.stop())
+  camStream = undefined
+  if (videoEl.value) videoEl.value.srcObject = null
+}
+watch(camPreview, async on => {
   stopCam()
   if (!on) return
   try {
@@ -53,7 +84,10 @@ watch(camPreview, async (on) => {
     if (!camPreview.value) return stopCam()
     await nextTick()
     if (videoEl.value) videoEl.value.srcObject = camStream
-  } catch { useToast().add({ title: 'Could not open the camera', color: 'error', icon: 'i-lucide-video-off' }); camPreview.value = false }
+  } catch {
+    useToast().add({ title: 'Could not open the camera', color: 'error', icon: 'i-lucide-video-off' })
+    camPreview.value = false
+  }
 })
 onBeforeUnmount(stopCam)
 
@@ -63,34 +97,90 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
 <template>
   <div class="flex flex-col gap-6">
     <UCard>
-      <template #header><h2 class="font-bold">Devices</h2></template>
+      <template #header>
+        <h2 class="font-bold">Devices</h2>
+      </template>
       <div class="flex flex-col gap-4">
-        <UAlert v-if="labelsHidden" color="info" variant="subtle" icon="i-lucide-info" title="Device names are hidden until you allow the microphone"
-          :actions="[{ label: 'Allow microphone', icon: 'i-lucide-mic', onClick: allow }]" />
+        <UAlert
+          v-if="labelsHidden"
+          color="info"
+          variant="subtle"
+          icon="i-lucide-info"
+          title="Device names are hidden until you allow the microphone"
+          :actions="[{ label: 'Allow microphone', icon: 'i-lucide-mic', onClick: allow }]"
+        />
         <UFormField label="Microphone">
-          <USelect :model-value="current(s.mic, v.devices.value.mics)" :items="items(v.devices.value.mics)" class="w-full" @update:model-value="pick('mic', v.devices.value.mics)($event as string)" />
+          <USelect
+            :model-value="current(s.mic, v.devices.value.mics)"
+            :items="items(v.devices.value.mics)"
+            class="w-full"
+            @update:model-value="pick('mic', v.devices.value.mics)($event as string)"
+          />
         </UFormField>
         <UFormField label="Level">
           <div class="flex items-center gap-3">
-            <UButton :icon="testing ? 'i-lucide-square' : 'i-lucide-play'" :label="testing ? 'Stop' : 'Test microphone'" color="neutral" variant="outline" :disabled="!!v.channelId.value" @click="testing = !testing" />
+            <UButton
+              :icon="testing ? 'i-lucide-square' : 'i-lucide-play'"
+              :label="testing ? 'Stop' : 'Test microphone'"
+              color="neutral"
+              variant="outline"
+              :disabled="!!v.channelId.value"
+              @click="testing = !testing"
+            />
             <UProgress :model-value="level * 100" class="max-w-xs" aria-label="Microphone level" />
           </div>
         </UFormField>
-        <UFormField v-for="output in v.canPickOutput ? [{ kind: 'speaker', label: 'Voice output' }, { kind: 'screenSpeaker', label: 'Screen-share output' }] as const : []" :key="output.kind" :label="output.label">
-          <USelect :model-value="current(s[output.kind], v.devices.value.speakers)" :items="items(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))" class="w-full" @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)" />
+        <UFormField
+          v-for="output in v.canPickOutput
+            ? ([
+                { kind: 'speaker', label: 'Voice output' },
+                { kind: 'screenSpeaker', label: 'Screen-share output' },
+              ] as const)
+            : []"
+          :key="output.kind"
+          :label="output.label"
+        >
+          <USelect
+            :model-value="current(s[output.kind], v.devices.value.speakers)"
+            :items="items(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))"
+            class="w-full"
+            @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)"
+          />
         </UFormField>
         <UFormField label="Camera">
-          <USelect :model-value="current(s.camera, v.devices.value.cams)" :items="items(v.devices.value.cams)" class="w-full" @update:model-value="pick('camera', v.devices.value.cams)($event as string)" />
+          <USelect
+            :model-value="current(s.camera, v.devices.value.cams)"
+            :items="items(v.devices.value.cams)"
+            class="w-full"
+            @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
+          />
         </UFormField>
         <div class="flex flex-col gap-2">
-          <UButton :icon="camPreview ? 'i-lucide-video-off' : 'i-lucide-video'" :label="camPreview ? 'Stop preview' : 'Preview camera'" color="neutral" variant="outline" class="w-fit" :disabled="v.camOn.value" @click="camPreview = !camPreview" />
-          <video v-show="camPreview" ref="videoEl" autoplay muted playsinline class="aspect-video w-full max-w-xs -scale-x-100 rounded-md border border-default bg-black" />
+          <UButton
+            :icon="camPreview ? 'i-lucide-video-off' : 'i-lucide-video'"
+            :label="camPreview ? 'Stop preview' : 'Preview camera'"
+            color="neutral"
+            variant="outline"
+            class="w-fit"
+            :disabled="v.camOn.value"
+            @click="camPreview = !camPreview"
+          />
+          <video
+            v-show="camPreview"
+            ref="videoEl"
+            autoplay
+            muted
+            playsinline
+            class="aspect-video w-full max-w-xs -scale-x-100 rounded-md border border-default bg-black"
+          />
         </div>
       </div>
     </UCard>
 
     <UCard>
-      <template #header><h2 class="font-bold">Voice processing</h2></template>
+      <template #header>
+        <h2 class="font-bold">Voice processing</h2>
+      </template>
       <div class="flex flex-col gap-4">
         <UFormField label="Noise suppression" description="Enhanced is stronger: one-time download of about 11–22 MB, and it uses more CPU.">
           <USelect v-model="s.noise" :items="noiseItems" class="w-full max-w-xs" @update:model-value="v.applySettings()" />
@@ -102,7 +192,15 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
         </UFormField>
         <UFormField label="Output volume">
           <div class="flex items-center gap-3">
-            <USlider v-model="s.outputVolume" :min="0" :max="1" :step="0.05" class="max-w-xs" aria-label="Output volume" @update:model-value="v.applyOutput()" />
+            <USlider
+              v-model="s.outputVolume"
+              :min="0"
+              :max="1"
+              :step="0.05"
+              class="max-w-xs"
+              aria-label="Output volume"
+              @update:model-value="v.applyOutput()"
+            />
             <UButton icon="i-lucide-volume-2" label="Test sound" color="neutral" variant="outline" @click="playVoiceSound('join', true, true)" />
           </div>
         </UFormField>
@@ -110,7 +208,9 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
     </UCard>
 
     <UCard>
-      <template #header><h2 class="font-bold">Sounds</h2></template>
+      <template #header>
+        <h2 class="font-bold">Sounds</h2>
+      </template>
       <div class="flex flex-col gap-4">
         <div v-for="(label, k) in soundLabels" :key="k" class="flex items-center gap-4">
           <USwitch v-model="s.sounds[k].on" :label="label" class="w-32" />

@@ -1,7 +1,7 @@
 import { createSound, soundKey } from '../../db/sounds'
 
 // Saves the row after the browser uploaded the WAV: the object must exist with the announced size. Admin only.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireAdmin(event)
   const body = (await readBody(event)) ?? {}
   return asHttp(async () => {

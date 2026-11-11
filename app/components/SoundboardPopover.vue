@@ -18,8 +18,19 @@ const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().inclu
         <p v-if="!sounds.length" class="text-muted">No sounds yet. An admin can add some in Settings → Soundboard.</p>
         <p v-else-if="!shown.length" class="text-muted">No match.</p>
         <div class="grid max-h-60 grid-cols-3 gap-2 overflow-y-auto">
-          <UContextMenu v-for="s in shown" :key="s.id" :items="[{ label: 'Preview (only you)', icon: 'i-lucide-headphones', onSelect: () => playSound(s.id, true) }]">
-            <UButton color="neutral" variant="soft" class="h-16 flex-col justify-center gap-1" :disabled="cooling" :aria-label="`Play ${s.name}`" @click="press(s.id)">
+          <UContextMenu
+            v-for="s in shown"
+            :key="s.id"
+            :items="[{ label: 'Preview (only you)', icon: 'i-lucide-headphones', onSelect: () => playSound(s.id, true) }]"
+          >
+            <UButton
+              color="neutral"
+              variant="soft"
+              class="h-16 flex-col justify-center gap-1"
+              :disabled="cooling"
+              :aria-label="`Play ${s.name}`"
+              @click="press(s.id)"
+            >
               <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
               <span class="w-full truncate text-xs">{{ s.name }}</span>
             </UButton>

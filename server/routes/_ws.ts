@@ -1,6 +1,5 @@
 import type { Peer } from 'crossws'
 
-
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
 const heard = new WeakMap<Peer, number>() // last time each peer sent anything
@@ -26,7 +25,14 @@ export default defineWebSocketHandler({
     }
   },
   error(peer, e) {
-    logFailure({ method: 'WS', url: peer.request?.url ?? '/_ws', status: 500, message: `WebSocket handler: ${e.message}`, userId: peer.context.userId as string | undefined, error: e })
+    logFailure({
+      method: 'WS',
+      url: peer.request?.url ?? '/_ws',
+      status: 500,
+      message: `WebSocket handler: ${e.message}`,
+      userId: peer.context.userId as string | undefined,
+      error: e,
+    })
   },
   open(peer) {
     const userId = peer.context.userId as string
@@ -34,11 +40,14 @@ export default defineWebSocketHandler({
     const p = addPeer(userId, peer)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
     heard.set(peer, Date.now())
-    timers.set(peer, setInterval(() => {
-      // Silent for over 2 pings (a sleeping laptop, dropped Wi-Fi): terminating runs the close hook's presence and voice cleanup.
-      if (Date.now() - (heard.get(peer) ?? 0) > 2 * PING_MS) return peer.terminate()
-      peer.send(JSON.stringify({ type: 'ping' }))
-    }, PING_MS))
+    timers.set(
+      peer,
+      setInterval(() => {
+        // Silent for over 2 pings (a sleeping laptop, dropped Wi-Fi): terminating runs the close hook's presence and voice cleanup.
+        if (Date.now() - (heard.get(peer) ?? 0) > 2 * PING_MS) return peer.terminate()
+        peer.send(JSON.stringify({ type: 'ping' }))
+      }, PING_MS),
+    )
   },
   message(peer, message) {
     heard.set(peer, Date.now())
@@ -52,5 +61,5 @@ export default defineWebSocketHandler({
     const id = userOf.get(peer)
     const p = id ? removePeer(id, peer) : null
     if (id && p) broadcast({ type: 'presence:update', userId: id, status: p })
-  }
+  },
 })

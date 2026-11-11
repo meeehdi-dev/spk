@@ -3,7 +3,7 @@ import { createPendingAttachment } from '../../db/attachments'
 const allow = createLimiter(40, 60_000) // presigns per user per minute
 
 // Body: { filename, mime, size }. Signs Content-Length and Content-Type, so the PUT can't differ.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   if (!allow(u.id)) throw createError({ statusCode: 429, message: 'Slow down' })
   const body = await readBody(event)

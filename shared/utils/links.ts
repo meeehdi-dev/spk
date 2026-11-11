@@ -9,14 +9,19 @@ export function isImageUrl(url: string): boolean {
   try {
     const u = new URL(url)
     return u.protocol === 'https:' && /\.(gif|png|jpe?g|webp)$/i.test(u.pathname)
-  } catch { return false }
+  } catch {
+    return false
+  }
 }
 
 const trimEnd = (s: string) => {
   for (;;) {
     const t = s.replace(/[.,;:!?*_~'"]+$/, '')
-    const unbalanced = t.endsWith(')') && (t.match(/\)/g)!.length > (t.match(/\(/g) ?? []).length)
-    if (unbalanced) { s = t.slice(0, -1); continue }
+    const unbalanced = t.endsWith(')') && t.match(/\)/g)!.length > (t.match(/\(/g) ?? []).length
+    if (unbalanced) {
+      s = t.slice(0, -1)
+      continue
+    }
     return t
   }
 }
@@ -35,7 +40,9 @@ export function extractUrls(body: string, origin?: string): string[] {
     try {
       const u = new URL(trimEnd(m[0]))
       if (!origin || !parseInternalLink(u.href, origin)) out.add(u.href)
-    } catch { /* not a URL */ }
+    } catch {
+      /* not a URL */
+    }
   }
   return [...out]
 }

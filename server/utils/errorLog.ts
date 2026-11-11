@@ -7,7 +7,7 @@ export function safePath(url: string | undefined) {
  * One line per failure for `pnpm dev` / `docker logs`: method, path, status, message, user id. 5xx and unexpected errors add the stack.
  * Never pass bodies, headers or cookies: only these fields are printed.
  */
-export function logFailure(f: { method?: string, url?: string, status: number, message?: string, userId?: string | null, error?: unknown }) {
+export function logFailure(f: { method?: string; url?: string; status: number; message?: string; userId?: string | null; error?: unknown }) {
   const who = f.userId ? ` user=${f.userId}` : ''
   console.error(`[error] ${f.method ?? '-'} ${safePath(f.url)} ${f.status} ${f.message ?? ''}${who}`.trimEnd())
   const stack = (f.error as Error | undefined)?.stack

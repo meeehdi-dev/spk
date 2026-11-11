@@ -1,18 +1,21 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 describe('manual chunk error handling', () => {
   it('enables Nuxt manual handling without disabling the manifest', async () => {
     vi.stubGlobal('defineNuxtConfig', (config: unknown) => config)
     const { default: config } = await import('../nuxt.config')
-    expect(config.experimental.emitRouteChunkError).toBe('manual')
+    expect(config.experimental?.emitRouteChunkError).toBe('manual')
     expect(config.experimental).not.toHaveProperty('appManifest', false)
   })
 
   it('only notifies on chunk errors, without navigating or reloading on errors or updates', async () => {
-    const hooks = new Map<string, (...args: any[]) => void>()
+    const hooks = new Map<string, (...args: unknown[]) => void>()
     const add = vi.fn()
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
@@ -24,7 +27,9 @@ describe('manual chunk error handling', () => {
     vi.stubGlobal('useToast', () => ({ add }))
     vi.stubGlobal('defineNuxtPlugin', (setup: unknown) => setup)
     const { default: setup } = await import('../app/plugins/chunk-errors.client')
-    ;(setup as Function)({ hook: (name: string, handler: (...args: any[]) => void) => hooks.set(name, handler) })
+    ;(setup as (app: { hook: (name: string, handler: (...args: unknown[]) => void) => void }) => void)({
+      hook: (name: string, handler: (...args: unknown[]) => void) => hooks.set(name, handler),
+    })
 
     expect([...hooks.keys()]).toEqual(['app:chunkError'])
     hooks.get('app:manifest:update')?.({ id: 'new-build' })
@@ -34,7 +39,7 @@ describe('manual chunk error handling', () => {
       id: 'chunk-error',
       title: 'Could not load this page',
       description: 'Refresh manually to try again. Unsent GIFs, attachments and replies will be lost; draft text is saved.',
-      color: 'error'
+      color: 'error',
     })
     expect(reload).not.toHaveBeenCalled()
     expect(assign).not.toHaveBeenCalled()

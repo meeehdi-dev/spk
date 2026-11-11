@@ -7,8 +7,13 @@ export async function signOut() {
   useSettingsModal().value = null
   try {
     const sub = await (await navigator.serviceWorker?.getRegistration())?.pushManager.getSubscription()
-    if (sub) { await $fetch('/api/push', { method: 'DELETE', body: { endpoint: sub.endpoint } }); await sub.unsubscribe() }
-  } catch { /* best effort: never block sign-out */ }
+    if (sub) {
+      await $fetch('/api/push', { method: 'DELETE', body: { endpoint: sub.endpoint } })
+      await sub.unsubscribe()
+    }
+  } catch {
+    /* best effort: never block sign-out */
+  }
   await authClient.signOut()
   window.location.assign('/login')
 }

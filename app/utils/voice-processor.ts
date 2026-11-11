@@ -1,7 +1,15 @@
-import { createDeepFilterNetAudioWorklet, DEEPFILTERNET_SAMPLE_RATE, type DeepFilterNetAudioWorkletHandle } from '@workadventure/noise-suppression/deepfilternet'
 import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client'
 
-export interface MicProcessing { enhanced: boolean, thresholdDb: number }
+import {
+  createDeepFilterNetAudioWorklet,
+  DEEPFILTERNET_SAMPLE_RATE,
+  type DeepFilterNetAudioWorkletHandle,
+} from '@workadventure/noise-suppression/deepfilternet'
+
+export interface MicProcessing {
+  enhanced: boolean
+  thresholdDb: number
+}
 
 // Voice-activation gate: opens above `threshold` dBFS (RMS per block), stays open 300 ms, fades 5 ms in / 50 ms out.
 const gateSource = `class Gate extends AudioWorkletProcessor {
@@ -46,9 +54,13 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
   constructor(private cfg: MicProcessing) {}
 
   async init(opts: AudioProcessorOptions) {
-    const ctx = this.ctx = new AudioContext({ sampleRate: DEEPFILTERNET_SAMPLE_RATE, latencyHint: 'interactive' })
+    const ctx = (this.ctx = new AudioContext({ sampleRate: DEEPFILTERNET_SAMPLE_RATE, latencyHint: 'interactive' }))
     const url = URL.createObjectURL(new Blob([gateSource], { type: 'text/javascript' }))
-    try { await ctx.audioWorklet.addModule(url) } finally { URL.revokeObjectURL(url) }
+    try {
+      await ctx.audioWorklet.addModule(url)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
     if (ctx.state === 'suspended') await ctx.resume()
     this.src = ctx.createMediaStreamSource(new MediaStream([opts.track]))
     this.gate = new AudioWorkletNode(ctx, 'spk-gate')
@@ -80,7 +92,7 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
   }
 
   private async load(ctx: AudioContext, gate: AudioWorkletNode) {
-    const mine = this.pending = ++this.token
+    const mine = (this.pending = ++this.token)
     const live = () => this.token === mine
     let dfn: DeepFilterNetAudioWorkletHandle | undefined
     try {
@@ -96,7 +108,7 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
       if (dfn) this.removeDfn()
       if (!warned) {
         warned = true
-        useToast().add({ title: 'Enhanced noise suppression couldn\'t load', icon: 'i-lucide-triangle-alert', color: 'warning' })
+        useToast().add({ title: "Enhanced noise suppression couldn't load", icon: 'i-lucide-triangle-alert', color: 'warning' })
       }
     } finally {
       if (live()) this.pending = 0

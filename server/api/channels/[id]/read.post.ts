@@ -1,7 +1,7 @@
 import { accessibleChannel } from '../../../db/messages'
 import { markRead, readState } from '../../../db/reads'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const db = useDb()
   const id = getRouterParam(event, 'id')!

@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "tabWidth": 2,
+  "singleQuote": true,
+  "semi": false,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "printWidth": 160,
+  "proseWrap": "preserve",
+  "sortPackageJson": { "sortScripts": true },
+  "sortImports": {
+    "groups": [
+      "type-builtin",
+      "type-external",
+      "type-internal",
+      "type-parent",
+      "type-sibling",
+      "type-index",
+      "type-import",
+      "value-builtin",
+      "value-external",
+      "value-internal",
+      "value-parent",
+      "value-sibling",
+      "value-index",
+      "unknown"
+    ],
+    "internalPattern": ["~~/", "~/", "#shared/", "#imports"],
+    "order": "asc",
+    "ignoreCase": true,
+    "newlinesBetween": true,
+    "sortSideEffects": false
+  },
+  "sortTailwindcss": {
+    "stylesheet": "./app/assets/css/main.css",
+    "attributes": [":class", "v-bind:class", ":ui", "v-bind:ui"],
+    "preserveDuplicates": true,
+    "preserveWhitespace": true
+  },
+  "ignorePatterns": ["pnpm-lock.yaml", "server/db/migrations/**", ".agents/**"]
+}

@@ -1,10 +1,10 @@
-import { deleteMessage } from '../../db/messages'
 import { purgeObjects } from '../../db/attachments'
+import { deleteMessage } from '../../db/messages'
 import { readState } from '../../db/reads'
 import { isAdminRole } from '../../db/roles'
 
 // The author, or any admin. Soft delete in the DB, then the files leave R2.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const db = useDb()
   return asHttp(async () => {

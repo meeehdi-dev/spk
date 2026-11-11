@@ -1,23 +1,33 @@
 import type { Peer } from 'crossws'
+
 import { and, eq } from 'drizzle-orm'
+
+import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
 import { channels } from '../db/schema'
 import { getSound } from '../db/sounds'
-import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
+
 import { createLimiter } from './limiter'
 
 const allowSound = createLimiter(1, SOUND_COOLDOWN_MS) // one soundboard sound per user per 3 s
 
-const presenceFrame = (p: { userId: string, channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean } | null, userId: string) =>
-  ({ type: 'voice:presence', ...(p ?? { channelId: null, userId }) })
+const presenceFrame = (
+  p: { userId: string; channelId: string; muted: boolean; deafened: boolean; speaking: boolean; cam: boolean; screen: boolean } | null,
+  userId: string,
+) => ({ type: 'voice:presence', ...(p ?? { channelId: null, userId }) })
 
 /** `voice:*` frames from a signed-in socket. `owner` is the socket: its close clears the session. */
-export function handleVoiceFrame(userId: string, m: Record<string, any>, owner: unknown) {
+export function handleVoiceFrame(userId: string, m: Record<string, unknown>, owner: unknown) {
   const sid = typeof m.sid === 'string' ? m.sid : ''
   if (!sid) return
   if (m.type === 'voice:join') {
-    const ch = typeof m.channelId === 'string'
-      ? useDb().select({ id: channels.id }).from(channels).where(and(eq(channels.id, m.channelId), eq(channels.type, 'voice'))).get()
-      : undefined
+    const ch =
+      typeof m.channelId === 'string'
+        ? useDb()
+            .select({ id: channels.id })
+            .from(channels)
+            .where(and(eq(channels.id, m.channelId), eq(channels.type, 'voice')))
+            .get()
+        : undefined
     if (!ch) return
     const { replacedSid } = joinVoice(userId, ch.id, sid, owner)
     // Every tab of the account hears this; the one holding another sid leaves.
@@ -26,7 +36,7 @@ export function handleVoiceFrame(userId: string, m: Record<string, any>, owner: 
     const peer = owner as Peer | undefined
     peer?.send(JSON.stringify({ type: 'voice:joined', sid, channelId: ch.id, nonce: typeof m.nonce === 'string' ? m.nonce : undefined }))
   } else if (m.type === 'voice:state') {
-    const p = updateVoice(userId, sid, { muted: m.muted, deafened: m.deafened, speaking: m.speaking, cam: m.cam, screen: m.screen })
+    const p = updateVoice(userId, sid, m)
     if (p) broadcast(presenceFrame(p, userId))
   } else if (m.type === 'voice:sound') {
     const audience = soundAudience(userId, sid)

@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto'
+
 import { eq } from 'drizzle-orm'
+
 import { user } from '../../db/schema'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
-  const { key: rawKey } = await readBody<{ key?: string }>(event) ?? {}
+  const { key: rawKey } = (await readBody<{ key?: string }>(event)) ?? {}
   if (!isAvatarRawKey(u.id, rawKey)) throw createError({ statusCode: 400, message: 'Invalid upload key' })
   const r2 = useR2()
   let out: Uint8Array

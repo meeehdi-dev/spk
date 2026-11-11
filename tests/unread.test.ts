@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { listChannelsFor, openDm } from '../server/db/dms'
 import { accessibleChannel, createMessage, listMessages } from '../server/db/messages'
@@ -6,11 +7,17 @@ import { allUnread, firstUnreadId, markRead, markUnreadFrom, readState } from '.
 import { channels, user } from '../server/db/schema'
 
 let db: Db
-const addUser = (id: string, createdAt = new Date(0)) => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id, createdAt }).run()
+const addUser = (id: string, createdAt = new Date(0)) =>
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, displayName: id, createdAt })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a'); addUser('b'); addUser('c')
+  addUser('a')
+  addUser('b')
+  addUser('c')
   db.insert(channels).values({ id: 't', type: 'text', name: 't' }).run()
 })
 
@@ -26,15 +33,22 @@ describe('DM access', () => {
     expect(() => openDm(db, 'a', 'ghost')).toThrow(/not found/)
   })
   it('lists only your own DMs, newest activity first', () => {
-    const ab = openDm(db, 'a', 'b'), ac = openDm(db, 'a', 'c'), bc = openDm(db, 'b', 'c')
-    createMessage(db, 'a', ab.id, 'x', 1000); createMessage(db, 'a', ac.id, 'y', 2000); createMessage(db, 'b', bc.id, 'z', 3000)
+    const ab = openDm(db, 'a', 'b'),
+      ac = openDm(db, 'a', 'c'),
+      bc = openDm(db, 'b', 'c')
+    createMessage(db, 'a', ab.id, 'x', 1000)
+    createMessage(db, 'a', ac.id, 'y', 2000)
+    createMessage(db, 'b', bc.id, 'z', 3000)
     const dms = listChannelsFor(db, 'a').filter(c => c.type === 'dm')
-    expect(dms.map(d => [d.id, d.otherUserId])).toEqual([[ac.id, 'c'], [ab.id, 'b']])
+    expect(dms.map(d => [d.id, d.otherUserId])).toEqual([
+      [ac.id, 'c'],
+      [ab.id, 'b'],
+    ])
   })
 })
 
 describe('unread and mention counts', () => {
-  it('counts others\' messages after last read, with mentions apart', () => {
+  it("counts others' messages after last read, with mentions apart", () => {
     createMessage(db, 'b', 't', 'one', 1000)
     createMessage(db, 'b', 't', 'hey <@a>', 2000)
     createMessage(db, 'a', 't', 'mine', 3000) // own messages never count
@@ -45,7 +59,7 @@ describe('unread and mention counts', () => {
     createMessage(db, 'b', 't', 'new', 6000)
     expect(readState(db, 'a', 't').unread).toBe(1)
   })
-  it('does not count other people\'s DMs; counts your DM', () => {
+  it("does not count other people's DMs; counts your DM", () => {
     const dm = openDm(db, 'a', 'b')
     createMessage(db, 'b', dm.id, 'psst <@a>', 1000)
     expect(allUnread(db, 'a')[dm.id]).toEqual({ unread: 1, mentions: 1 })

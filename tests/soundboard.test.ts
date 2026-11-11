@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { cropMono, encodeWav, MAX_SOUND_BYTES } from '../shared/utils/sounds'
+
 import { createDb, type Db } from '../server/db/client'
 import { user } from '../server/db/schema'
 import { checkSoundSize, createSound, deleteSound, listSounds, updateSound } from '../server/db/sounds'
 import { createLimiter } from '../server/utils/limiter'
 import { joinVoice, leaveVoice, soundAudience } from '../server/utils/voicePresence'
-import { SOUND_COOLDOWN_MS } from '../shared/utils/sounds'
+import { cropMono, encodeWav, MAX_SOUND_BYTES, SOUND_COOLDOWN_MS } from '../shared/utils/sounds'
 
 describe('WAV encoder', () => {
   it('writes a mono 16-bit PCM header and the right length', () => {
@@ -15,7 +15,9 @@ describe('WAV encoder', () => {
     expect([tag(0), tag(8), tag(12), tag(36)]).toEqual(['RIFF', 'WAVE', 'fmt ', 'data'])
     expect(wav.length).toBe(44 + 8)
     expect(v.getUint32(4, true)).toBe(wav.length - 8)
-    expect([v.getUint16(20, true), v.getUint16(22, true), v.getUint32(24, true), v.getUint32(28, true), v.getUint16(34, true), v.getUint32(40, true)]).toEqual([1, 1, 48_000, 96_000, 16, 8])
+    expect([v.getUint16(20, true), v.getUint16(22, true), v.getUint32(24, true), v.getUint32(28, true), v.getUint16(34, true), v.getUint32(40, true)]).toEqual([
+      1, 1, 48_000, 96_000, 16, 8,
+    ])
     expect([v.getInt16(46, true), v.getInt16(48, true)]).toEqual([32767, -32768])
   })
   it('10 s of mono 48 kHz fits the upload limit', () => {
@@ -25,7 +27,8 @@ describe('WAV encoder', () => {
 
 describe('crop', () => {
   it('cuts the selection, mixes to mono and caps at 10 s', () => {
-    const l = new Float32Array([1, 1, 1, 1]), r = new Float32Array([0, 0, 0, 0])
+    const l = new Float32Array([1, 1, 1, 1]),
+      r = new Float32Array([0, 0, 0, 0])
     expect(Array.from(cropMono([l, r], 4, 0.25, 0.75))).toEqual([0.5, 0.5])
     expect(cropMono([new Float32Array(100)], 4, 0, 100).length).toBe(40)
   })
@@ -44,7 +47,10 @@ describe('cooldown', () => {
 describe('sounds', () => {
   let db: Db
   const id = '11111111-1111-4111-8111-111111111111'
-  beforeEach(() => { db = createDb(':memory:'); db.insert(user).values({ id: 'a', name: 'a', email: 'a@x.dev', role: 'admin' }).run() })
+  beforeEach(() => {
+    db = createDb(':memory:')
+    db.insert(user).values({ id: 'a', name: 'a', email: 'a@x.dev', role: 'admin' }).run()
+  })
 
   it('presign accepts only small files', () => {
     expect(checkSoundSize(1000)).toBe(1000)
@@ -69,11 +75,18 @@ describe('sounds', () => {
 
 describe('sound relay audience', () => {
   it('is the channel of the current session only', () => {
-    joinVoice('s1', 'ch', 'x', {}); joinVoice('s2', 'ch', 'y', {}); joinVoice('s3', 'other', 'z', {})
+    joinVoice('s1', 'ch', 'x', {})
+    joinVoice('s2', 'ch', 'y', {})
+    joinVoice('s3', 'other', 'z', {})
     expect(soundAudience('s1', 'x')?.sort()).toEqual(['s1', 's2'])
     expect(soundAudience('s1', 'stale')).toBeNull()
     expect(soundAudience('nobody', 'x')).toBeNull()
-    for (const [u, s] of [['s1', 'x'], ['s2', 'y'], ['s3', 'z']] as const) leaveVoice(u, s)
+    for (const [u, s] of [
+      ['s1', 'x'],
+      ['s2', 'y'],
+      ['s3', 'z'],
+    ] as const)
+      leaveVoice(u, s)
     expect(soundAudience('s1', 'x')).toBeNull()
   })
 })

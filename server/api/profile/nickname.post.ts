@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm'
+
 import { user } from '../../db/schema'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const body = await readBody<{ displayName?: string }>(event)
   const name = typeof body?.displayName === 'string' ? body.displayName.trim() : ''

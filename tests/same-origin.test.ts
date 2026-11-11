@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isSameOrigin } from '../server/utils/sameOrigin'
+
 import { createLimiter } from '../server/utils/limiter'
+import { isSameOrigin } from '../server/utils/sameOrigin'
 
 describe('isSameOrigin', () => {
-  afterEach(() => { delete process.env.BETTER_AUTH_URL })
+  afterEach(() => {
+    delete process.env.BETTER_AUTH_URL
+  })
   it('allows the app origin and a missing Origin, rejects others', () => {
     process.env.BETTER_AUTH_URL = 'https://spk.example.com/'
     expect(isSameOrigin('https://spk.example.com')).toBe(true)

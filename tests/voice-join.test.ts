@@ -1,59 +1,107 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, shallowRef, watch } from 'vue'
+
 import { createDb } from '../server/db/client'
 import { channels } from '../server/db/schema'
-import * as sessions from '../server/utils/voicePresence'
 import { handleVoiceFrame, dropVoiceSocket } from '../server/utils/voice'
+import * as sessions from '../server/utils/voicePresence'
 
-const media = vi.hoisted(() => ({ rooms: [] as any[], connect: undefined as undefined | (() => Promise<void>) }))
-vi.mock('~/utils/voice-processor', () => ({ MicProcessor: class {} }))
-vi.mock('livekit-client', () => ({
-  Track: { Kind: { Audio: 'audio' } },
-  RoomEvent: Object.fromEntries(['Disconnected', 'ParticipantConnected', 'ParticipantDisconnected', 'TrackPublished', 'TrackUnpublished', 'TrackSubscribed', 'TrackUnsubscribed', 'TrackMuted', 'TrackUnmuted', 'LocalTrackPublished', 'LocalTrackUnpublished', 'ActiveSpeakersChanged'].map(name => [name, name])),
-  Room: class {
-    events = new Map<string, Function[]>()
+const { media, MockRoom } = vi.hoisted(() => {
+  class MockRoom {
+    events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
     localParticipant = { identity: 'local', isLocal: true, getTrackPublication: () => undefined, setMicrophoneEnabled: vi.fn(async () => {}) }
-    on(event: string, fn: Function) { this.events.set(event, [...(this.events.get(event) ?? []), fn]); return this }
+    on(event: string, fn: (...args: unknown[]) => void) {
+      this.events.set(event, [...(this.events.get(event) ?? []), fn])
+      return this
+    }
     rejectConnect?: (e: Error) => void
-    emit(event: string) { for (const fn of this.events.get(event) ?? []) fn() }
+    emit(event: string) {
+      for (const fn of this.events.get(event) ?? []) fn()
+    }
     connect = vi.fn(async () => {
       try {
         await new Promise<void>((resolve, reject) => {
           this.rejectConnect = reject
           Promise.resolve(media.connect?.()).then(resolve, reject)
         })
-      } finally { this.rejectConnect = undefined }
+      } finally {
+        this.rejectConnect = undefined
+      }
     })
     startAudio = vi.fn(async () => {})
-    disconnect = vi.fn(async () => { this.rejectConnect?.(new Error('Connection cancelled')); this.emit('Disconnected') })
-    constructor() { media.rooms.push(this) }
+    disconnect = vi.fn(async () => {
+      this.rejectConnect?.(new Error('Connection cancelled'))
+      this.emit('Disconnected')
+    })
+    constructor() {
+      media.rooms.push(this)
+    }
   }
+  const media = { rooms: [] as MockRoom[], connect: undefined as undefined | (() => Promise<void>) }
+  return { media, MockRoom }
+})
+vi.mock('~/utils/voice-processor', () => ({ MicProcessor: vi.fn() }))
+vi.mock('livekit-client', () => ({
+  Track: { Kind: { Audio: 'audio' } },
+  RoomEvent: Object.fromEntries(
+    [
+      'Disconnected',
+      'ParticipantConnected',
+      'ParticipantDisconnected',
+      'TrackPublished',
+      'TrackUnpublished',
+      'TrackSubscribed',
+      'TrackUnsubscribed',
+      'TrackMuted',
+      'TrackUnmuted',
+      'LocalTrackPublished',
+      'LocalTrackUnpublished',
+      'ActiveSpeakersChanged',
+    ].map(name => [name, name]),
+  ),
+  Room: MockRoom,
 }))
 
-type Frame = Record<string, any>
-let clients: Array<{ userId: string, receive: (m: Frame) => void, owner: { send: (s: string) => void } }>
+type Frame = Record<string, unknown>
+let clients: Array<{ userId: string; receive: (m: Frame) => void; owner: { send: (s: string) => void } }>
 let frames: Frame[]
 let ack: boolean
 let db: ReturnType<typeof createDb>
 const sound = vi.fn()
 const toast = vi.fn()
-const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve() }
+const flush = async () => {
+  for (let i = 0; i < 30; i++) await Promise.resolve()
+}
 
 async function browser(userId: string) {
   vi.resetModules()
   const handlers = new Set<(m: Frame) => void>()
   const connected = ref(true)
-  const receive = (m: Frame) => { for (const h of handlers) h(m) }
-  const owner = { send: (s: string) => { if (ack) receive(JSON.parse(s)) } }
+  const receive = (m: Frame) => {
+    for (const h of handlers) h(m)
+  }
+  const owner = {
+    send: (s: string) => {
+      if (ack) receive(JSON.parse(s))
+    },
+  }
   const send = vi.fn((m: Frame) => {
     if (!connected.value) return false
     handleVoiceFrame(userId, m, owner)
     return true
   })
   clients.push({ userId, receive, owner })
-  vi.stubGlobal('useSocket', () => ({ connected, send, on: (h: (m: Frame) => void) => { handlers.add(h); return () => handlers.delete(h) }, onOpen: vi.fn() }))
+  vi.stubGlobal('useSocket', () => ({
+    connected,
+    send,
+    on: (h: (m: Frame) => void) => {
+      handlers.add(h)
+      return () => handlers.delete(h)
+    },
+    onOpen: vi.fn(),
+  }))
   vi.stubGlobal('useMe', () => ({ data: ref({ id: userId }) }))
   const mod = await import('../app/composables/useVoice')
   mod.useVoiceLive()
@@ -63,28 +111,55 @@ async function browser(userId: string) {
 
 beforeEach(() => {
   db = createDb(':memory:')
-  db.insert(channels).values([{ id: 'c1', type: 'voice', name: 'One' }, { id: 'c2', type: 'voice', name: 'Two' }, { id: 'text', type: 'text', name: 'Text' }]).run()
-  clients = []; frames = []; ack = true; media.rooms = []; media.connect = undefined
-  sound.mockClear(); toast.mockClear()
-  vi.stubGlobal('computed', computed); vi.stubGlobal('ref', ref); vi.stubGlobal('shallowRef', shallowRef); vi.stubGlobal('watch', watch)
+  db.insert(channels)
+    .values([
+      { id: 'c1', type: 'voice', name: 'One' },
+      { id: 'c2', type: 'voice', name: 'Two' },
+      { id: 'text', type: 'text', name: 'Text' },
+    ])
+    .run()
+  clients = []
+  frames = []
+  ack = true
+  media.rooms = []
+  media.connect = undefined
+  sound.mockClear()
+  toast.mockClear()
+  vi.stubGlobal('computed', computed)
+  vi.stubGlobal('ref', ref)
+  vi.stubGlobal('shallowRef', shallowRef)
+  vi.stubGlobal('watch', watch)
   vi.stubGlobal('useLocalStorage', (_: string, value: unknown) => ref(value))
   vi.stubGlobal('useVoiceSettings', () => ref({ noise: 'standard', sensitivity: 50, outputVolume: 1 }))
   vi.stubGlobal('useToast', () => ({ add: toast }))
   vi.stubGlobal('playVoiceSound', sound)
   vi.stubGlobal('navigateTo', vi.fn())
-  vi.stubGlobal('onMounted', vi.fn()); vi.stubGlobal('useEventListener', vi.fn())
+  vi.stubGlobal('onMounted', vi.fn())
+  vi.stubGlobal('useEventListener', vi.fn())
   vi.stubGlobal('useWakeLock', () => ({ request: async () => {}, release: async () => {} }))
-  vi.stubGlobal('$fetch', vi.fn(async () => ({ token: 'token', url: 'url' })))
-  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }] }), enumerateDevices: async () => [] } })
+  vi.stubGlobal(
+    '$fetch',
+    vi.fn(async () => ({ token: 'token', url: 'url' })),
+  )
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }] }), enumerateDevices: async () => [] },
+  })
   vi.stubGlobal('useDb', () => db)
   for (const [name, fn] of Object.entries(sessions)) vi.stubGlobal(name, fn)
-  vi.stubGlobal('broadcast', (m: Frame) => { frames.push(m); for (const c of clients) c.receive(m) })
-  vi.stubGlobal('sendToUser', (id: string, m: Frame) => { for (const c of clients.filter(c => c.userId === id)) c.receive(m) })
+  vi.stubGlobal('broadcast', (m: Frame) => {
+    frames.push(m)
+    for (const c of clients) c.receive(m)
+  })
+  vi.stubGlobal('sendToUser', (id: string, m: Frame) => {
+    for (const c of clients.filter(c => c.userId === id)) c.receive(m)
+  })
 })
 afterEach(async () => {
   for (const c of clients) dropVoiceSocket(c.owner)
   db.$client.close()
-  vi.useRealTimers(); vi.unstubAllGlobals()
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('acknowledged voice join', () => {
@@ -95,15 +170,23 @@ describe('acknowledged voice join', () => {
     await old.v.join('c1')
     sessions.joinVoice('last', 'c1', 'last', {})
     observer.receive({ type: 'voice:presence', ...sessions.voiceSnapshot().find(p => p.userId === 'last') })
-    const observerRoom = observer.v.activeRoom()! as any
+    const observerRoom = observer.v.activeRoom()! as unknown as InstanceType<typeof MockRoom>
     observerRoom.localParticipant.identity = 'first'
-    const participant = (identity: string) => ({ identity, isLocal: false, getTrackPublication: () => undefined, trackPublications: new Map(), audioTrackPublications: new Map(), videoTrackPublications: new Map() })
+    const participant = (identity: string) => ({
+      identity,
+      isLocal: false,
+      getTrackPublication: () => undefined,
+      trackPublications: new Map(),
+      audioTrackPublications: new Map(),
+      videoTrackPublications: new Map(),
+    })
     observerRoom.remoteParticipants.set('middle', participant('middle'))
     observerRoom.remoteParticipants.set('last', participant('last'))
     observerRoom.emit('ParticipantConnected')
     expect(observer.v.tiles.value.map(t => t.userId)).toEqual(['first', 'middle', 'last'])
     const next = await browser('middle')
-    sound.mockClear(); frames = []
+    sound.mockClear()
+    frames = []
     media.connect = async () => {
       expect(sessions.sessionOf('middle')?.sid).toBe(next.v.sid)
       expect(old.v.channelId.value).toBeNull()
@@ -139,14 +222,16 @@ describe('acknowledged voice join', () => {
     ack = false
     const joining = b.v.join('c1')
     await vi.waitFor(() => expect(b.handlers.size).toBe(2))
-    const r = media.rooms[0]
+    const r = media.rooms[0]!
     const nonce = b.send.mock.calls.find(([m]) => m.type === 'voice:join')![0].nonce
     b.receive({ type: 'voice:joined', sid: 'other', channelId: 'c1', nonce })
     b.receive({ type: 'voice:joined', sid: b.v.sid, channelId: 'c2', nonce })
     b.receive({ type: 'voice:joined', sid: b.v.sid, channelId: 'c1', nonce: 'previous-attempt' })
     await flush()
     expect(r.connect).not.toHaveBeenCalled()
-    media.connect = async () => { throw new Error('LiveKit failed') }
+    media.connect = async () => {
+      throw new Error('LiveKit failed')
+    }
     b.receive({ type: 'voice:joined', sid: b.v.sid, channelId: 'c1', nonce })
     await joining
     expect(sessions.sessionOf('middle')).toBeNull()
@@ -159,7 +244,8 @@ describe('acknowledged voice join', () => {
 
   it('times out without leaking a claimed session, timer or acknowledgement listener', async () => {
     const b = await browser('middle')
-    vi.useFakeTimers(); ack = false
+    vi.useFakeTimers()
+    ack = false
     const joining = b.v.join('c1')
     await flush()
     expect(b.handlers.size).toBe(2)
@@ -168,7 +254,7 @@ describe('acknowledged voice join', () => {
     expect(sessions.sessionOf('middle')).toBeNull()
     expect(b.handlers.size).toBe(1)
     expect(vi.getTimerCount()).toBe(0)
-    expect(media.rooms[0].connect).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.connect).not.toHaveBeenCalled()
   })
 
   it('cancels a pending takeover without connecting or removing its successor', async () => {
@@ -178,7 +264,7 @@ describe('acknowledged voice join', () => {
     await vi.waitFor(() => expect(b.handlers.size).toBe(2))
     handleVoiceFrame('middle', { type: 'voice:join', sid: 'successor', channelId: 'c1' }, { send: vi.fn() })
     await joining
-    expect(media.rooms[0].connect).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.connect).not.toHaveBeenCalled()
     expect(sessions.sessionOf('middle')?.sid).toBe('successor')
     expect(b.handlers.size).toBe(1)
     expect(b.v.connecting.value).toBe(false)
@@ -189,12 +275,15 @@ describe('acknowledged voice join', () => {
   it('cleans up an in-flight connection on socket loss', async () => {
     const b = await browser('middle')
     let finish!: () => void
-    media.connect = () => new Promise<void>(resolve => { finish = resolve })
+    media.connect = () =>
+      new Promise<void>(resolve => {
+        finish = resolve
+      })
     const joining = b.v.join('c1')
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     b.connected.value = false
     dropVoiceSocket(b.owner)
-    expect(media.rooms[0].disconnect).toHaveBeenCalled()
+    expect(media.rooms[0]!.disconnect).toHaveBeenCalled()
     finish()
     await joining
     expect(b.v.channelId.value).toBeNull()
@@ -206,10 +295,13 @@ describe('acknowledged voice join', () => {
   it('honors a matching admin move during connection only after cancelling the original claim and media', async () => {
     const b = await browser('middle')
     let finish!: () => void
-    media.connect = () => new Promise<void>(resolve => { finish = resolve })
+    media.connect = () =>
+      new Promise<void>(resolve => {
+        finish = resolve
+      })
     const joining = b.v.join('c1')
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
-    const original = media.rooms[0]
+    const original = media.rooms[0]!
     b.receive({ type: 'voice:move', sid: 'other', channelId: 'c2' })
     await flush()
     expect(original.disconnect).not.toHaveBeenCalled()
@@ -226,7 +318,7 @@ describe('acknowledged voice join', () => {
     await vi.waitFor(() => expect(b.v.channelId.value).toBe('c2'))
     finish()
     await flush()
-    expect(b.v.activeRoom()).toBe(media.rooms[1])
+    expect(b.v.activeRoom()).toBe(media.rooms[1]!)
     expect(b.handlers.size).toBe(1)
     expect(b.v.connecting.value).toBe(false)
     expect(sound.mock.calls).toEqual([['join']])
@@ -248,9 +340,11 @@ describe('acknowledged voice join', () => {
     media.connect = () => new Promise<void>(() => {})
     const joining = b.v.join('c1')
     await vi.waitFor(() => expect(media.rooms[0]?.connect).toHaveBeenCalled())
-    const original = media.rooms[0]
+    const original = media.rooms[0]!
     let finishDisconnect!: () => void
-    const disconnecting = new Promise<void>(resolve => { finishDisconnect = resolve })
+    const disconnecting = new Promise<void>(resolve => {
+      finishDisconnect = resolve
+    })
     original.disconnect.mockImplementation(async () => {
       original.rejectConnect?.(new Error('Connection cancelled'))
       original.emit('Disconnected')
@@ -288,7 +382,7 @@ describe('acknowledged voice join', () => {
     b.connected.value = false
     await b.v.join('c1')
     expect(b.handlers.size).toBe(1)
-    expect(media.rooms[0].connect).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.connect).not.toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Voice socket is not connected' }))
   })
 

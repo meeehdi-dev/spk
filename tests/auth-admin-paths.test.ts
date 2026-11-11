@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { createDb, type Db } from '../server/db/client'
 import { createInvite } from '../server/db/invites'
 import { invites, session, user } from '../server/db/schema'
@@ -22,23 +23,29 @@ beforeAll(async () => {
 afterAll(() => vi.unstubAllGlobals())
 
 describe('better-auth admin endpoints', () => {
-
   for (const p of ['update-user', 'impersonate-user', 'create-user', 'set-role', 'ban-user', 'remove-user', 'set-user-password']) {
     it(`/admin/${p} → 403`, async () => {
-      const res = await useAuth().handler(new Request(`http://localhost:3000/api/auth/admin/${p}`, {
-        method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' }, body: '{}'
-      }))
+      const res = await useAuth().handler(
+        new Request(`http://localhost:3000/api/auth/admin/${p}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+          body: '{}',
+        }),
+      )
       expect(res.status).toBe(403)
     })
   }
 })
 
 describe('sign-up and sign-in through the handler', () => {
-  const post = (path: string, body: object, token?: string) => useAuth().handler(new Request(`http://localhost:3000/api/auth${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: 'http://localhost:3000', ...(token ? { 'x-invite-token': token } : {}) },
-    body: JSON.stringify(body)
-  }))
+  const post = (path: string, body: object, token?: string) =>
+    useAuth().handler(
+      new Request(`http://localhost:3000/api/auth${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'http://localhost:3000', ...(token ? { 'x-invite-token': token } : {}) },
+        body: JSON.stringify(body),
+      }),
+    )
   const creds = { email: 'first@x.dev', password: 'password-123', name: 'First' }
 
   it('sign-up without an invite → 403', async () => {
@@ -63,10 +70,17 @@ describe('sign-up and sign-in through the handler', () => {
 
   it('requireUser forwards the refreshed session cookie once the session is older than updateAge', async () => {
     const res = await post('/sign-in/email', { email: creds.email, password: creds.password })
-    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-    db.update(session).set({ expiresAt: new Date(Date.now() + 10 * 86_400_000) }).run() // every session, so the one in the cookie is included
+    const cookie = res.headers
+      .getSetCookie()
+      .map(c => c.split(';')[0])
+      .join('; ')
+    db.update(session)
+      .set({ expiresAt: new Date(Date.now() + 10 * 86_400_000) })
+      .run() // every session, so the one in the cookie is included
     const cookies: string[] = []
-    vi.stubGlobal('appendResponseHeader', (_e: unknown, name: string, v: string) => { if (name === 'set-cookie') cookies.push(v) })
+    vi.stubGlobal('appendResponseHeader', (_e: unknown, name: string, v: string) => {
+      if (name === 'set-cookie') cookies.push(v)
+    })
     const u = await requireUser({ headers: new Headers({ cookie }), context: {} } as never)
     expect(u.email).toBe(creds.email)
     expect(cookies.some(c => c.includes('session_token'))).toBe(true)
@@ -76,6 +90,6 @@ describe('sign-up and sign-in through the handler', () => {
     db.update(user).set({ banned: true }).where(eq(user.email, creds.email)).run()
     const res = await post('/sign-in/email', { email: creds.email, password: creds.password })
     expect(res.status).toBe(403)
-    expect((await res.json() as { code: string }).code).toBe('BANNED_USER')
+    expect(((await res.json()) as { code: string }).code).toBe('BANNED_USER')
   })
 })

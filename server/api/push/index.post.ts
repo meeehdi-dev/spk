@@ -1,7 +1,7 @@
 import { parsePrefs, savePush } from '../../db/push'
 
 // Saves this browser's push subscription + settings.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const body = await readBody(event)
   const s = body?.subscription

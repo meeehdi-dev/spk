@@ -1,24 +1,41 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Peer } from 'crossws'
+
 import { eq } from 'drizzle-orm'
-import { createDb, type Db } from '../server/db/client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { listUsersWithStorage, setBanned, setRole } from '../server/db/admin'
 import { createChannel, deleteChannel, renameChannel, reorderChannels } from '../server/db/channelsAdmin'
+import { createDb, type Db } from '../server/db/client'
+import { createMessage } from '../server/db/messages'
 import { checkResetToken, createResetToken, resetPassword, RESET_TTL_MS } from '../server/db/reset'
 import { isAdminRole } from '../server/db/roles'
 import { account, attachments, channels, messages, pushSubscriptions, session, user, verification } from '../server/db/schema'
-import { createMessage } from '../server/db/messages'
 import { addPeer } from '../server/utils/peers'
 import { endUserConnections } from '../server/utils/voiceAdmin'
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
-const addUser = (id: string, role = 'user') => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, role, displayName: id }).run()
-const addPush = (userId: string) => db.insert(pushSubscriptions).values({ userId, endpoint: `e-${userId}`, keys: '{}' }).run()
-const addSession = (userId: string) => db.insert(session).values({ id: `s-${userId}`, token: `t-${userId}`, userId, expiresAt: new Date(Date.now() + 1e6) }).run()
+const addUser = (id: string, role = 'user') =>
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, role, displayName: id })
+    .run()
+const addPush = (userId: string) =>
+  db
+    .insert(pushSubscriptions)
+    .values({ userId, endpoint: `e-${userId}`, keys: '{}' })
+    .run()
+const addSession = (userId: string) =>
+  db
+    .insert(session)
+    .values({ id: `s-${userId}`, token: `t-${userId}`, userId, expiresAt: new Date(Date.now() + 1e6) })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')
-  addUser('a', 'admin'); addUser('b'); addUser('c', 'admin')
+  addUser('a', 'admin')
+  addUser('b')
+  addUser('c', 'admin')
 })
 
 describe('admin gate', () => {
@@ -48,12 +65,27 @@ describe('ban', () => {
   it('flags the user, deletes their sessions, keeps their messages, and can be undone', () => {
     db.insert(channels).values({ id: 't', type: 'text', name: 't' }).run()
     createMessage(db, 'b', 't', 'hi', 1000)
-    addSession('b'); addSession('a'); addPush('b'); addPush('a')
+    addSession('b')
+    addSession('a')
+    addPush('b')
+    addPush('a')
     setBanned(db, 'a', 'b', true, ' spam ')
-    expect(db.select().from(pushSubscriptions).all().map(p => p.userId)).toEqual(['a'])
+    expect(
+      db
+        .select()
+        .from(pushSubscriptions)
+        .all()
+        .map(p => p.userId),
+    ).toEqual(['a'])
     const u = db.select().from(user).where(eq(user.id, 'b')).get()!
     expect(u).toMatchObject({ banned: true, banReason: 'spam' })
-    expect(db.select().from(session).all().map(s => s.userId)).toEqual(['a'])
+    expect(
+      db
+        .select()
+        .from(session)
+        .all()
+        .map(s => s.userId),
+    ).toEqual(['a'])
     expect(db.select().from(messages).all()).toHaveLength(1)
     setBanned(db, 'a', 'b', false)
     expect(db.select().from(user).where(eq(user.id, 'b')).get()).toMatchObject({ banned: false, banReason: null })
@@ -67,14 +99,23 @@ describe('ban', () => {
 describe('reset password link', () => {
   const addCred = () => db.insert(account).values({ id: 'acc', accountId: 'b', providerId: 'credential', userId: 'b', password: 'old' }).run()
   it('stores only a hash and works exactly once, signing the user out', () => {
-    addCred(); addSession('b'); addPush('b'); addPush('a')
+    addCred()
+    addSession('b')
+    addPush('b')
+    addPush('a')
     const token = createResetToken(db, 'b')
     expect(db.select().from(verification).get()!.identifier).not.toContain(token)
     expect(checkResetToken(db, token)).toBe(true)
     expect(resetPassword(db, token, 'new-hash')).toBe('b')
     expect(db.select().from(account).get()!.password).toBe('new-hash')
     expect(db.select().from(session).all()).toHaveLength(0)
-    expect(db.select().from(pushSubscriptions).all().map(p => p.userId)).toEqual(['a'])
+    expect(
+      db
+        .select()
+        .from(pushSubscriptions)
+        .all()
+        .map(p => p.userId),
+    ).toEqual(['a'])
     expect(resetPassword(db, token, 'again')).toBe(false)
     expect(checkResetToken(db, token)).toBe(false)
     expect(db.select().from(account).get()!.password).toBe('new-hash')
@@ -104,7 +145,9 @@ describe('channels', () => {
   it('creates at the end of its section, renames, validates', () => {
     const x = createChannel(db, 'text', ' dev ')
     const y = createChannel(db, 'text', 'ops')
-    expect(db.select().from(channels).where(eq(channels.id, y.id)).get()!.position).toBe(db.select().from(channels).where(eq(channels.id, x.id)).get()!.position! + 1)
+    expect(db.select().from(channels).where(eq(channels.id, y.id)).get()!.position).toBe(
+      db.select().from(channels).where(eq(channels.id, x.id)).get()!.position! + 1,
+    )
     renameChannel(db, x.id, 'devs')
     expect(db.select().from(channels).where(eq(channels.id, x.id)).get()!.name).toBe('devs')
     expect(() => createChannel(db, 'dm', 'x')).toThrow(/Type/)
@@ -117,8 +160,15 @@ describe('channels', () => {
     expect(() => deleteChannel(db, 'dm')).toThrow(/not found/)
   })
   it('reorders by saving positions; stale or foreign lists are refused', () => {
-    const a = createChannel(db, 'voice', 'a'), b = createChannel(db, 'voice', 'b'), c = createChannel(db, 'voice', 'c')
-    const all = db.select().from(channels).where(eq(channels.type, 'voice')).all().map(x => x.id) // includes the seeded none (migrations don't seed)
+    const a = createChannel(db, 'voice', 'a'),
+      b = createChannel(db, 'voice', 'b'),
+      c = createChannel(db, 'voice', 'c')
+    const all = db
+      .select()
+      .from(channels)
+      .where(eq(channels.type, 'voice'))
+      .all()
+      .map(x => x.id) // includes the seeded none (migrations don't seed)
     expect(all).toHaveLength(3)
     reorderChannels(db, 'voice', [c.id, a.id, b.id])
     const pos = (id: string) => db.select().from(channels).where(eq(channels.id, id)).get()!.position
@@ -140,10 +190,12 @@ describe('channels', () => {
 
 describe('storage total', () => {
   it('sums attachments per uploader', () => {
-    db.insert(attachments).values([
-      { id: '1', uploaderId: 'b', r2Key: 'k1', filename: 'a', mime: 'x/y', size: 100 },
-      { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 }
-    ]).run()
+    db.insert(attachments)
+      .values([
+        { id: '1', uploaderId: 'b', r2Key: 'k1', filename: 'a', mime: 'x/y', size: 100 },
+        { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 },
+      ])
+      .run()
     const r = listUsersWithStorage(db)
     expect(r.totalBytes).toBe(150)
     expect(r.users.find(u => u.id === 'b')!.bytes).toBe(150)
@@ -154,9 +206,15 @@ describe('storage total', () => {
 describe('voice sessions for admin actions', () => {
   it('finds a user’s session and a channel’s members', () => {
     const o = {}
-    joinVoice('b', 'v1', 'sid-b', o); joinVoice('a', 'v1', 'sid-a', o); joinVoice('c', 'v2', 'sid-c', o)
+    joinVoice('b', 'v1', 'sid-b', o)
+    joinVoice('a', 'v1', 'sid-a', o)
+    joinVoice('c', 'v2', 'sid-c', o)
     expect(sessionOf('b')).toEqual({ sid: 'sid-b', channelId: 'v1' })
-    expect(sessionsIn('v1').map(s => s.userId).sort()).toEqual(['a', 'b'])
+    expect(
+      sessionsIn('v1')
+        .map(s => s.userId)
+        .sort(),
+    ).toEqual(['a', 'b'])
     dropVoiceOwner(o)
     expect(sessionOf('b')).toBeNull()
   })
@@ -166,8 +224,10 @@ describe('endUserConnections', () => {
   const fake = () => ({ send: vi.fn(), close: vi.fn() })
   const setup = () => {
     vi.stubGlobal('useRuntimeConfig', () => ({ livekit: {}, public: {} }))
-    const p1 = fake(), p2 = fake()
-    addPeer('u-end', p1 as any); addPeer('u-end', p2 as any)
+    const p1 = fake(),
+      p2 = fake()
+    addPeer('u-end', p1 as unknown as Peer)
+    addPeer('u-end', p2 as unknown as Peer)
     joinVoice('u-end', 'vc', 'sid1', {})
     return [p1, p2]
   }
