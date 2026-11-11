@@ -18,7 +18,7 @@ A private, self-hosted chat and voice app (an IRC/TeamSpeak/Mumble/Discord repla
 | Search | **SQLite FTS5** (built in) |
 | Auth | **better-auth**: `emailAndPassword` + `admin` plugin |
 | Voice, video, screen share | **LiveKit** (self-hosted SFU) + `livekit-client` + `livekit-server-sdk` (tokens) |
-| Noise suppression | Browser built-in + **`@sapphi-red/web-noise-suppressor`** (RNNoise) |
+| Noise suppression | Browser built-in + **`@workadventure/noise-suppression`** (DeepFilterNet3) |
 | File storage | **Cloudflare R2**, presigned URLs signed with **`aws4fetch`** |
 | Image processing | **`sharp`** (avatars, link preview thumbnails) |
 | Markdown rendering | **`@nuxtjs/mdc`** + **Shiki** |
@@ -252,7 +252,7 @@ Per-channel GIF selections, reply targets, attachment queues (including running 
 
 ### Audio processing
 - **Standard:** the browser's own noise suppression.
-- **Enhanced:** RNNoise as a LiveKit track processor (the browser's suppression is turned off).
+- **Enhanced:** DeepFilterNet3 as a LiveKit track processor (the browser's suppression is turned off).
 - Echo cancellation and auto gain: toggles, on by default.
 - Mute with `track.enabled = false` (nothing to renegotiate).
 - **Mic quality:** Opus mono at up to 128 kbps, DTX off, RED on. Webcam: 1080p30, one layer, up to 6 Mbps.

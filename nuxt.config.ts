@@ -1,3 +1,5 @@
+import { noiseSuppressionAudioWorkletVitePlugin } from '@workadventure/noise-suppression/vite'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   modules: ['@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc'],
@@ -18,6 +20,7 @@ export default defineNuxtConfig({
     scheduledTasks: { '0 * * * *': ['attachments:cleanup'] } // hourly: unsent uploads older than 24 h
   },
   vite: {
+    plugins: [noiseSuppressionAudioWorkletVitePlugin()],
     optimizeDeps: {
       include: [
         '@vueuse/integrations/useSortable',
@@ -48,6 +51,13 @@ export default defineNuxtConfig({
         'wavesurfer.js',
         'wavesurfer.js/plugins/regions'
       ]
+    }
+  },
+  hooks: {
+    // Nuxt's bare `assets` alias breaks the package's `new URL('assets/…', import.meta.url)`, so its worklet/wasm/model aren't emitted.
+    'vite:extendConfig'(config) {
+      const alias = config.resolve?.alias
+      if (alias && !Array.isArray(alias)) delete (alias as Record<string, string>).assets
     }
   },
   devtools: { enabled: false },

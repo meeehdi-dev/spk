@@ -2,7 +2,7 @@
 import { matchDevice } from '#shared/utils/voice'
 const v = useVoice()
 const s = v.settings
-const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
+const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' }]
 const items = (list: MediaDeviceInfo[]) => [{ label: 'System default', value: 'default' }, ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))]
 const current = (saved: { deviceId: string, label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
 const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
@@ -92,7 +92,7 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
     <UCard>
       <template #header><h2 class="font-bold">Voice processing</h2></template>
       <div class="flex flex-col gap-4">
-        <UFormField label="Noise suppression" description="Enhanced uses RNNoise and costs a little CPU.">
+        <UFormField label="Noise suppression" description="Enhanced is stronger: one-time download of about 11–22 MB, and it uses more CPU.">
           <USelect v-model="s.noise" :items="noiseItems" class="w-full max-w-xs" @update:model-value="v.applySettings()" />
         </UFormField>
         <USwitch v-model="s.echo" label="Echo cancellation" icon="i-lucide-audio-waveform" @update:model-value="v.applySettings()" />

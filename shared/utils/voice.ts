@@ -29,7 +29,7 @@ export function matchDevice(saved: SavedDevice | undefined, devices: DeviceLike[
 /** Sensitivity 0–100 (higher hears quieter speech) → noise-gate threshold in dB. 50 → -50 dB. */
 export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math.max(0, sensitivity)) * 0.6
 
-/** Screen share audio is never processed: no browser suppression/echo/gain and no RNNoise (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
+/** Screen share audio is never processed: no browser suppression/echo/gain and no DeepFilterNet (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
 export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
 
 /** Screen share presets by quality setting (PLAN §8). Eco (default): 5 fps up to 1440p tuned for sharp text. Smooth: 60 fps up to 1080p. Single layer, never simulcast; VP9 with a VP8 backup. `resolution` is the ceiling (sent as `max` constraints), bitrate is an upper limit. */

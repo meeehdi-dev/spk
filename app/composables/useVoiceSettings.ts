@@ -17,7 +17,7 @@ export interface VoiceSettings {
 }
 
 export const useVoiceSettings = () => useLocalStorage<VoiceSettings>('spk:voice', {
-  noise: 'standard', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenAudio: true, screenQuality: 'eco', soundboard: { on: true, volume: 0.7 },
+  noise: 'enhanced', echo: true, agc: true, sensitivity: 50, outputVolume: 1, screenAudio: true, screenQuality: 'eco', soundboard: { on: true, volume: 0.7 },
   sounds: { join: { on: true, volume: 0.5 }, leave: { on: true, volume: 0.5 }, mute: { on: true, volume: 0.5 }, deafen: { on: true, volume: 0.5 }, camera: { on: true, volume: 0.5 }, screen: { on: true, volume: 0.5 } }
 }, { mergeDefaults: (stored, defaults) => ({ ...defaults, ...stored, sounds: { ...defaults.sounds, ...stored.sounds } }) })
 

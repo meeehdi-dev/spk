@@ -5,7 +5,7 @@ defineProps<{ panel?: boolean }>()
 const v = useVoice()
 const { data: channels } = useChannels()
 const name = computed(() => channels.value.find(c => c.id === v.channelId.value)?.name)
-const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
+const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' }]
 const deviceItems = (list: MediaDeviceInfo[]) => list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))
 const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
   if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
