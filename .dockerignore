@@ -7,7 +7,9 @@ data
 
 # Exclude files that are not inputs to the app build.
 .github
-tests
+tests/*
+# Root tsconfig.json references this file; Vite fails to resolve tsconfig without it.
+!tests/tsconfig.json
 deploy
 README.md
 PLAN.md
