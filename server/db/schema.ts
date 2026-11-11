@@ -56,7 +56,7 @@ export const verification = sqliteTable('verifications', {
   expiresAt: ts('expires_at').notNull(),
   createdAt: ts('created_at').notNull().default(now),
   updatedAt: ts('updated_at').notNull().default(now)
-})
+}, t => [index('verifications_identifier').on(t.identifier)])
 
 // --- app tables ---
 export const invites = sqliteTable('invites', {

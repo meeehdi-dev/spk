@@ -5,12 +5,13 @@ import { listUsersWithStorage, setBanned, setRole } from '../server/db/admin'
 import { createChannel, deleteChannel, renameChannel, reorderChannels } from '../server/db/channelsAdmin'
 import { checkResetToken, createResetToken, resetPassword, RESET_TTL_MS } from '../server/db/reset'
 import { isAdminRole } from '../server/db/roles'
-import { account, attachments, channels, messages, session, user, verification } from '../server/db/schema'
+import { account, attachments, channels, messages, pushSubscriptions, session, user, verification } from '../server/db/schema'
 import { createMessage } from '../server/db/messages'
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
 const addUser = (id: string, role = 'user') => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, role, displayName: id }).run()
+const addPush = (userId: string) => db.insert(pushSubscriptions).values({ userId, endpoint: `e-${userId}`, keys: '{}' }).run()
 const addSession = (userId: string) => db.insert(session).values({ id: `s-${userId}`, token: `t-${userId}`, userId, expiresAt: new Date(Date.now() + 1e6) }).run()
 
 beforeEach(() => {
@@ -45,8 +46,9 @@ describe('ban', () => {
   it('flags the user, deletes their sessions, keeps their messages, and can be undone', () => {
     db.insert(channels).values({ id: 't', type: 'text', name: 't' }).run()
     createMessage(db, 'b', 't', 'hi', 1000)
-    addSession('b'); addSession('a')
+    addSession('b'); addSession('a'); addPush('b'); addPush('a')
     setBanned(db, 'a', 'b', true, ' spam ')
+    expect(db.select().from(pushSubscriptions).all().map(p => p.userId)).toEqual(['a'])
     const u = db.select().from(user).where(eq(user.id, 'b')).get()!
     expect(u).toMatchObject({ banned: true, banReason: 'spam' })
     expect(db.select().from(session).all().map(s => s.userId)).toEqual(['a'])
@@ -63,13 +65,14 @@ describe('ban', () => {
 describe('reset password link', () => {
   const addCred = () => db.insert(account).values({ id: 'acc', accountId: 'b', providerId: 'credential', userId: 'b', password: 'old' }).run()
   it('stores only a hash and works exactly once, signing the user out', () => {
-    addCred(); addSession('b')
+    addCred(); addSession('b'); addPush('b'); addPush('a')
     const token = createResetToken(db, 'b')
     expect(db.select().from(verification).get()!.identifier).not.toContain(token)
     expect(checkResetToken(db, token)).toBe(true)
-    expect(resetPassword(db, token, 'new-hash')).toBe(true)
+    expect(resetPassword(db, token, 'new-hash')).toBe('b')
     expect(db.select().from(account).get()!.password).toBe('new-hash')
     expect(db.select().from(session).all()).toHaveLength(0)
+    expect(db.select().from(pushSubscriptions).all().map(p => p.userId)).toEqual(['a'])
     expect(resetPassword(db, token, 'again')).toBe(false)
     expect(checkResetToken(db, token)).toBe(false)
     expect(db.select().from(account).get()!.password).toBe('new-hash')

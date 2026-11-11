@@ -13,12 +13,6 @@ const voice = useVoice()
 const colorMode = useColorMode()
 const shortcutsOpen = useShortcutsOverlay()
 const settingsTab = useSettingsModal()
-async function signOut() {
-  settingsTab.value = null
-  await authClient.signOut()
-  await refreshNuxtData('me')
-  await navigateTo('/login')
-}
 const profileMenu = computed(() => [[
   { label: 'Settings', icon: 'i-lucide-settings', onSelect: () => { settingsTab.value = 'profile' } },
   { label: colorMode.value === 'dark' ? 'Light theme' : 'Dark theme', icon: colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon', onSelect: (e: Event) => { e.preventDefault(); colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark' } },

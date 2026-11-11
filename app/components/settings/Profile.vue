@@ -20,18 +20,12 @@ async function saveNickname() {
 
 async function changePassword() {
   pwError.value = ''
-  const { error } = await authClient.changePassword({ ...pw, revokeOtherSessions: false })
+  const { error } = await authClient.changePassword({ ...pw, revokeOtherSessions: true })
   if (error) return void (pwError.value = error.message || 'Could not change password')
   pw.currentPassword = pw.newPassword = ''
   toast.add({ title: 'Password changed', icon: 'i-lucide-check' })
 }
 
-async function signOut() {
-  useSettingsModal().value = null
-  await authClient.signOut()
-  await refreshNuxtData('me')
-  await navigateTo('/login')
-}
 </script>
 
 <template>

@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware, isAPIError } from 'better-auth/api'
-import { admin } from 'better-auth/plugins'
+import { admin } from 'better-auth/plugins/admin'
 import { eq } from 'drizzle-orm'
 import * as schema from '../db/schema'
 import { claimInvite, linkInviteUser, releaseInvite } from '../db/invites'
@@ -17,15 +17,16 @@ function create() {
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     // Dev only: trust any localhost port (e.g. the Plannotator proxy). Production keeps BETTER_AUTH_URL as the only origin.
     trustedOrigins: import.meta.dev ? ['http://localhost:*', 'http://127.0.0.1:*'] : [],
-    emailAndPassword: { enabled: true, requireEmailVerification: false, minPasswordLength: 8 },
+    emailAndPassword: { enabled: true },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
-    rateLimit: { enabled: true },
+    rateLimit: { customRules: { '/sign-in/email': { window: 60, max: 5 } } },
     user: { additionalFields: {
       displayName: { type: 'string', required: false, input: false },
       avatarKey: { type: 'string', required: false, input: false }
     } },
     // Failures are logged with their path in server/api/auth/[...all].ts; this adds the stack of unexpected (5xx) ones.
     onAPIError: { onError: (e) => { if (!isAPIError(e) || e.statusCode >= 500) logBackground('auth', e) } },
+    databaseHooks: { session: { create: { after: async (s) => { console.info(`[auth] sign-in user=${s.userId} ip=${s.ipAddress ?? '-'}`) } } } },
     plugins: [admin({ defaultRole: 'user' })],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {

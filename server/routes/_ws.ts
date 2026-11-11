@@ -1,6 +1,7 @@
 import type { Peer } from 'crossws'
 
 import { logFailure } from '../utils/errorLog'
+import { isSameOrigin } from '../utils/sameOrigin'
 
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
@@ -9,6 +10,10 @@ const timers = new WeakMap<Peer, ReturnType<typeof setInterval>>()
 export default defineWebSocketHandler({
   // Rejects the upgrade unless the session cookie is valid and the user isn't banned.
   async upgrade(request) {
+    if (!isSameOrigin(request.headers.get('origin'))) {
+      logFailure({ method: 'GET', url: request.url, status: 403, message: 'WebSocket upgrade: cross-origin' })
+      return new Response('Forbidden', { status: 403 })
+    }
     try {
       const s = await useAuth().api.getSession({ headers: request.headers })
       if (!s) {
