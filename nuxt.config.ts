@@ -10,6 +10,7 @@ export default defineNuxtConfig({
       meta: [{ name: 'theme-color', content: '#18181b' }]
     }
   },
+  experimental: { emitRouteChunkError: 'manual' },
   css: ['~/assets/css/main.css'],
   icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
   nitro: {

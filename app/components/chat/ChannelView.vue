@@ -28,17 +28,14 @@ let pinned = false
 let lastTop = 0 // scrollTop at the previous scroll event
 let loadingNewer = false
 let gen = 0 // bumped per load(), so a late page of the previous channel is dropped
-const input = ref<{ focus: () => void, quote: (t: string) => void, restore: (md: string, files?: Upload[]) => void }>()
-const pending = new Map<string, { md: string, files: Upload[] }>()
-const replyId = ref<string | null>(null)
+const input = ref<{ focus: () => void, quote: (t: string) => void }>()
+const drafts = useDrafts()
+const draft = computed(() => drafts.get(props.channelId))
+const replyTarget = computed({ get: () => draft.value.reply.value, set: v => { draft.value.reply.value = v } })
 const editingId = ref<string | null>(null)
 const lightbox = ref<AttachmentDto | null>(null)
 const byIdMsg = (id: string) => messages.value.find(m => m.id === id)
-const replyTarget = computed(() => {
-  const m = replyId.value ? byIdMsg(replyId.value) : undefined
-  return m ? { id: m.id, name: nameOf(m.userId), preview: previewText(m.body.split('\n').find(l => l.trim()) ?? '', nameOf).slice(0, 80) } : null
-})
-watch(() => props.channelId, () => { replyId.value = null; editingId.value = null })
+watch(() => props.channelId, () => { editingId.value = null })
 
 const fetchPage = (query: Record<string, string>) =>
   $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
@@ -171,7 +168,6 @@ const typingText = computed(() => {
 socket.on((m) => {
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
-    pending.delete(m.nonce)
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
     if (dividerId.value === null && m.message.userId !== me.value?.id && !focused.value) dividerId.value = m.message.id
     const el = scroller.value
@@ -179,11 +175,6 @@ socket.on((m) => {
     messages.value.push(m.message)
     if (atBottom) nextTick(scrollToEnd)
     if (m.message.userId !== me.value?.id) nextTick(maybeRead)
-  } else if (m.type === 'message:error') {
-    const sent = pending.get(m.nonce)
-    pending.delete(m.nonce)
-    toast.add({ title: m.error, color: 'error', icon: 'i-lucide-circle-alert' })
-    if (sent) input.value?.restore(sent.md, sent.files)
   } else if (m.type === 'message:edit' && m.message.channelId === props.channelId) {
     const i = messages.value.findIndex(x => x.id === m.message.id)
     if (i >= 0) messages.value[i] = m.message
@@ -203,26 +194,14 @@ socket.on((m) => {
 function removeMessage(id: string) {
   messages.value = messages.value.filter(x => x.id !== id)
   if (dividerId.value === id) dividerId.value = null
-  if (replyId.value === id) replyId.value = null
+  if (replyTarget.value?.id === id) replyTarget.value = null
   if (editingId.value === id) editingId.value = null
   // Replies to it now say "Original message deleted".
   for (const x of messages.value) if (x.replyTo?.id === id) x.replyTo = { ...x.replyTo, preview: '', deleted: true }
 }
 
-function send(md: string, files: Upload[]) {
-  const nonce = crypto.randomUUID()
-  pending.set(nonce, { md, files })
-  const ok = socket.send({
-    type: 'message:send', channelId: props.channelId, body: md, nonce, replyToId: replyId.value,
-    attachments: files.map(f => ({ id: f.id, spoiler: f.spoiler }))
-  })
-  if (!ok) {
-    pending.delete(nonce)
-    toast.add({ title: 'Not connected, try again in a moment', color: 'error', icon: 'i-lucide-wifi-off' })
-    input.value?.restore(md, files)
-    return
-  }
-  replyId.value = null
+function send(md: string, outgoing: OutgoingDraft) {
+  drafts.send(props.channelId, md, outgoing)
 }
 
 // --- edit, delete, react, reply ---
@@ -247,7 +226,13 @@ provide(chatActionsKey, {
       if (x) x.reactions = r.reactions
     } catch (e) { apiError(e, 'Could not react') }
   },
-  reply(id) { replyId.value = id; editingId.value = null; nextTick(() => input.value?.focus()) },
+  reply(id) {
+    const m = byIdMsg(id)
+    if (!m) return
+    replyTarget.value = { id, name: nameOf(m.userId), preview: previewText(m.body.split('\n').find(l => l.trim()) ?? '', nameOf).slice(0, 80) }
+    editingId.value = null
+    nextTick(() => input.value?.focus())
+  },
   jump(id) {
     if (byIdMsg(id)) jumpTo(id)
     else navigateTo(`/c/${props.channelId}/m/${id}`)
@@ -327,7 +312,7 @@ socket.onOpen(() => { if (!loading.value && !hasMoreAfter.value && messages.valu
       <ClientOnly>
         <ChatMessageInput
           :key="channelId" ref="input" :channel-id="channelId" :channel-name="label(channel)" :reply-to="replyTarget"
-          @send="send" @typing="socket.send({ type: 'typing', channelId })" @cancel-reply="replyId = null" @edit-last="editLast"
+          @send="send" @typing="socket.send({ type: 'typing', channelId })" @cancel-reply="replyTarget = null" @edit-last="editLast"
         />
         <ChatImageLightbox :file="lightbox" @close="lightbox = null" />
       </ClientOnly>

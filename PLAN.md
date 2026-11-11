@@ -74,7 +74,9 @@ Docker host
 | `channel_reads` | user_id, channel_id, last_read_at |
 | `push_subscriptions` | user_id, endpoint, keys |
 
-Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, message drafts per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
+Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, message draft text per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
+
+Per-channel GIF selections, reply targets, attachment queues (including running uploads and spoiler flags), and pending sends remain in this tab's memory across internal navigation. Only draft text survives a refresh or closing the tab. Unsent uploads still follow server retention: sending requires uploads younger than 23 hours; orphan cleanup runs after 24 hours.
 
 ---
 
@@ -229,6 +231,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - Admins can **move** someone to another voice channel (a WebSocket event that tells their client to switch) or **disconnect** them.
 - Deleting a voice channel while people are in it disconnects them with a toast.
 - **Leaving while in voice:** closing or reloading the tab while connected to a voice channel shows the browser's "Leave site?" warning (`beforeunload`). No warning when not in voice.
+- **Internal navigation:** app updates and failed route-chunk loads do not automatically reload the document. Unavailable assets show an error toast advising a manual refresh; the route may remain unavailable until refreshed. Refreshing keeps saved draft text but loses tab-memory GIFs, attachments and reply targets.
 
 ### Voice bar
 - **Mic** (mute/unmute) with an **arrow dropdown**: input device, noise suppression (Off / Standard / Enhanced), echo cancellation, auto gain, sensitivity slider. Each option shows its shortcut (`UKbd`).

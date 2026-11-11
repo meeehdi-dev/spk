@@ -1,3 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
-export default defineConfig({ test: { include: ['tests/**/*.test.ts'] } })
+export default defineConfig({
+  define: { 'import.meta.client': 'true' },
+  test: { include: ['tests/**/*.test.ts'] }
+})

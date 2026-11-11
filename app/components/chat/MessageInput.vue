@@ -3,14 +3,11 @@ import type { Editor } from '@tiptap/vue-3'
 import { MAX_FILES } from '../../../shared/utils/files'
 
 const props = defineProps<{ channelId: string, channelName: string, replyTo?: { id: string, name: string, preview: string } | null }>()
-const gif = ref<string | null>(null)
-const emit = defineEmits<{ send: [markdown: string, files: Upload[]], typing: [], cancelReply: [], editLast: [] }>()
-const uploads = useUploads()
+const emit = defineEmits<{ send: [markdown: string, draft: OutgoingDraft], typing: [], cancelReply: [], editLast: [] }>()
+const drafts = useDrafts()
+const { text: model, gif, uploads } = drafts.get(props.channelId)
 
 const { data: users } = useUsers()
-const draftKey = computed(() => `spk:draft:${props.channelId}`)
-const model = ref(localStorage.getItem(draftKey.value) ?? '')
-watch(model, v => v ? localStorage.setItem(draftKey.value, v) : localStorage.removeItem(draftKey.value))
 
 const nameById = (id: string) => users.value.find(u => u.id === id)?.displayName ?? undefined
 const mentionItems = computed(() => users.value.filter(u => u.displayName).map(u => ({
@@ -24,11 +21,9 @@ function send() {
   const md = fixSpoilerSeams(model.value).trim()
   if (uploads.busy.value) { useToast().add({ title: 'Wait for the uploads to finish', icon: 'i-lucide-loader', color: 'warning' }); return false }
   if (!md && !gif.value && !uploads.ready.value.length) return false
-  const files = uploads.ready.value.map(u => ({ ...u, xhr: undefined, preview: undefined }))
-  emit('send', composeBody(md, gif.value), files)
-  model.value = ''
-  gif.value = null
-  uploads.clear()
+  const body = composeBody(md, gif.value)
+  const draft = drafts.take(props.channelId)
+  emit('send', body, draft)
   return true
 }
 
@@ -86,8 +81,6 @@ const tools = [
 ]
 
 defineExpose({
-  /** Puts a message back after a failed send, unless the user already typed something new. */
-  restore(md: string, files: Upload[] = []) { if (!model.value.trim()) model.value = md; uploads.restore(files) },
   focus: () => editorRef.value?.editor.commands.focus('end'),
   /** Appends `> text` as a quote and moves on to a fresh line. */
   quote(text: string) {
