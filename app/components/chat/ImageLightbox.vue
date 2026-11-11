@@ -19,7 +19,7 @@ const src = computed(() => (props.file ? `/api/attachments/${props.file.id}` : '
     </template>
     <template #footer>
       <UButton label="Open original" icon="i-lucide-external-link" color="neutral" variant="soft" :href="src" target="_blank" rel="noopener" />
-      <UButton label="Download" icon="i-lucide-download" color="neutral" variant="soft" :href="`${src}?download=1`" />
+      <UButton label="Download" icon="i-lucide-download" color="neutral" variant="soft" :href="`${src}?download=1`" external />
     </template>
   </UModal>
 </template>

@@ -121,7 +121,7 @@ onMounted(() => {
           aria-label="Copy file text"
           @click="copy(shown)"
         />
-        <UButton icon="i-lucide-download" size="xs" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" />
+        <UButton icon="i-lucide-download" size="xs" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" external />
       </div>
       <!-- eslint-disable vue/no-v-html -- HTML comes from Shiki or the escaped plainHtml fallback. -->
       <div class="code-body overflow-x-auto" v-html="html" />
