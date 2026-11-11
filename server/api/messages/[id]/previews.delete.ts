@@ -3,7 +3,7 @@ import { removePreview } from '../../../db/previews'
 import { isAdminRole } from '../../../db/roles'
 
 // Body: { url }. The author or an admin removes a link card.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   try {
     const m = removePreview(useDb(), u.id, isAdminRole(u.role), getRouterParam(event, 'id'), (await readBody(event))?.url)

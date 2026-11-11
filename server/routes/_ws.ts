@@ -22,14 +22,24 @@ export default defineWebSocketHandler({
     }
   },
   error(peer, e) {
-    logFailure({ method: 'WS', url: peer.request?.url ?? '/_ws', status: 500, message: `WebSocket handler: ${e.message}`, userId: peer.context.userId as string | undefined, error: e })
+    logFailure({
+      method: 'WS',
+      url: peer.request?.url ?? '/_ws',
+      status: 500,
+      message: `WebSocket handler: ${e.message}`,
+      userId: peer.context.userId as string | undefined,
+      error: e,
+    })
   },
   open(peer) {
     const userId = peer.context.userId as string
     userOf.set(peer, userId)
     const p = addPeer(userId, peer)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
-    timers.set(peer, setInterval(() => peer.send(JSON.stringify({ type: 'ping' })), PING_MS))
+    timers.set(
+      peer,
+      setInterval(() => peer.send(JSON.stringify({ type: 'ping' })), PING_MS),
+    )
   },
   message(peer, message) {
     const text = message.text()

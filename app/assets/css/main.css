@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "@nuxt/ui";
+@import 'tailwindcss';
+@import '@nuxt/ui';
 
 @theme {
   --font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -7,17 +7,48 @@
 }
 
 /* White text on amber-500 is ~2:1; amber-700 gives ~5:1. Dark mode keeps amber-400 with dark text. */
-:root { --ui-primary: var(--color-amber-700); }
-.dark { --ui-primary: var(--color-amber-400); }
+:root {
+  --ui-primary: var(--color-amber-700);
+}
+.dark {
+  --ui-primary: var(--color-amber-400);
+}
 
 /* Code blocks (ProsePre, text file previews) */
-.code-body pre { margin: 0; padding: 0.5rem 0; background: transparent !important; }
-.code-body code { counter-reset: line; display: block; }
-.code-body .line { display: inline-block; min-width: 100%; padding-right: 0.75rem; }
-.code-body .line::before { counter-increment: line; content: counter(line); display: inline-block; width: 3ch; margin: 0 1ch 0 0.75rem; text-align: right; color: var(--ui-text-dimmed); user-select: none; }
-.code-wrap .line { white-space: pre-wrap; word-break: break-all; }
-.shiki span { color: var(--shiki-light); }
-.dark .shiki span { color: var(--shiki-dark); }
+.code-body pre {
+  margin: 0;
+  padding: 0.5rem 0;
+  background: transparent !important;
+}
+.code-body code {
+  counter-reset: line;
+  display: block;
+}
+.code-body .line {
+  display: inline-block;
+  min-width: 100%;
+  padding-right: 0.75rem;
+}
+.code-body .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 3ch;
+  margin: 0 1ch 0 0.75rem;
+  text-align: right;
+  color: var(--ui-text-dimmed);
+  user-select: none;
+}
+.code-wrap .line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.shiki span {
+  color: var(--shiki-light);
+}
+.dark .shiki span {
+  color: var(--shiki-dark);
+}
 
 /* Compact density: one root switch. Spacing is 3px and text sizes stay whole pixels. */
 html[data-density='compact'] {

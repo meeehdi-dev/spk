@@ -21,7 +21,15 @@ export function fanOut(channelId: string, userId: string, data: unknown, include
 
 /** Handles a JSON frame from a signed-in socket. */
 export function handleClientFrame(userId: string, raw: string, socket?: unknown) {
-  let m: { type?: string, sid?: string, channelId?: string, body?: string, nonce?: string, replyToId?: string | null, attachments?: Array<{ id: string, spoiler?: boolean }> }
+  let m: {
+    type?: string
+    sid?: string
+    channelId?: string
+    body?: string
+    nonce?: string
+    replyToId?: string | null
+    attachments?: Array<{ id: string; spoiler?: boolean }>
+  }
   try {
     m = JSON.parse(raw)
   } catch {
@@ -38,7 +46,8 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
       if (!allowSend(userId)) throw new ChatError(429, 'Slow down')
       const files = Array.isArray(m.attachments) ? m.attachments.map(a => ({ id: String(a?.id), spoiler: !!a?.spoiler })) : []
       const message = createMessage(useDb(), userId, String(m.channelId), m.body, Date.now(), {
-        replyToId: typeof m.replyToId === 'string' ? m.replyToId : null, attachments: files,
+        replyToId: typeof m.replyToId === 'string' ? m.replyToId : null,
+        attachments: files,
       })
       const db = useDb()
       queuePreviews(message)

@@ -1,5 +1,17 @@
-export interface UserEntry { id: string, displayName: string | null, avatarKey: string | null, role: string, banned?: boolean }
-export interface ChannelEntry { id: string, type: 'text' | 'voice' | 'dm', name: string | null, otherUserId?: string, lastActivityAt?: number | null }
+export interface UserEntry {
+  id: string
+  displayName: string | null
+  avatarKey: string | null
+  role: string
+  banned?: boolean
+}
+export interface ChannelEntry {
+  id: string
+  type: 'text' | 'voice' | 'dm'
+  name: string | null
+  otherUserId?: string
+  lastActivityAt?: number | null
+}
 
 const headers = () => useRequestHeaders(['cookie'])
 
@@ -15,7 +27,7 @@ export function useUsers() {
 /** "#general" for text channels, "@Alex" for a DM. */
 export function useChannelLabel() {
   const { nameOf } = useUsers()
-  return (c?: ChannelEntry) => !c ? '' : c.type === 'dm' ? `@${nameOf(c.otherUserId ?? '')}` : `#${c.name}`
+  return (c?: ChannelEntry) => (!c ? '' : c.type === 'dm' ? `@${nameOf(c.otherUserId ?? '')}` : `#${c.name}`)
 }
 
-export const avatarSrc = (u?: { id: string, avatarKey: string | null }) => u?.avatarKey ? `/api/avatar/${u.id}?v=${u.avatarKey}` : undefined
+export const avatarSrc = (u?: { id: string; avatarKey: string | null }) => (u?.avatarKey ? `/api/avatar/${u.id}?v=${u.avatarKey}` : undefined)

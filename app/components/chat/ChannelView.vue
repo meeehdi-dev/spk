@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AttachmentDto, HistoryResult, MessageDto } from '../../../server/db/messages'
 
-const props = defineProps<{ channelId: string, messageId?: string }>()
+const props = defineProps<{ channelId: string; messageId?: string }>()
 const { data: channels } = useChannels()
 const channel = computed(() => channels.value.find(c => c.id === props.channelId))
 const label = useChannelLabel()
@@ -28,8 +28,8 @@ let pinned = false
 let lastTop = 0 // scrollTop at the previous scroll event
 let loadingNewer = false
 let gen = 0 // bumped per load(), so a late page of the previous channel is dropped
-const input = ref<{ focus: () => void, quote: (t: string) => void, restore: (md: string, files?: Upload[]) => void }>()
-const pending = new Map<string, { md: string, files: Upload[] }>()
+const input = ref<{ focus: () => void; quote: (t: string) => void; restore: (md: string, files?: Upload[]) => void }>()
+const pending = new Map<string, { md: string; files: Upload[] }>()
 const replyId = ref<string | null>(null)
 const editingId = ref<string | null>(null)
 const lightbox = ref<AttachmentDto | null>(null)
@@ -38,13 +38,15 @@ const replyTarget = computed(() => {
   const m = replyId.value ? byIdMsg(replyId.value) : undefined
   return m ? { id: m.id, name: nameOf(m.userId), preview: previewText(m.body.split('\n').find(l => l.trim()) ?? '', nameOf).slice(0, 80) } : null
 })
-watch(() => props.channelId, () => {
-  replyId.value = null
-  editingId.value = null
-})
+watch(
+  () => props.channelId,
+  () => {
+    replyId.value = null
+    editingId.value = null
+  },
+)
 
-const fetchPage = (query: Record<string, string>) =>
-  $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
+const fetchPage = (query: Record<string, string>) => $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
 
 async function load() {
   const mine = ++gen
@@ -62,7 +64,7 @@ async function load() {
     hasMoreBefore.value = r.hasMoreBefore
     hasMoreAfter.value = r.hasMoreAfter
   } catch (cause) {
-    const e = cause as { statusCode?: number, statusMessage?: string, message?: string, data?: { statusMessage?: string } } | null
+    const e = cause as { statusCode?: number; statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
     if (mine !== gen) return
     if (e?.statusCode === 404 && props.messageId) {
       toast.add({ title: 'That message no longer exists', color: 'warning', icon: 'i-lucide-info' })
@@ -95,7 +97,9 @@ const markUnread = async (id: string) => {
     unread.set(props.channelId, await $fetch<UnreadState>(`/api/channels/${props.channelId}/unread`, { method: 'POST', body: { messageId: id } }))
     dividerId.value = id
     holdRead = true
-  } catch { toast.add({ title: 'Could not mark as unread', color: 'error', icon: 'i-lucide-circle-alert' }) }
+  } catch {
+    toast.add({ title: 'Could not mark as unread', color: 'error', icon: 'i-lucide-circle-alert' })
+  }
 }
 // Not defineShortcuts: it preventDefault()s, which stops modals from closing on Esc. An open dialog owns the key.
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
@@ -116,8 +120,7 @@ function jumpTo(id: string) {
   el.scrollIntoView({ block: 'center' })
   highlightId.value = id
   setTimeout(() => {
-    if (highlightId.value === id)
-      highlightId.value = undefined
+    if (highlightId.value === id) highlightId.value = undefined
   }, 2500)
 }
 
@@ -149,12 +152,16 @@ async function loadNewer() {
     const r = await fetchPage({ after: messages.value.at(-1)!.id })
     messages.value = [...messages.value, ...r.messages]
     hasMoreAfter.value = r.hasMoreAfter
-  } finally { loadingNewer = false }
+  } finally {
+    loadingNewer = false
+  }
 }
 
 async function toPresent() {
   if (props.messageId) await navigateTo(`/c/${props.channelId}`)
-  else { await load() }
+  else {
+    await load()
+  }
 }
 
 function onScroll() {
@@ -182,7 +189,7 @@ const typingText = computed(() => {
   return n.length === 0 ? '' : n.length === 1 ? `${n[0]} is typing…` : n.length === 2 ? `${n[0]} and ${n[1]} are typing…` : 'Several people are typing…'
 })
 
-socket.on((m) => {
+socket.on(m => {
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
     if (m.nonce) pending.delete(m.nonce)
@@ -227,7 +234,11 @@ function send(md: string, files: Upload[]) {
   const nonce = crypto.randomUUID()
   pending.set(nonce, { md, files })
   const ok = socket.send({
-    type: 'message:send', channelId: props.channelId, body: md, nonce, replyToId: replyId.value,
+    type: 'message:send',
+    channelId: props.channelId,
+    body: md,
+    nonce,
+    replyToId: replyId.value,
     attachments: files.map(f => ({ id: f.id, spoiler: f.spoiler })),
   })
   if (!ok) {
@@ -241,7 +252,7 @@ function send(md: string, files: Upload[]) {
 
 // --- edit, delete, react, reply ---
 const apiError = (error: unknown, fallback: string) => {
-  const e = error as { statusMessage?: string, data?: { statusMessage?: string } } | null
+  const e = error as { statusMessage?: string; data?: { statusMessage?: string } } | null
   toast.add({ title: e?.statusMessage || e?.data?.statusMessage || fallback, color: 'error', icon: 'i-lucide-circle-alert' })
 }
 
@@ -270,7 +281,9 @@ provide(chatActionsKey, {
       const r = await $fetch<{ reactions: MessageDto['reactions'] }>(`/api/messages/${id}/reactions`, { method: 'POST', body: { emoji, on } })
       const x = byIdMsg(id)
       if (x) x.reactions = r.reactions
-    } catch (e) { apiError(e, 'Could not react') }
+    } catch (e) {
+      apiError(e, 'Could not react')
+    }
   },
   reply(id) {
     replyId.value = id
@@ -288,7 +301,9 @@ provide(chatActionsKey, {
       apiError(e, 'Could not remove the preview')
     }
   },
-  openImage: (f) => { lightbox.value = f },
+  openImage: f => {
+    lightbox.value = f
+  },
 })
 
 // `↑` in an empty input edits your last message.
@@ -303,7 +318,7 @@ const endEdit = () => {
 
 // --- rendering helpers: grouping and date dividers ---
 const rows = computed(() => {
-  const out: Array<{ key: string, divider?: string, message?: MessageDto, grouped?: boolean }> = []
+  const out: Array<{ key: string; divider?: string; message?: MessageDto; grouped?: boolean }> = []
   let prev: MessageDto | undefined
   for (const m of messages.value) {
     const newDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -319,83 +334,40 @@ onMounted(() => watch(() => [props.channelId, props.messageId], load, { immediat
 // After a reconnect, pull what we missed while offline.
 socket.onOpen(() => {
   if (!loading.value && !hasMoreAfter.value && messages.value.length)
-    fetchPage({ after: messages.value.at(-1)!.id }).then((r) => {
-      const seen = new Set(messages.value.map(x => x.id))
-      messages.value.push(...r.messages.filter(x => !seen.has(x.id)))
-    }).catch(() => {})
+    fetchPage({ after: messages.value.at(-1)!.id })
+      .then(r => {
+        const seen = new Set(messages.value.map(x => x.id))
+        messages.value.push(...r.messages.filter(x => !seen.has(x.id)))
+      })
+      .catch(() => {})
 })
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div
-      v-if="denied"
-      class="flex flex-1 items-center justify-center gap-2 text-muted"
-    >
-      <UIcon name="i-lucide-lock" /> No access
-    </div>
+    <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted"><UIcon name="i-lucide-lock" /> No access</div>
     <template v-else>
-      <div
-        ref="scroller"
-        class="min-h-0 flex-1 overflow-y-auto pb-9"
-        @scroll.passive="onScroll"
-      >
+      <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto pb-9" @scroll.passive="onScroll">
         <div ref="content">
-          <div
-            v-if="loading"
-            class="p-6 text-center text-sm text-muted"
-          >
-            Loading…
-          </div>
+          <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
           <template v-else>
-            <div
-              v-if="!hasMoreBefore"
-              class="px-4 pt-6 pb-2 text-sm text-muted"
-            >
-              <UIcon
-                :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'"
-                class="size-5"
-              />
+            <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
+              <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-5" />
               <div class="font-bold text-default">
                 {{ channel?.type === 'dm' ? `This is the start of your conversation with ${label(channel).slice(1)}` : `Welcome to ${label(channel)}` }}
               </div>
-              <div v-if="!messages.length">
-                No messages yet. Say something!
-              </div>
+              <div v-if="!messages.length">No messages yet. Say something!</div>
             </div>
-            <div
-              v-else
-              class="flex h-9 items-center justify-center gap-2 text-xs text-muted"
-            >
-              <template v-if="loadingMore">
-                <UIcon
-                  name="i-lucide-loader-circle"
-                  class="size-4 animate-spin"
-                /> Loading older messages…
-              </template>
+            <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
+              <template v-if="loadingMore"> <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages… </template>
             </div>
-            <template
-              v-for="r in rows"
-              :key="r.key"
-            >
-              <div
-                v-if="r.divider"
-                class="my-3 flex items-center gap-3 px-4 text-xs text-muted"
-              >
+            <template v-for="r in rows" :key="r.key">
+              <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted">
                 <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
               </div>
               <template v-else>
-                <div
-                  v-if="dividerId === r.message!.id"
-                  class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error"
-                >
-                  <USeparator
-                    color="error"
-                    class="flex-1"
-                  /><span>New messages</span><USeparator
-                    color="error"
-                    class="flex-1"
-                  />
+                <div v-if="dividerId === r.message!.id" class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error">
+                  <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
                 </div>
                 <ChatMessage
                   :message="r.message!"
@@ -412,21 +384,10 @@ socket.onOpen(() => {
           </template>
         </div>
       </div>
-      <div
-        v-if="hasMoreAfter"
-        class="flex justify-center py-1"
-      >
-        <UButton
-          label="Jump to present"
-          icon="i-lucide-chevrons-down"
-          size="xs"
-          @click="toPresent"
-        />
+      <div v-if="hasMoreAfter" class="flex justify-center py-1">
+        <UButton label="Jump to present" icon="i-lucide-chevrons-down" size="xs" @click="toPresent" />
       </div>
-      <div
-        class="h-5 px-4 text-xs text-muted"
-        aria-live="polite"
-      >
+      <div class="h-5 px-4 text-xs text-muted" aria-live="polite">
         {{ typingText }}
       </div>
       <ClientOnly>
@@ -441,10 +402,7 @@ socket.onOpen(() => {
           @cancel-reply="replyId = null"
           @edit-last="editLast"
         />
-        <ChatImageLightbox
-          :file="lightbox"
-          @close="lightbox = null"
-        />
+        <ChatImageLightbox :file="lightbox" @close="lightbox = null" />
       </ClientOnly>
     </template>
   </div>

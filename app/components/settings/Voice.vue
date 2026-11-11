@@ -3,9 +3,16 @@ import { matchDevice } from '#shared/utils/voice'
 
 const v = useVoice()
 const s = v.settings
-const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
-const items = (list: MediaDeviceInfo[]) => [{ label: 'System default', value: 'default' }, ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))]
-const current = (saved: { deviceId: string, label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
+const noiseItems = [
+  { label: 'Off', value: 'off' },
+  { label: 'Standard (browser)', value: 'standard' },
+  { label: 'Enhanced (RNNoise)', value: 'enhanced' },
+]
+const items = (list: MediaDeviceInfo[]) => [
+  { label: 'System default', value: 'default' },
+  ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId })),
+]
+const current = (saved: { deviceId: string; label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
 const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
@@ -15,7 +22,7 @@ const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (i
 const labelsHidden = computed(() => [...v.devices.value.mics, ...v.devices.value.speakers].some(d => !d.label))
 async function allow() {
   try {
-    (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
+    ;(await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
   } catch {
     useToast().add({ title: 'Microphone access was denied', color: 'error', icon: 'i-lucide-mic-off' })
   }
@@ -33,7 +40,9 @@ async function meter(on: boolean) {
   if (!on) return
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: matchDevice(s.value.mic, v.devices.value.mics).deviceId } })
-    const ctx = new AudioContext(), an = ctx.createAnalyser(), buf = new Float32Array(1024)
+    const ctx = new AudioContext(),
+      an = ctx.createAnalyser(),
+      buf = new Float32Array(1024)
     an.fftSize = 1024
     ctx.createMediaStreamSource(stream).connect(an)
     let raf = 0
@@ -64,10 +73,9 @@ let camStream: MediaStream | undefined
 const stopCam = () => {
   camStream?.getTracks().forEach(t => t.stop())
   camStream = undefined
-  if (videoEl.value)
-    videoEl.value.srcObject = null
+  if (videoEl.value) videoEl.value.srcObject = null
 }
-watch(camPreview, async (on) => {
+watch(camPreview, async on => {
   stopCam()
   if (!on) return
   try {
@@ -89,9 +97,7 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
   <div class="flex flex-col gap-6">
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Devices
-        </h2>
+        <h2 class="font-bold">Devices</h2>
       </template>
       <div class="flex flex-col gap-4">
         <UAlert
@@ -120,17 +126,10 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
               :disabled="!!v.channelId.value"
               @click="testing = !testing"
             />
-            <UProgress
-              :model-value="level * 100"
-              class="max-w-xs"
-              aria-label="Microphone level"
-            />
+            <UProgress :model-value="level * 100" class="max-w-xs" aria-label="Microphone level" />
           </div>
         </UFormField>
-        <UFormField
-          v-if="v.canPickOutput"
-          label="Speakers"
-        >
+        <UFormField v-if="v.canPickOutput" label="Speakers">
           <USelect
             :model-value="current(s.speaker, v.devices.value.speakers)"
             :items="items(v.devices.value.speakers)"
@@ -170,47 +169,16 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
 
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Voice processing
-        </h2>
+        <h2 class="font-bold">Voice processing</h2>
       </template>
       <div class="flex flex-col gap-4">
-        <UFormField
-          label="Noise suppression"
-          description="Enhanced uses RNNoise and costs a little CPU."
-        >
-          <USelect
-            v-model="s.noise"
-            :items="noiseItems"
-            class="w-full max-w-xs"
-            @update:model-value="v.applySettings()"
-          />
+        <UFormField label="Noise suppression" description="Enhanced uses RNNoise and costs a little CPU.">
+          <USelect v-model="s.noise" :items="noiseItems" class="w-full max-w-xs" @update:model-value="v.applySettings()" />
         </UFormField>
-        <USwitch
-          v-model="s.echo"
-          label="Echo cancellation"
-          icon="i-lucide-audio-waveform"
-          @update:model-value="v.applySettings()"
-        />
-        <USwitch
-          v-model="s.agc"
-          label="Auto gain"
-          icon="i-lucide-sliders-horizontal"
-          @update:model-value="v.applySettings()"
-        />
-        <UFormField
-          label="Sensitivity"
-          description="Voice activation only. Higher picks up quieter speech."
-        >
-          <USlider
-            v-model="s.sensitivity"
-            :min="0"
-            :max="100"
-            :step="1"
-            class="max-w-xs"
-            aria-label="Sensitivity"
-            @update:model-value="v.applySettings()"
-          />
+        <USwitch v-model="s.echo" label="Echo cancellation" icon="i-lucide-audio-waveform" @update:model-value="v.applySettings()" />
+        <USwitch v-model="s.agc" label="Auto gain" icon="i-lucide-sliders-horizontal" @update:model-value="v.applySettings()" />
+        <UFormField label="Sensitivity" description="Voice activation only. Higher picks up quieter speech.">
+          <USlider v-model="s.sensitivity" :min="0" :max="100" :step="1" class="max-w-xs" aria-label="Sensitivity" @update:model-value="v.applySettings()" />
         </UFormField>
         <UFormField label="Output volume">
           <div class="flex items-center gap-3">
@@ -223,13 +191,7 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
               aria-label="Output volume"
               @update:model-value="v.applyOutput()"
             />
-            <UButton
-              icon="i-lucide-volume-2"
-              label="Test sound"
-              color="neutral"
-              variant="outline"
-              @click="playVoiceSound('join', true, true)"
-            />
+            <UButton icon="i-lucide-volume-2" label="Test sound" color="neutral" variant="outline" @click="playVoiceSound('join', true, true)" />
           </div>
         </UFormField>
       </div>
@@ -237,53 +199,17 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
 
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Sounds
-        </h2>
+        <h2 class="font-bold">Sounds</h2>
       </template>
       <div class="flex flex-col gap-4">
-        <div
-          v-for="(label, k) in soundLabels"
-          :key="k"
-          class="flex items-center gap-4"
-        >
-          <USwitch
-            v-model="s.sounds[k].on"
-            :label="label"
-            class="w-32"
-          />
-          <USlider
-            v-model="s.sounds[k].volume"
-            :min="0"
-            :max="1"
-            :step="0.05"
-            :disabled="!s.sounds[k].on"
-            class="max-w-xs"
-            :aria-label="`${label} volume`"
-          />
-          <UButton
-            icon="i-lucide-play"
-            color="neutral"
-            variant="ghost"
-            :aria-label="`Test ${label} sound`"
-            @click="playVoiceSound(k, true, true)"
-          />
+        <div v-for="(label, k) in soundLabels" :key="k" class="flex items-center gap-4">
+          <USwitch v-model="s.sounds[k].on" :label="label" class="w-32" />
+          <USlider v-model="s.sounds[k].volume" :min="0" :max="1" :step="0.05" :disabled="!s.sounds[k].on" class="max-w-xs" :aria-label="`${label} volume`" />
+          <UButton icon="i-lucide-play" color="neutral" variant="ghost" :aria-label="`Test ${label} sound`" @click="playVoiceSound(k, true, true)" />
         </div>
         <div class="flex items-center gap-4">
-          <USwitch
-            v-model="s.soundboard.on"
-            label="Soundboard"
-            class="w-32"
-          />
-          <USlider
-            v-model="s.soundboard.volume"
-            :min="0"
-            :max="1"
-            :step="0.05"
-            :disabled="!s.soundboard.on"
-            class="max-w-xs"
-            aria-label="Soundboard volume"
-          />
+          <USwitch v-model="s.soundboard.on" label="Soundboard" class="w-32" />
+          <USlider v-model="s.soundboard.volume" :min="0" :max="1" :step="0.05" :disabled="!s.soundboard.on" class="max-w-xs" aria-label="Soundboard volume" />
         </div>
       </div>
     </UCard>

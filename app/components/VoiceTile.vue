@@ -3,7 +3,7 @@ import type { VoiceTile } from '~/composables/useVoice'
 
 import { userVolume } from '#shared/utils/voice'
 
-const props = defineProps<{ tile: VoiceTile, theater: boolean }>()
+const props = defineProps<{ tile: VoiceTile; theater: boolean }>()
 const emit = defineEmits<{ theater: [] }>()
 const v = useVoice()
 const admin = useAdmin()
@@ -15,21 +15,23 @@ const preview = ref(false)
 const hovered = ref(false)
 const { toggle: fullscreen } = useFullscreen(root)
 
-const screen = computed(() => props.tile.screen && (!props.tile.local || preview.value) ? props.tile.screen : undefined)
+const screen = computed(() => (props.tile.screen && (!props.tile.local || preview.value) ? props.tile.screen : undefined))
 const main = computed(() => screen.value ?? props.tile.cam)
-const corner = computed(() => screen.value && props.tile.cam ? props.tile.cam : undefined)
+const corner = computed(() => (screen.value && props.tile.cam ? props.tile.cam : undefined))
 const live = computed(() => props.tile.camLive || props.tile.screenLive)
 const mirrored = (t: unknown) => props.tile.local && t === props.tile.cam
 // The tracks are attached to the <video> elements by hand; detached again when they change.
-watchEffect((onCleanup) => {
-  const t = main.value, el = mainEl.value
+watchEffect(onCleanup => {
+  const t = main.value,
+    el = mainEl.value
   if (t && el) {
     t.attach(el)
     onCleanup(() => t.detach(el))
   }
 })
-watchEffect((onCleanup) => {
-  const t = corner.value, el = cornerEl.value
+watchEffect(onCleanup => {
+  const t = corner.value,
+    el = cornerEl.value
   if (t && el) {
     t.attach(el)
     onCleanup(() => t.detach(el))
@@ -38,13 +40,37 @@ watchEffect((onCleanup) => {
 
 const vol = computed(() => userVolume(v.volumes.value, props.tile.userId))
 const watchToggle = () => v.watch(props.tile.userId, !props.tile.watching)
-const items = computed(() => [[
-  ...(props.tile.local
-    ? (props.tile.screenLive ? [{ label: preview.value ? 'Hide preview' : 'Show preview', icon: 'i-lucide-eye', onSelect: () => { preview.value = !preview.value } }] : [])
-    : live.value ? [{ label: props.tile.watching ? 'Stop watching' : 'Watch', icon: props.tile.watching ? 'i-lucide-eye-off' : 'i-lucide-eye', kbds: ['W'], onSelect: watchToggle }] : []),
-  { label: props.theater ? 'Exit theater mode' : 'Theater mode', icon: 'i-lucide-rectangle-horizontal', kbds: ['T'], onSelect: () => emit('theater') },
-  { label: 'Fullscreen', icon: 'i-lucide-maximize', kbds: ['F'], onSelect: () => fullscreen() },
-], ...admin.userGroups(props.tile.userId)].filter(g => g.length))
+const items = computed(() =>
+  [
+    [
+      ...(props.tile.local
+        ? props.tile.screenLive
+          ? [
+              {
+                label: preview.value ? 'Hide preview' : 'Show preview',
+                icon: 'i-lucide-eye',
+                onSelect: () => {
+                  preview.value = !preview.value
+                },
+              },
+            ]
+          : []
+        : live.value
+          ? [
+              {
+                label: props.tile.watching ? 'Stop watching' : 'Watch',
+                icon: props.tile.watching ? 'i-lucide-eye-off' : 'i-lucide-eye',
+                kbds: ['W'],
+                onSelect: watchToggle,
+              },
+            ]
+          : []),
+      { label: props.theater ? 'Exit theater mode' : 'Theater mode', icon: 'i-lucide-rectangle-horizontal', kbds: ['T'], onSelect: () => emit('theater') },
+      { label: 'Fullscreen', icon: 'i-lucide-maximize', kbds: ['F'], onSelect: () => fullscreen() },
+    ],
+    ...admin.userGroups(props.tile.userId),
+  ].filter(g => g.length),
+)
 
 // T / F / W act on the hovered or focused tile, never while typing.
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
@@ -90,87 +116,29 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         :class="tile.local ? '-scale-x-100' : ''"
       />
 
-      <div
-        v-if="!main"
-        class="flex flex-col items-center gap-2"
-      >
-        <UAvatar
-          :src="avatarSrc(byId.get(tile.userId))"
-          :alt="nameOf(tile.userId)"
-          size="3xl"
-        />
+      <div v-if="!main" class="flex flex-col items-center gap-2">
+        <UAvatar :src="avatarSrc(byId.get(tile.userId))" :alt="nameOf(tile.userId)" size="3xl" />
         <template v-if="tile.local && tile.screenLive">
-          <p class="text-sm">
-            You're sharing your screen
-          </p>
-          <UButton
-            label="Stop"
-            icon="i-lucide-monitor-off"
-            color="error"
-            size="xs"
-            @click="v.stopScreen()"
-          />
+          <p class="text-sm">You're sharing your screen</p>
+          <UButton label="Stop" icon="i-lucide-monitor-off" color="error" size="xs" @click="v.stopScreen()" />
         </template>
-        <UButton
-          v-else-if="!tile.local && live && !tile.watching"
-          label="Watch"
-          icon="i-lucide-eye"
-          size="xs"
-          @click="watchToggle"
-        />
+        <UButton v-else-if="!tile.local && live && !tile.watching" label="Watch" icon="i-lucide-eye" size="xs" @click="watchToggle" />
       </div>
 
       <span class="absolute top-2 left-2 flex max-w-[70%] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
         <span class="truncate">{{ tile.local ? 'You' : nameOf(tile.userId) }}</span>
-        <UBadge
-          v-if="!tile.watching && live"
-          :icon="tile.screenLive ? 'i-lucide-screen-share' : 'i-lucide-video'"
-          label="LIVE"
-          color="error"
-          size="sm"
-        />
+        <UBadge v-if="!tile.watching && live" :icon="tile.screenLive ? 'i-lucide-screen-share' : 'i-lucide-video'" label="LIVE" color="error" size="sm" />
       </span>
 
       <div class="absolute top-2 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
-        <UTooltip
-          v-if="!tile.local && live && tile.watching"
-          text="Stop watching"
-          :kbds="['W']"
-        >
-          <UButton
-            icon="i-lucide-eye-off"
-            color="neutral"
-            variant="solid"
-            size="xs"
-            aria-label="Stop watching"
-            @click="watchToggle"
-          />
+        <UTooltip v-if="!tile.local && live && tile.watching" text="Stop watching" :kbds="['W']">
+          <UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle" />
         </UTooltip>
-        <UTooltip
-          :text="theater ? 'Exit theater mode' : 'Theater mode'"
-          :kbds="['T']"
-        >
-          <UButton
-            icon="i-lucide-rectangle-horizontal"
-            color="neutral"
-            variant="solid"
-            size="xs"
-            aria-label="Theater mode"
-            @click="emit('theater')"
-          />
+        <UTooltip :text="theater ? 'Exit theater mode' : 'Theater mode'" :kbds="['T']">
+          <UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" size="xs" aria-label="Theater mode" @click="emit('theater')" />
         </UTooltip>
-        <UTooltip
-          text="Fullscreen"
-          :kbds="['F']"
-        >
-          <UButton
-            icon="i-lucide-maximize"
-            color="neutral"
-            variant="solid"
-            size="xs"
-            aria-label="Fullscreen"
-            @click="fullscreen()"
-          />
+        <UTooltip text="Fullscreen" :kbds="['F']">
+          <UButton icon="i-lucide-maximize" color="neutral" variant="solid" size="xs" aria-label="Fullscreen" @click="fullscreen()" />
         </UTooltip>
       </div>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PreviewDto } from '../../../server/db/messages'
 
-const props = defineProps<{ messageId: string, preview: PreviewDto, canRemove: boolean }>()
+const props = defineProps<{ messageId: string; preview: PreviewDto; canRemove: boolean }>()
 const emit = defineEmits<{ remove: [url: string] }>()
 const href = computed(() => safeHref(props.preview.url))
 const host = computed(() => {
@@ -32,33 +32,13 @@ onMounted(() => {
     ref="el"
     class="group/card relative mt-1 flex max-w-md flex-col overflow-hidden rounded-md border border-l-4 border-default border-l-primary bg-elevated/50"
   >
-    <a
-      :href="href"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="flex flex-col gap-0.5 p-2 text-sm hover:bg-elevated"
-    >
+    <a :href="href" target="_blank" rel="noopener noreferrer" class="flex flex-col gap-0.5 p-2 text-sm hover:bg-elevated">
       <span class="truncate text-xs text-muted">{{ preview.siteName || host }}</span>
-      <span
-        v-if="preview.title"
-        class="line-clamp-2 font-bold text-primary"
-      >{{ preview.title }}</span>
-      <span
-        v-if="preview.description"
-        class="line-clamp-3 text-xs text-toned"
-      >{{ preview.description }}</span>
-      <img
-        v-if="preview.image"
-        :src="image"
-        alt=""
-        loading="lazy"
-        class="mt-1 max-h-48 w-fit max-w-full rounded object-cover"
-      >
+      <span v-if="preview.title" class="line-clamp-2 font-bold text-primary">{{ preview.title }}</span>
+      <span v-if="preview.description" class="line-clamp-3 text-xs text-toned">{{ preview.description }}</span>
+      <img v-if="preview.image" :src="image" alt="" loading="lazy" class="mt-1 max-h-48 w-fit max-w-full rounded object-cover" />
     </a>
-    <UTooltip
-      v-if="canRemove"
-      text="Remove preview"
-    >
+    <UTooltip v-if="canRemove" text="Remove preview">
       <UButton
         class="absolute top-1 right-1 hidden group-focus-within/card:flex group-hover/card:flex"
         icon="i-lucide-x"

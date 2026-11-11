@@ -23,8 +23,9 @@ export function useUploads() {
 
   async function start(it: Upload, file: File) {
     try {
-      const p = await $fetch<{ id: string, url: string, headers: Record<string, string> }>('/api/attachments/presign', {
-        method: 'POST', body: { filename: file.name, mime: it.mime, size: file.size },
+      const p = await $fetch<{ id: string; url: string; headers: Record<string, string> }>('/api/attachments/presign', {
+        method: 'POST',
+        body: { filename: file.name, mime: it.mime, size: file.size },
       })
       it.id = p.id
       if (!items.value.some(x => x.key === it.key)) {
@@ -36,11 +37,10 @@ export function useUploads() {
         it.xhr = xhr
         xhr.open('PUT', p.url)
         for (const [k, v] of Object.entries(p.headers)) xhr.setRequestHeader(k, v)
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable)
-            it.progress = e.loaded / e.total
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) it.progress = e.loaded / e.total
         }
-        xhr.onload = () => xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
+        xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)))
         xhr.onerror = () => reject(new Error('Upload failed'))
         xhr.onabort = () => resolve()
         xhr.send(file)
@@ -50,7 +50,7 @@ export function useUploads() {
         it.progress = 1
       }
     } catch (error) {
-      const e = error as { statusMessage?: string, message?: string, data?: { statusMessage?: string } } | null
+      const e = error as { statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
       it.state = 'error'
       it.error = e?.statusMessage || e?.data?.statusMessage || e?.message || 'Upload failed'
     }
@@ -68,8 +68,13 @@ export function useUploads() {
         continue
       }
       const it = reactive<Upload>({
-        key: crypto.randomUUID(), name: file.name || 'file', size: file.size,
-        mime: cleanMime(file.type) ?? 'application/octet-stream', spoiler: false, state: 'uploading', progress: 0,
+        key: crypto.randomUUID(),
+        name: file.name || 'file',
+        size: file.size,
+        mime: cleanMime(file.type) ?? 'application/octet-stream',
+        spoiler: false,
+        state: 'uploading',
+        progress: 0,
       })
       if (it.mime.startsWith('image/')) it.preview = URL.createObjectURL(file)
       items.value.push(it)
@@ -96,13 +101,13 @@ export function useUploads() {
     cancel,
     /** After a successful send the server owns the files: forget them without deleting. */
     clear: () => {
-      for (const x of items.value)
-        if (x.preview)
-          URL.revokeObjectURL(x.preview)
+      for (const x of items.value) if (x.preview) URL.revokeObjectURL(x.preview)
       items.value = []
     },
     /** A failed send hands the (already uploaded) files back. */
-    restore: (list: Upload[]) => { if (!items.value.length) items.value = list },
+    restore: (list: Upload[]) => {
+      if (!items.value.length) items.value = list
+    },
     busy: computed(() => items.value.some(x => x.state === 'uploading')),
     ready: computed(() => items.value.filter(x => x.state === 'done' && x.id)),
   }

@@ -1,7 +1,7 @@
 import { cancelPending } from '../../../db/attachments'
 
 // Cancel or remove one of your own unsent uploads (row and object).
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const key = cancelPending(useDb(), u.id, getRouterParam(event, 'id')!)
   if (key) {

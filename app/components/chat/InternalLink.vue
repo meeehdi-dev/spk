@@ -17,26 +17,22 @@ const label = computed(() => {
   return info.value && info.value !== 'none' ? `${ch} › message from ${nameOf(info.value.userId)}` : ch
 })
 const el = ref<HTMLElement>()
-onMounted(() => registerCtx(el.value, {
-  kind: 'link',
-  items: () => [{ label: 'Copy link', icon: 'i-lucide-copy', onSelect: () => copyText(props.href) }],
-}))
+onMounted(() =>
+  registerCtx(el.value, {
+    kind: 'link',
+    items: () => [{ label: 'Copy link', icon: 'i-lucide-copy', onSelect: () => copyText(props.href) }],
+  }),
+)
 </script>
 
 <template>
-  <span
-    v-if="noAccess"
-    class="rounded bg-elevated px-1 text-muted"
-  >No access</span>
+  <span v-if="noAccess" class="rounded bg-elevated px-1 text-muted">No access</span>
   <NuxtLink
     v-else
     ref="el"
     :to="`/c/${link.channelId}${link.messageId ? `/m/${link.messageId}` : ''}`"
     class="inline-flex items-center gap-1 rounded bg-elevated px-1 text-primary"
   >
-    <UIcon
-      :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'"
-      class="size-3"
-    />{{ label.replace(/^#/, '') }}
+    <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-3" />{{ label.replace(/^#/, '') }}
   </NuxtLink>
 </template>

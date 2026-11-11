@@ -1,4 +1,4 @@
-export default defineEventHandler((event) => {
+export default defineEventHandler(event => {
   try {
     useDb().$client.prepare('select 1').get()
     return { ok: true }

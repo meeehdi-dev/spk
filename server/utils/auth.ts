@@ -21,15 +21,21 @@ function create() {
     emailAndPassword: { enabled: true, requireEmailVerification: false, minPasswordLength: 8 },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
     rateLimit: { enabled: true },
-    user: { additionalFields: {
-      displayName: { type: 'string', required: false, input: false },
-      avatarKey: { type: 'string', required: false, input: false },
-    } },
+    user: {
+      additionalFields: {
+        displayName: { type: 'string', required: false, input: false },
+        avatarKey: { type: 'string', required: false, input: false },
+      },
+    },
     // Failures are logged with their path in server/api/auth/[...all].ts; this adds the stack of unexpected (5xx) ones.
-    onAPIError: { onError: (e) => { if (!isAPIError(e) || e.statusCode >= 500) logBackground('auth', e) } },
+    onAPIError: {
+      onError: e => {
+        if (!isAPIError(e) || e.statusCode >= 500) logBackground('auth', e)
+      },
+    },
     plugins: [admin({ defaultRole: 'user' })],
     hooks: {
-      before: createAuthMiddleware(async (ctx) => {
+      before: createAuthMiddleware(async ctx => {
         if (ctx.path === '/sign-up/email') {
           const token = ctx.headers?.get(INVITE_HEADER)
           if (!token || !claimInvite(db, token)) throw new APIError('FORBIDDEN', { message: 'A valid invite is required to sign up' })
@@ -38,7 +44,7 @@ function create() {
         // (last admin, DM privacy via impersonation, invite-only sign-up), so none are reachable.
         if (ctx.path.startsWith('/admin/')) throw new APIError('FORBIDDEN', { message: 'Not available' })
       }),
-      after: createAuthMiddleware(async (ctx) => {
+      after: createAuthMiddleware(async ctx => {
         if (ctx.path !== '/sign-up/email') return
         const token = ctx.headers?.get(INVITE_HEADER)
         if (!token) return
@@ -55,4 +61,4 @@ function create() {
 }
 
 let auth: ReturnType<typeof create> | undefined
-export const useAuth = () => auth ??= create()
+export const useAuth = () => (auth ??= create())

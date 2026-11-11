@@ -5,11 +5,11 @@
     "app/components/mdc/**/*.vue",
     "app/components/settings/**/*.vue",
     // Registered by URL in the client PWA plugin.
-    "public/sw.js"
+    "public/sw.js",
   ],
   "ignoreDependencies": [
     // Nuxt generates VueUse auto-imports and invokes vue-tsc through its CLI.
     "@vueuse/core",
-    "vue-tsc"
-  ]
+    "vue-tsc",
+  ],
 }

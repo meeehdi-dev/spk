@@ -2,9 +2,31 @@ import type { Participant, RemoteAudioTrack, Room, Track, VideoTrack } from 'liv
 
 import type { MicProcessor } from '~/utils/voice-processor'
 
-import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
+import {
+  effectiveVolume,
+  initialMute,
+  matchDevice,
+  CAMERA_CAPTURE,
+  SCREEN_AUDIO_CAPTURE,
+  SCREEN_AUDIO_PUBLISH,
+  SCREEN_SHARE,
+  VOICE_PUBLISH_DEFAULTS,
+  sensitivityToDb,
+  toggleDeafen,
+  toggleMute,
+  userVolume,
+  type SavedDevice,
+  type UserVolume,
+} from '#shared/utils/voice'
 
-export interface VoiceMember { channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean }
+export interface VoiceMember {
+  channelId: string
+  muted: boolean
+  deafened: boolean
+  speaking: boolean
+  cam: boolean
+  screen: boolean
+}
 
 // One voice session per tab. `sid` tells the server (and our other tabs) which tab owns the account's session.
 const sid = import.meta.client ? crypto.randomUUID() : ''
@@ -12,7 +34,7 @@ const channelId = ref<string | null>(null)
 const connecting = ref(false)
 const mute = ref(initialMute())
 const presence = ref<Record<string, VoiceMember>>({})
-const devices = ref<{ mics: MediaDeviceInfo[], speakers: MediaDeviceInfo[], cams: MediaDeviceInfo[] }>({ mics: [], speakers: [], cams: [] })
+const devices = ref<{ mics: MediaDeviceInfo[]; speakers: MediaDeviceInfo[]; cams: MediaDeviceInfo[] }>({ mics: [], speakers: [], cams: [] })
 const canPickOutput = import.meta.client && 'setSinkId' in HTMLMediaElement.prototype
 /** One tile per person in the room. `cam` / `screen` carry a track only for your own tracks or remote ones you are watching. */
 export interface VoiceTile {
@@ -40,7 +62,11 @@ const asSaved = (d: MediaDeviceInfo): SavedDevice => ({ deviceId: d.deviceId, la
 async function refreshDevices() {
   if (!navigator.mediaDevices?.enumerateDevices) return
   const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.deviceId)
-  devices.value = { mics: all.filter(d => d.kind === 'audioinput'), speakers: all.filter(d => d.kind === 'audiooutput'), cams: all.filter(d => d.kind === 'videoinput') }
+  devices.value = {
+    mics: all.filter(d => d.kind === 'audioinput'),
+    speakers: all.filter(d => d.kind === 'audiooutput'),
+    cams: all.filter(d => d.kind === 'videoinput'),
+  }
 }
 
 /** Voice state and actions. Safe to call from any component (the state is shared). */
@@ -53,12 +79,16 @@ export function useVoice() {
   const micTrack = () => room?.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack
   const processing = () => ({ enhanced: settings.value.noise === 'enhanced', thresholdDb: sensitivityToDb(settings.value.sensitivity) })
   const captureOptions = (deviceId?: string) => ({
-    deviceId, echoCancellation: settings.value.echo, autoGainControl: settings.value.agc,
-    noiseSuppression: settings.value.noise === 'standard', channelCount: 1,
+    deviceId,
+    echoCancellation: settings.value.echo,
+    autoGainControl: settings.value.agc,
+    noiseSuppression: settings.value.noise === 'standard',
+    channelCount: 1,
   })
 
   // The state the server shows to others: sent on change, at most every ~50 ms (the latest values go out).
-  let speaking = false, lastSent = 0
+  let speaking = false,
+    lastSent = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   function pushState() {
     if (!channelId.value) return
@@ -71,7 +101,15 @@ export function useVoice() {
       return
     }
     lastSent = Date.now()
-    socket.send({ type: 'voice:state', sid, muted: mute.value.muted, deafened: mute.value.deafened, speaking: speaking && !mute.value.muted, cam: camOn.value, screen: screenOn.value })
+    socket.send({
+      type: 'voice:state',
+      sid,
+      muted: mute.value.muted,
+      deafened: mute.value.deafened,
+      speaking: speaking && !mute.value.muted,
+      cam: camOn.value,
+      screen: screenOn.value,
+    })
   }
 
   function applyOutput() {
@@ -79,7 +117,9 @@ export function useVoice() {
     for (const p of room.remoteParticipants.values()) {
       const vol = userVolume(volumes.value, p.identity)
       for (const pub of p.audioTrackPublications.values()) {
-        (pub.track as RemoteAudioTrack | undefined)?.setVolume(effectiveVolume(mute.value.deafened, vol, pub.source === ('screen_share_audio' as Track.Source) ? 'screen' : 'mic', settings.value.outputVolume))
+        ;(pub.track as RemoteAudioTrack | undefined)?.setVolume(
+          effectiveVolume(mute.value.deafened, vol, pub.source === ('screen_share_audio' as Track.Source) ? 'screen' : 'mic', settings.value.outputVolume),
+        )
       }
     }
   }
@@ -102,11 +142,21 @@ export function useVoice() {
     watching.value = watching.value.filter(id => room!.remoteParticipants.get(id)?.videoTrackPublications.size)
     syncSubs()
     const make = (p: Participant): VoiceTile => {
-      const cam = p.getTrackPublication('camera' as Track.Source), scr = p.getTrackPublication('screen_share' as Track.Source)
-      const camLive = !!cam && !cam.isMuted, local = p.isLocal, w = local || watching.value.includes(p.identity)
+      const cam = p.getTrackPublication('camera' as Track.Source),
+        scr = p.getTrackPublication('screen_share' as Track.Source)
+      const camLive = !!cam && !cam.isMuted,
+        local = p.isLocal,
+        w = local || watching.value.includes(p.identity)
       return {
-        userId: p.identity, local, speaking: p.isSpeaking, camLive, screenLive: !!scr, screenAudio: !!p.getTrackPublication('screen_share_audio' as Track.Source), watching: w,
-        cam: camLive && w ? cam!.track as VideoTrack | undefined : undefined, screen: scr && w ? scr.track as VideoTrack | undefined : undefined,
+        userId: p.identity,
+        local,
+        speaking: p.isSpeaking,
+        camLive,
+        screenLive: !!scr,
+        screenAudio: !!p.getTrackPublication('screen_share_audio' as Track.Source),
+        watching: w,
+        cam: camLive && w ? (cam!.track as VideoTrack | undefined) : undefined,
+        screen: scr && w ? (scr.track as VideoTrack | undefined) : undefined,
       }
     }
     const all = [room.localParticipant, ...room.remoteParticipants.values()]
@@ -131,32 +181,49 @@ export function useVoice() {
     try {
       // Permission first: it unlocks device labels, which the saved-device matching needs.
       try {
-        (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
+        ;(await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
       } catch {
         throw new Error('Microphone access was denied')
       }
       await refreshDevices()
       const mic = matchDevice(settings.value.mic, devices.value.mics)
       const out = matchDevice(settings.value.speaker, devices.value.speakers)
-      const { token, url } = await $fetch<{ token: string, url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
+      const { token, url } = await $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
       const { Room, RoomEvent, Track } = await import('livekit-client')
-      const r = new Room({ adaptiveStream: true, dynacast: true, publishDefaults: VOICE_PUBLISH_DEFAULTS, videoCaptureDefaults: CAMERA_CAPTURE, audioCaptureDefaults: captureOptions(mic.deviceId), audioOutput: canPickOutput && out.deviceId ? { deviceId: out.deviceId } : undefined })
-      r.on(RoomEvent.TrackSubscribed, (track) => {
+      const r = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        publishDefaults: VOICE_PUBLISH_DEFAULTS,
+        videoCaptureDefaults: CAMERA_CAPTURE,
+        audioCaptureDefaults: captureOptions(mic.deviceId),
+        audioOutput: canPickOutput && out.deviceId ? { deviceId: out.deviceId } : undefined,
+      })
+      r.on(RoomEvent.TrackSubscribed, track => {
         if (track.kind !== Track.Kind.Audio) return
         document.body.append(track.attach()) // remote audio only plays while attached to an element
         applyOutput()
       })
       r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
-      r.on(RoomEvent.ActiveSpeakersChanged, (list) => {
+      r.on(RoomEvent.ActiveSpeakersChanged, list => {
         speaking = list.some(p => p.isLocal)
         pushState()
         rebuild()
       })
-      for (const ev of [RoomEvent.TrackPublished, RoomEvent.TrackUnpublished, RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted,
-        RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected] as const) r.on(ev, rebuild)
+      for (const ev of [
+        RoomEvent.TrackPublished,
+        RoomEvent.TrackUnpublished,
+        RoomEvent.TrackSubscribed,
+        RoomEvent.TrackUnsubscribed,
+        RoomEvent.TrackMuted,
+        RoomEvent.TrackUnmuted,
+        RoomEvent.LocalTrackPublished,
+        RoomEvent.LocalTrackUnpublished,
+        RoomEvent.ParticipantConnected,
+        RoomEvent.ParticipantDisconnected,
+      ] as const)
+        r.on(ev, rebuild)
       r.on(RoomEvent.Disconnected, () => {
-        if (room === r)
-          void leave(false, 'You were disconnected from voice')
+        if (room === r) void leave(false, 'You were disconnected from voice')
       })
       await r.connect(url, token, { autoSubscribe: false })
       room = r
@@ -176,7 +243,9 @@ export function useVoice() {
       room = undefined
       processor = undefined
       toast.add({ title: 'Could not join voice', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
-    } finally { connecting.value = false }
+    } finally {
+      connecting.value = false
+    }
   }
 
   async function leave(sound = true, reason?: string) {
@@ -230,7 +299,9 @@ export function useVoice() {
   async function toggleCamera() {
     if (!room) return
     const on = !camOn.value
-    await room.localParticipant.setCameraEnabled(on, on ? { deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId } : undefined).catch(fail('Could not turn the camera on'))
+    await room.localParticipant
+      .setCameraEnabled(on, on ? { deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId } : undefined)
+      .catch(fail('Could not turn the camera on'))
     rebuild()
   }
   /** Must run from a click (the browser's picker needs a user gesture): the share button or its shortcut. */
@@ -238,14 +309,36 @@ export function useVoice() {
     if (!room) return
     const p = SCREEN_SHARE
     // Screen audio is captured raw (no browser processing) and published as its own track with no processor, whatever the mic noise setting is.
-    await room.localParticipant.setScreenShareEnabled(true, {
-      audio: settings.value.screenAudio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
-      // `max` is a ceiling, so the capture is never upscaled past the shared surface; LiveKit's type only declares displaySurface.
-      video: { displaySurface: 'monitor', width: { max: p.resolution.width }, height: { max: p.resolution.height }, frameRate: { ideal: p.resolution.frameRate, max: p.resolution.frameRate } } as { displaySurface: 'monitor' }, selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include',
-    }, {
-      ...SCREEN_AUDIO_PUBLISH, simulcast: false, videoCodec: p.codec, backupCodec: p.codec === 'vp9' ? { codec: 'vp8' } : false, degradationPreference: p.degradationPreference,
-      screenShareEncoding: { maxBitrate: p.maxBitrate, maxFramerate: p.resolution.frameRate },
-    }).catch((e: Error) => { if (e.name !== 'NotAllowedError') fail('Could not share your screen')(e) }) // NotAllowedError = picker cancelled
+    await room.localParticipant
+      .setScreenShareEnabled(
+        true,
+        {
+          audio: settings.value.screenAudio ? SCREEN_AUDIO_CAPTURE : false,
+          resolution: { width: 0, height: 0 },
+          contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
+          // `max` is a ceiling, so the capture is never upscaled past the shared surface; LiveKit's type only declares displaySurface.
+          video: {
+            displaySurface: 'monitor',
+            width: { max: p.resolution.width },
+            height: { max: p.resolution.height },
+            frameRate: { ideal: p.resolution.frameRate, max: p.resolution.frameRate },
+          } as { displaySurface: 'monitor' },
+          selfBrowserSurface: 'exclude',
+          systemAudio: 'include',
+          surfaceSwitching: 'include',
+        },
+        {
+          ...SCREEN_AUDIO_PUBLISH,
+          simulcast: false,
+          videoCodec: p.codec,
+          backupCodec: p.codec === 'vp9' ? { codec: 'vp8' } : false,
+          degradationPreference: p.degradationPreference,
+          screenShareEncoding: { maxBitrate: p.maxBitrate, maxFramerate: p.resolution.frameRate },
+        },
+      )
+      .catch((e: Error) => {
+        if (e.name !== 'NotAllowedError') fail('Could not share your screen')(e)
+      }) // NotAllowedError = picker cancelled
     rebuild()
   }
   const stopScreen = async () => {
@@ -253,11 +346,9 @@ export function useVoice() {
     rebuild()
   }
   const toggleScreen = () => {
-    if (!channelId.value)
-      return
-    if (screenOn.value)
-      void stopScreen(); else
-      void startScreen()
+    if (!channelId.value) return
+    if (screenOn.value) void stopScreen()
+    else void startScreen()
   }
   const watch = (id: string, on: boolean) => {
     watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id)
@@ -272,8 +363,18 @@ export function useVoice() {
     if (!channelId.value || id === me.value?.id || presence.value[id]?.channelId !== channelId.value) return []
     const muted = userVolume(volumes.value, id).muted
     return [
-      { label: muted ? 'Unmute for me' : 'Mute for me', icon: muted ? 'i-lucide-volume-2' : 'i-lucide-volume-x', onSelect: () => setVolume(id, { muted: !muted }) },
-      { label: 'Volume…', icon: 'i-lucide-sliders-horizontal', onSelect: () => { volumeFor.value = id } },
+      {
+        label: muted ? 'Unmute for me' : 'Mute for me',
+        icon: muted ? 'i-lucide-volume-2' : 'i-lucide-volume-x',
+        onSelect: () => setVolume(id, { muted: !muted }),
+      },
+      {
+        label: 'Volume…',
+        icon: 'i-lucide-sliders-horizontal',
+        onSelect: () => {
+          volumeFor.value = id
+        },
+      },
     ]
   }
 
@@ -291,9 +392,38 @@ export function useVoice() {
   }
 
   return {
-    me, sid, channelId, connecting, mute, devices, canPickOutput, settings,
-    tiles, watching, camOn, screenOn, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
-    join, leave, toggleMic, toggleHeadphones, applySettings, pickDevice, refreshDevices, cycleNoise, toggleEcho, toggleAgc, applyOutput,
+    me,
+    sid,
+    channelId,
+    connecting,
+    mute,
+    devices,
+    canPickOutput,
+    settings,
+    tiles,
+    watching,
+    camOn,
+    screenOn,
+    volumeFor,
+    volumes,
+    toggleCamera,
+    startScreen,
+    stopScreen,
+    toggleScreen,
+    watch,
+    setVolume,
+    volumeItems,
+    join,
+    leave,
+    toggleMic,
+    toggleHeadphones,
+    applySettings,
+    pickDevice,
+    refreshDevices,
+    cycleNoise,
+    toggleEcho,
+    toggleAgc,
+    applyOutput,
     activeRoom: () => room,
   }
 }
@@ -302,23 +432,29 @@ export function useVoice() {
 export const voiceChannelOf = (userId: string) => presence.value[userId]?.channelId ?? null
 
 /** Users in a voice channel, from the server's presence. */
-export const voiceMembers = (id: string) => Object.entries(presence.value).filter(([, m]) => m.channelId === id).map(([userId, m]) => ({ userId, ...m }))
+export const voiceMembers = (id: string) =>
+  Object.entries(presence.value)
+    .filter(([, m]) => m.channelId === id)
+    .map(([userId, m]) => ({ userId, ...m }))
 
 /** Layout only: keeps the presence map live, handles being kicked by another tab, plays others' join/leave sounds, warns before unload, follows device changes. */
 export function useVoiceLive() {
   if (!import.meta.client) return
   const v = useVoice()
   const socket = useSocket()
-  const load = () => $fetch<Array<{ userId: string } & VoiceMember>>('/api/voice').then((r) => {
-    presence.value = Object.fromEntries(r.map(({ userId, ...m }) => [userId, m]))
-  }).catch(() => {})
+  const load = () =>
+    $fetch<Array<{ userId: string } & VoiceMember>>('/api/voice')
+      .then(r => {
+        presence.value = Object.fromEntries(r.map(({ userId, ...m }) => [userId, m]))
+      })
+      .catch(() => {})
   onMounted(load)
   socket.onOpen(() => {
     void load()
     // The server drops our session when the socket closes; take it back after a reconnect.
     if (v.channelId.value) socket.send({ type: 'voice:join', channelId: v.channelId.value, sid, muted: v.mute.value.muted, deafened: v.mute.value.deafened })
   })
-  socket.on((m) => {
+  socket.on(m => {
     if (m.type === 'voice:presence') {
       const prev = presence.value[m.userId]
       const next = { ...presence.value }
@@ -352,15 +488,17 @@ export function useVoiceLive() {
       void v.leave(false, 'You joined voice from another tab or device')
     }
   })
-  useEventListener(window, 'beforeunload', (e) => {
-    if (v.channelId.value)
-      e.preventDefault()
+  useEventListener(window, 'beforeunload', e => {
+    if (v.channelId.value) e.preventDefault()
   })
   useEventListener(navigator.mediaDevices, 'devicechange', async () => {
     await v.refreshDevices()
     const r = v.activeRoom()
     if (!r) return
-    for (const [kind, list, label] of [['audioinput', devices.value.mics, 'microphone'], ['audiooutput', devices.value.speakers, 'speakers']] as const) {
+    for (const [kind, list, label] of [
+      ['audioinput', devices.value.mics, 'microphone'],
+      ['audiooutput', devices.value.speakers, 'speakers'],
+    ] as const) {
       const active = r.getActiveDevice(kind)
       if (active && active !== 'default' && !list.some(d => d.deviceId === active)) {
         await r.switchActiveDevice(kind, 'default').catch(() => {})

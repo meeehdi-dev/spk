@@ -15,10 +15,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <blockquote
-    ref="el"
-    class="group/q relative my-1 border-s-4 border-accented ps-3 pe-8 text-muted"
-  >
+  <blockquote ref="el" class="group/q relative my-1 border-s-4 border-accented ps-3 pe-8 text-muted">
     <slot />
     <UButton
       :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"

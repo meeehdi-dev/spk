@@ -2,8 +2,16 @@
  * The one list behind the `?` overlay and Settings → Shortcuts. Keep it in sync with the real bindings:
  * `where` names the file that wires each entry. `planned` marks an entry with no binding yet (none right now).
  */
-interface ShortcutEntry { keys: string[], label: string, planned?: boolean, where?: string }
-export interface ShortcutGroup { title: string, items: ShortcutEntry[] }
+interface ShortcutEntry {
+  keys: string[]
+  label: string
+  planned?: boolean
+  where?: string
+}
+export interface ShortcutGroup {
+  title: string
+  items: ShortcutEntry[]
+}
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {

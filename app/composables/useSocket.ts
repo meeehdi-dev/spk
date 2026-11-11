@@ -1,24 +1,24 @@
+import type { Presence } from '#shared/utils/presence'
+
 import type { MessageDto } from '../../server/db/messages'
 import type { VoicePresence } from '../../server/utils/voicePresence'
 
-import type { Presence } from '#shared/utils/presence'
-
-type SocketFrame
-  = | { type: 'channels:changed' | 'users:changed' | 'banned' }
-    | { type: 'presence:update', userId: string, status: Presence }
-    | { type: 'unread:update', channelId: string, unread: number, mentions: number }
-    | { type: 'message:new', message: MessageDto, nonce?: string }
-    | { type: 'message:error', nonce?: string, error: string }
-    | { type: 'message:edit', message: MessageDto }
-    | { type: 'message:delete', channelId: string, id: string }
-    | { type: 'message:previews', channelId: string, messageId: string, previews: MessageDto['previews'] }
-    | { type: 'reaction:update', channelId: string, messageId: string, reactions: MessageDto['reactions'] }
-    | { type: 'typing', channelId: string, userId: string }
-    | ({ type: 'voice:presence' } & (VoicePresence | { userId: string, channelId: null }))
-    | { type: 'voice:sound', userId: string, soundId: string }
-    | { type: 'voice:disconnect', sid: string, reason: string }
-    | { type: 'voice:move', sid: string, channelId: string }
-    | { type: 'voice:kicked', sid: string }
+type SocketFrame =
+  | { type: 'channels:changed' | 'users:changed' | 'banned' }
+  | { type: 'presence:update'; userId: string; status: Presence }
+  | { type: 'unread:update'; channelId: string; unread: number; mentions: number }
+  | { type: 'message:new'; message: MessageDto; nonce?: string }
+  | { type: 'message:error'; nonce?: string; error: string }
+  | { type: 'message:edit'; message: MessageDto }
+  | { type: 'message:delete'; channelId: string; id: string }
+  | { type: 'message:previews'; channelId: string; messageId: string; previews: MessageDto['previews'] }
+  | { type: 'reaction:update'; channelId: string; messageId: string; reactions: MessageDto['reactions'] }
+  | { type: 'typing'; channelId: string; userId: string }
+  | ({ type: 'voice:presence' } & (VoicePresence | { userId: string; channelId: null }))
+  | { type: 'voice:sound'; userId: string; soundId: string }
+  | { type: 'voice:disconnect'; sid: string; reason: string }
+  | { type: 'voice:move'; sid: string; channelId: string }
+  | { type: 'voice:kicked'; sid: string }
 
 type Handler = (msg: SocketFrame) => void
 const handlers = new Set<Handler>()
@@ -34,10 +34,12 @@ function connect() {
     connected.value = true
     openHandlers.forEach(h => h())
   }
-  ws.onmessage = (e) => {
+  ws.onmessage = e => {
     try {
       handlers.forEach(h => h(JSON.parse(e.data)))
-    } catch { /* ignore malformed frames */ }
+    } catch {
+      /* ignore malformed frames */
+    }
   }
   ws.onclose = () => {
     connected.value = false
@@ -51,8 +53,7 @@ export function useSocket() {
   return {
     connected,
     send: (data: unknown) => {
-      if (ws?.readyState !== WebSocket.OPEN)
-        return false
+      if (ws?.readyState !== WebSocket.OPEN) return false
       ws.send(JSON.stringify(data))
       return true
     },

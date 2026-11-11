@@ -9,7 +9,7 @@ export const SETTINGS_TABS = [
   { id: 'users', label: 'Users', icon: 'i-lucide-users', admin: true },
 ] as const
 
-export type SettingsTab = typeof SETTINGS_TABS[number]['id']
+export type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
 
 /** `/settings` and `/settings/<tab>` deep links → the tab to open (profile when unknown or admin-only for a non-admin); null for other paths. */
 export function settingsTabFromPath(path: string, isAdmin: boolean): SettingsTab | null {

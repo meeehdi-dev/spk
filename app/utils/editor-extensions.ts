@@ -38,8 +38,7 @@ export const Spoiler = Mark.create({
   },
   parseMarkdown(token, h) {
     // The parser only marks text nodes; mentions inside a spoiler need the mark added by hand.
-    const content = h.parseInline(token.tokens || []).map(n =>
-      n.type === 'mention' ? { ...n, marks: [...(n.marks || []), { type: 'spoiler' }] } : n)
+    const content = h.parseInline(token.tokens || []).map(n => (n.type === 'mention' ? { ...n, marks: [...(n.marks || []), { type: 'spoiler' }] } : n))
     return h.applyMark('spoiler', content)
   },
   renderMarkdown: (node, h) => `||${h.renderChildren(node)}||`,
@@ -65,43 +64,44 @@ export const fixSpoilerSeams = (md: string) => md.replace(/(\|\|[^|\n]+?)\|\|(<@
 /** A line that is exactly ``` plus an optional language (```json). Returns the language ('' if none), or null when the line isn't a fence. */
 export const fenceLanguage = (line: string) => /^```([\w+#.-]*)$/.exec(line)?.[1] ?? null
 
-export const chatKeys = (o: { onEnter: () => void, onEscape?: () => boolean, onArrowUp?: () => boolean }) => Extension.create({
-  name: 'chatKeys',
-  priority: 1000,
-  addKeyboardShortcuts() {
-    return {
-      'Enter': ({ editor }) => {
-        if (editor.isActive('codeBlock')) return false
-        // ```lang + Enter on the last line (after a Shift+Enter break too) makes a code block instead of sending.
-        const { $from, empty } = editor.state.selection
-        if (!empty || $from.parent.type.name !== 'paragraph') return o.onEnter(), true
-        let breakAt = -1
-        let line = ''
-        $from.parent.forEach((n, off) => {
-          if (n.type.name === 'hardBreak') {
-            breakAt = $from.start() + off
-            line = ''
-          } else line += n.isText ? n.text : '\0'
-        })
-        const lang = fenceLanguage(line)
-        if (lang === null) return o.onEnter(), true
-        const c = editor.chain().command(({ tr }) => {
-          tr.delete(breakAt >= 0 ? breakAt : $from.start(), $from.end())
-          return true
-        })
-        if (breakAt >= 0) c.splitBlock()
-        return c.setCodeBlock(lang ? { language: lang } : undefined).run()
-      },
-      'Escape': () => o.onEscape?.() ?? false,
-      'ArrowUp': ({ editor }) => editor.isEmpty && (o.onArrowUp?.() ?? false),
-      'Mod-Shift-c': ({ editor }) => editor.commands.toggleCodeBlock(),
-      'Mod-Alt-c': ({ editor }) => editor.commands.toggleCodeBlock(),
-      'Mod-Shift-.': ({ editor }) => editor.commands.toggleBlockquote(),
-      'Mod-Shift->': ({ editor }) => editor.commands.toggleBlockquote(),
-      'Mod-Shift-x': ({ editor }) => editor.commands.toggleStrike(),
-    }
-  },
-})
+export const chatKeys = (o: { onEnter: () => void; onEscape?: () => boolean; onArrowUp?: () => boolean }) =>
+  Extension.create({
+    name: 'chatKeys',
+    priority: 1000,
+    addKeyboardShortcuts() {
+      return {
+        Enter: ({ editor }) => {
+          if (editor.isActive('codeBlock')) return false
+          // ```lang + Enter on the last line (after a Shift+Enter break too) makes a code block instead of sending.
+          const { $from, empty } = editor.state.selection
+          if (!empty || $from.parent.type.name !== 'paragraph') return (o.onEnter(), true)
+          let breakAt = -1
+          let line = ''
+          $from.parent.forEach((n, off) => {
+            if (n.type.name === 'hardBreak') {
+              breakAt = $from.start() + off
+              line = ''
+            } else line += n.isText ? n.text : '\0'
+          })
+          const lang = fenceLanguage(line)
+          if (lang === null) return (o.onEnter(), true)
+          const c = editor.chain().command(({ tr }) => {
+            tr.delete(breakAt >= 0 ? breakAt : $from.start(), $from.end())
+            return true
+          })
+          if (breakAt >= 0) c.splitBlock()
+          return c.setCodeBlock(lang ? { language: lang } : undefined).run()
+        },
+        Escape: () => o.onEscape?.() ?? false,
+        ArrowUp: ({ editor }) => editor.isEmpty && (o.onArrowUp?.() ?? false),
+        'Mod-Shift-c': ({ editor }) => editor.commands.toggleCodeBlock(),
+        'Mod-Alt-c': ({ editor }) => editor.commands.toggleCodeBlock(),
+        'Mod-Shift-.': ({ editor }) => editor.commands.toggleBlockquote(),
+        'Mod-Shift->': ({ editor }) => editor.commands.toggleBlockquote(),
+        'Mod-Shift-x': ({ editor }) => editor.commands.toggleStrike(),
+      }
+    },
+  })
 
 /** Mention node (labels follow current nicknames) + spoiler mark. */
 export const chatMarkExtensions = (getLabel: (id: string) => string | undefined) => [
@@ -109,7 +109,11 @@ export const chatMarkExtensions = (getLabel: (id: string) => string | undefined)
     HTMLAttributes: { class: 'mention' },
     getLabel,
     renderText: ({ node }: Parameters<MentionOptions['renderText']>[0]) => `@${node.attrs.label ?? node.attrs.id}`,
-    renderHTML: ({ options, node }: Parameters<MentionOptions['renderHTML']>[0]) => ['span', { 'data-type': 'mention', ...options.HTMLAttributes }, `@${node.attrs.label ?? node.attrs.id}`],
+    renderHTML: ({ options, node }: Parameters<MentionOptions['renderHTML']>[0]) => [
+      'span',
+      { 'data-type': 'mention', ...options.HTMLAttributes },
+      `@${node.attrs.label ?? node.attrs.id}`,
+    ],
   } as never),
   Spoiler,
 ]

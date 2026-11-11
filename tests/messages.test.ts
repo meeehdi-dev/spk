@@ -7,15 +7,29 @@ import { createLimiter } from '../server/utils/limiter'
 import { extractMentionIds, remarkSpk, safeHref } from '../shared/utils/markdown'
 
 let db: Db
-const addUser = (id: string) => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id }).run()
+const addUser = (id: string) =>
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, displayName: id })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')
   addUser('a')
   addUser('b')
   addUser('c')
-  db.insert(channels).values([{ id: 't', type: 'text', name: 't' }, { id: 'dm', type: 'dm' }]).run()
-  db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
+  db.insert(channels)
+    .values([
+      { id: 't', type: 'text', name: 't' },
+      { id: 'dm', type: 'dm' },
+    ])
+    .run()
+  db.insert(channelMembers)
+    .values([
+      { channelId: 'dm', userId: 'a' },
+      { channelId: 'dm', userId: 'b' },
+    ])
+    .run()
 })
 
 describe('mention extraction', () => {
@@ -26,7 +40,13 @@ describe('mention extraction', () => {
   })
   it('server stores only real users', () => {
     const m = createMessage(db, 'a', 't', 'x <@b> <@ghost>')
-    expect(db.select().from(messageMentions).all().map(r => [r.messageId, r.userId])).toEqual([[m.id, 'b']])
+    expect(
+      db
+        .select()
+        .from(messageMentions)
+        .all()
+        .map(r => [r.messageId, r.userId]),
+    ).toEqual([[m.id, 'b']])
   })
 })
 
@@ -41,8 +61,7 @@ describe('createMessage', () => {
 
 describe('listMessages', () => {
   beforeEach(() => {
-    for (let i = 0; i < 30; i++)
-      createMessage(db, 'a', 't', `m${i}`, 1000 + i)
+    for (let i = 0; i < 30; i++) createMessage(db, 'a', 't', `m${i}`, 1000 + i)
   })
   const bodies = (r: { messages: { body: string }[] }) => r.messages.map(m => m.body)
 
@@ -84,10 +103,13 @@ describe('markdown helpers', () => {
     expect(safeHref('data:text/html,x')).toBeNull()
   })
   it('remark plugin turns <@id> and ||x|| into nodes, html into text', () => {
-    const tree: Parameters<ReturnType<typeof remarkSpk>>[0] = { type: 'root', children: [
-      { type: 'paragraph', children: [{ type: 'text', value: 'a <@u1> ||sec|| ||open' }] },
-      { type: 'html', value: '<img src=x onerror=1>' },
-    ] }
+    const tree: Parameters<ReturnType<typeof remarkSpk>>[0] = {
+      type: 'root',
+      children: [
+        { type: 'paragraph', children: [{ type: 'text', value: 'a <@u1> ||sec|| ||open' }] },
+        { type: 'html', value: '<img src=x onerror=1>' },
+      ],
+    }
     remarkSpk()(tree, {})
     const kids = tree.children![0]!.children!
     expect(kids.map(k => k.type)).toEqual(['text', 'spkMention', 'text', 'spkSpoiler', 'text', 'text', 'text'])

@@ -1,5 +1,5 @@
 # LiveKit server config. API key/secret come from the LIVEKIT_KEYS env var (see docker-compose.yml).
-port: 7880            # signalling; your reverse proxy sends rtc.chat.example.com here
+port: 7880 # signalling; your reverse proxy sends rtc.chat.example.com here
 rtc:
   tcp_port: 7881
   port_range_start: 50000
@@ -7,7 +7,7 @@ rtc:
   use_external_ip: true
 turn:
   enabled: true
-  udp_port: 3478      # UDP only, no TLS
+  udp_port: 3478 # UDP only, no TLS
 audio:
-  update_interval: 50   # ms between active-speaker updates; the speaking ring reacts faster
-  smooth_intervals: 1   # intervals averaged before changing speaker state; lower = less lag
+  update_interval: 50 # ms between active-speaker updates; the speaking ring reacts faster
+  smooth_intervals: 1 # intervals averaged before changing speaker state; lower = less lag

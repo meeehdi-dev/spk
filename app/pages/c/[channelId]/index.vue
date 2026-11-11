@@ -5,12 +5,6 @@ const isVoice = computed(() => channels.value.find(c => c.id === route.params.ch
 </script>
 
 <template>
-  <VoiceChannelView
-    v-if="isVoice"
-    :channel-id="String(route.params.channelId)"
-  />
-  <ChatChannelView
-    v-else
-    :channel-id="String(route.params.channelId)"
-  />
+  <VoiceChannelView v-if="isVoice" :channel-id="String(route.params.channelId)" />
+  <ChatChannelView v-else :channel-id="String(route.params.channelId)" />
 </template>

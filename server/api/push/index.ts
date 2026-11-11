@@ -1,11 +1,16 @@
 import { removePush, savePush, setPushPrefs } from '../../db/push'
 
 // POST: save this browser's push subscription + settings. PUT: update settings. DELETE: unsubscribe.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const body = await readBody(event)
   const db = useDb()
-  const prefs = { dms: body?.prefs?.dms !== false, pings: body?.prefs?.pings !== false, dnd: !!body?.prefs?.dnd, muted: Array.isArray(body?.prefs?.muted) ? body.prefs.muted.filter((x: unknown) => typeof x === 'string') : [] }
+  const prefs = {
+    dms: body?.prefs?.dms !== false,
+    pings: body?.prefs?.pings !== false,
+    dnd: !!body?.prefs?.dnd,
+    muted: Array.isArray(body?.prefs?.muted) ? body.prefs.muted.filter((x: unknown) => typeof x === 'string') : [],
+  }
   if (event.method === 'POST') {
     const s = body?.subscription
     if (typeof s?.endpoint !== 'string' || !s.endpoint.startsWith('https://') || typeof s.keys?.p256dh !== 'string' || typeof s.keys?.auth !== 'string') {

@@ -16,7 +16,12 @@ describe('push toggle', () => {
     const disablePush = vi.fn(() => {
       push.subscribed.value = false
     })
-    const slot = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
+    const slot = defineComponent({
+      setup:
+        (_, { slots }) =>
+        () =>
+          h('div', slots.default?.()),
+    })
     const button = defineComponent({
       props: ['label'],
       setup: props => () => h('button', props.label),
@@ -25,7 +30,11 @@ describe('push toggle', () => {
       template: descriptor.template!.content,
       components: { UCard: slot, UFormField: slot, UButton: button, USwitch: slot, USlider: slot },
       setup: () => ({
-        push, enable, disablePush, permission: ref('granted'), busy: ref(false),
+        push,
+        enable,
+        disablePush,
+        permission: ref('granted'),
+        busy: ref(false),
         s: ref({ dms: true, pings: true, dnd: false, sound: true, volume: 0.5 }),
         playBlip: vi.fn(),
       }),

@@ -7,7 +7,10 @@ import { invites, user } from '../server/db/schema'
 
 let db: Db
 const addUser = (id: string, role = 'user') =>
-  db.insert(user).values({ id, name: id, email: `${id}@x.dev`, role }).run()
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, role })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')

@@ -13,22 +13,43 @@ const TEXT_MAX = 4000
 const MARK_START = '\u0001'
 const MARK_END = '\u0002'
 
-export interface SearchHit { messageId: string, channelId: string, userId: string, createdAt: number, snippet: string, text: string, attachments: number }
-export interface SearchResult { results: SearchHit[], nextCursor: string | null }
+export interface SearchHit {
+  messageId: string
+  channelId: string
+  userId: string
+  createdAt: number
+  snippet: string
+  text: string
+  attachments: number
+}
+export interface SearchResult {
+  results: SearchHit[]
+  nextCursor: string | null
+}
 
-const lowerIn = (col: string, vals: string[]) => sql`lower(${sql.raw(col)}) IN (${sql.join(vals.map(v => sql`${v.toLowerCase()}`), sql`, `)})`
+const lowerIn = (col: string, vals: string[]) =>
+  sql`lower(${sql.raw(col)}) IN (${sql.join(
+    vals.map(v => sql`${v.toLowerCase()}`),
+    sql`, `,
+  )})`
 
 /** Ids of users whose current nickname matches (case-insensitive). */
 const userIds = (db: Db, names: string[]) =>
   names.length ? db.all<{ id: string }>(sql`SELECT id FROM users WHERE ${lowerIn('display_name', names)}`).map(r => r.id) : []
 
-const idList = (ids: string[]) => ids.length ? sql.join(ids.map(i => sql`${i}`), sql`, `) : sql`NULL`
+const idList = (ids: string[]) =>
+  ids.length
+    ? sql.join(
+        ids.map(i => sql`${i}`),
+        sql`, `,
+      )
+    : sql`NULL`
 
 /**
  * Searches only what `userId` can read: text channels and their own DMs. Deleted messages are excluded
  * (they are also gone from the FTS table). Names are resolved against current nicknames at search time.
  */
-export function searchMessages(db: Db, userId: string, opts: { q?: unknown, scope?: unknown, channelId?: unknown, cursor?: unknown }): SearchResult {
+export function searchMessages(db: Db, userId: string, opts: { q?: unknown; scope?: unknown; channelId?: unknown; cursor?: unknown }): SearchResult {
   const p = parseSearch(typeof opts.q === 'string' ? opts.q.slice(0, 300) : '')
   if (!hasAnything(p)) return { results: [], nextCursor: null }
   const scope: SearchScope = (['channel', 'channels', 'dms', 'everything'] as const).find(s => s === opts.scope) ?? 'everything'
@@ -58,33 +79,42 @@ export function searchMessages(db: Db, userId: string, opts: { q?: unknown, scop
   // Every word must match: in the text (prefix), or, when it is a nickname, as a mention of that user.
   for (const w of p.terms) {
     const mentioned = userIds(db, [w.replace(/^@/, '')])
-    where.push(mentioned.length
-      ? sql`(m.rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${ftsTerm(w)}) OR m.id IN (SELECT message_id FROM message_mentions WHERE user_id IN (${idList(mentioned)})))`
-      : sql`m.rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${ftsTerm(w)})`)
+    where.push(
+      mentioned.length
+        ? sql`(m.rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${ftsTerm(w)}) OR m.id IN (SELECT message_id FROM message_mentions WHERE user_id IN (${idList(mentioned)})))`
+        : sql`m.rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${ftsTerm(w)})`,
+    )
   }
 
   // Rank and highlight with one OR query over all words; messages that matched only by mention rank last.
   const ranked = p.terms.length
-  const rows = db.all<{ id: string, channel_id: string, user_id: string, created_at: number, body: string, snip: string | null, files: number }>(sql`
+  const rows = db.all<{ id: string; channel_id: string; user_id: string; created_at: number; body: string; snip: string | null; files: number }>(sql`
     SELECT m.id, m.channel_id, m.user_id, m.created_at, substr(m.body, 1, ${TEXT_MAX}) AS body,
       ${ranked ? sql`h.snip` : sql`NULL`} AS snip,
       (SELECT count(*) FROM attachments a WHERE a.message_id = m.id) AS files
     FROM messages m
     JOIN channels c ON c.id = m.channel_id
-    ${ranked
-      ? sql`LEFT JOIN (
+    ${
+      ranked
+        ? sql`LEFT JOIN (
       SELECT rowid AS r, bm25(messages_fts) AS rank, snippet(messages_fts, 0, ${MARK_START}, ${MARK_END}, '…', 16) AS snip
       FROM messages_fts WHERE messages_fts MATCH ${p.terms.map(ftsTerm).join(' OR ')}
     ) h ON h.r = m.rowid`
-      : sql``}
+        : sql``
+    }
     WHERE ${sql.join(where, sql` AND `)}
     ORDER BY ${ranked ? sql`h.rank IS NULL, h.rank, ` : sql``}m.created_at DESC, m.id DESC
     LIMIT ${PAGE + 1} OFFSET ${offset}`)
 
   return {
     results: rows.slice(0, PAGE).map(r => ({
-      messageId: r.id, channelId: r.channel_id, userId: r.user_id, createdAt: r.created_at,
-      snippet: r.snip ?? r.body.replace(/\s+/g, ' ').trim().slice(0, 160), text: r.body, attachments: r.files,
+      messageId: r.id,
+      channelId: r.channel_id,
+      userId: r.user_id,
+      createdAt: r.created_at,
+      snippet: r.snip ?? r.body.replace(/\s+/g, ' ').trim().slice(0, 160),
+      text: r.body,
+      attachments: r.files,
     })),
     nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
   }

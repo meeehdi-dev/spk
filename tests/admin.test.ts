@@ -11,8 +11,16 @@ import { account, attachments, channels, messages, session, user, verification }
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
-const addUser = (id: string, role = 'user') => db.insert(user).values({ id, name: id, email: `${id}@x.dev`, role, displayName: id }).run()
-const addSession = (userId: string) => db.insert(session).values({ id: `s-${userId}`, token: `t-${userId}`, userId, expiresAt: new Date(Date.now() + 1e6) }).run()
+const addUser = (id: string, role = 'user') =>
+  db
+    .insert(user)
+    .values({ id, name: id, email: `${id}@x.dev`, role, displayName: id })
+    .run()
+const addSession = (userId: string) =>
+  db
+    .insert(session)
+    .values({ id: `s-${userId}`, token: `t-${userId}`, userId, expiresAt: new Date(Date.now() + 1e6) })
+    .run()
 
 beforeEach(() => {
   db = createDb(':memory:')
@@ -53,12 +61,18 @@ describe('ban', () => {
     setBanned(db, 'a', 'b', true, ' spam ')
     const u = db.select().from(user).where(eq(user.id, 'b')).get()!
     expect(u).toMatchObject({ banned: true, banReason: 'spam' })
-    expect(db.select().from(session).all().map(s => s.userId)).toEqual(['a'])
+    expect(
+      db
+        .select()
+        .from(session)
+        .all()
+        .map(s => s.userId),
+    ).toEqual(['a'])
     expect(db.select().from(messages).all()).toHaveLength(1)
     setBanned(db, 'a', 'b', false)
     expect(db.select().from(user).where(eq(user.id, 'b')).get()).toMatchObject({ banned: false, banReason: null })
   })
-  it('you can\'t ban yourself, or someone who doesn\'t exist', () => {
+  it("you can't ban yourself, or someone who doesn't exist", () => {
     expect(() => setBanned(db, 'a', 'a', true)).toThrow(/yourself/)
     expect(() => setBanned(db, 'a', 'nope', true)).toThrow(/not found/)
   })
@@ -104,21 +118,30 @@ describe('channels', () => {
   it('creates at the end of its section, renames, validates', () => {
     const x = createChannel(db, 'text', ' dev ')
     const y = createChannel(db, 'text', 'ops')
-    expect(db.select().from(channels).where(eq(channels.id, y.id)).get()!.position).toBe(db.select().from(channels).where(eq(channels.id, x.id)).get()!.position! + 1)
+    expect(db.select().from(channels).where(eq(channels.id, y.id)).get()!.position).toBe(
+      db.select().from(channels).where(eq(channels.id, x.id)).get()!.position! + 1,
+    )
     renameChannel(db, x.id, 'devs')
     expect(db.select().from(channels).where(eq(channels.id, x.id)).get()!.name).toBe('devs')
     expect(() => createChannel(db, 'dm', 'x')).toThrow(/Type/)
     expect(() => createChannel(db, 'text', '   ')).toThrow(/Name/)
     expect(() => renameChannel(db, x.id, 'x'.repeat(33))).toThrow(/Name/)
   })
-  it('DMs can\'t be renamed or deleted', () => {
+  it("DMs can't be renamed or deleted", () => {
     db.insert(channels).values({ id: 'dm', type: 'dm' }).run()
     expect(() => renameChannel(db, 'dm', 'x')).toThrow(/not found/)
     expect(() => deleteChannel(db, 'dm')).toThrow(/not found/)
   })
   it('reorders by saving positions; stale or foreign lists are refused', () => {
-    const a = createChannel(db, 'voice', 'a'), b = createChannel(db, 'voice', 'b'), c = createChannel(db, 'voice', 'c')
-    const all = db.select().from(channels).where(eq(channels.type, 'voice')).all().map(x => x.id) // includes the seeded none (migrations don't seed)
+    const a = createChannel(db, 'voice', 'a'),
+      b = createChannel(db, 'voice', 'b'),
+      c = createChannel(db, 'voice', 'c')
+    const all = db
+      .select()
+      .from(channels)
+      .where(eq(channels.type, 'voice'))
+      .all()
+      .map(x => x.id) // includes the seeded none (migrations don't seed)
     expect(all).toHaveLength(3)
     reorderChannels(db, 'voice', [c.id, a.id, b.id])
     const pos = (id: string) => db.select().from(channels).where(eq(channels.id, id)).get()!.position
@@ -140,10 +163,12 @@ describe('channels', () => {
 
 describe('storage total', () => {
   it('sums attachments per uploader', () => {
-    db.insert(attachments).values([
-      { id: '1', uploaderId: 'b', r2Key: 'k1', filename: 'a', mime: 'x/y', size: 100 },
-      { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 },
-    ]).run()
+    db.insert(attachments)
+      .values([
+        { id: '1', uploaderId: 'b', r2Key: 'k1', filename: 'a', mime: 'x/y', size: 100 },
+        { id: '2', uploaderId: 'b', r2Key: 'k2', filename: 'a', mime: 'x/y', size: 50 },
+      ])
+      .run()
     const r = listUsersWithStorage(db)
     expect(r.totalBytes).toBe(150)
     expect(r.users.find(u => u.id === 'b')!.bytes).toBe(150)
@@ -158,7 +183,11 @@ describe('voice sessions for admin actions', () => {
     joinVoice('a', 'v1', 'sid-a', o)
     joinVoice('c', 'v2', 'sid-c', o)
     expect(sessionOf('b')).toEqual({ sid: 'sid-b', channelId: 'v1' })
-    expect(sessionsIn('v1').map(s => s.userId).sort()).toEqual(['a', 'b'])
+    expect(
+      sessionsIn('v1')
+        .map(s => s.userId)
+        .sort(),
+    ).toEqual(['a', 'b'])
     dropVoiceOwner(o)
     expect(sessionOf('b')).toBeNull()
   })

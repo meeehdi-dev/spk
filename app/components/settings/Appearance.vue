@@ -16,27 +16,15 @@ const themes = [
   <div class="flex flex-col gap-6">
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Density
-        </h2>
+        <h2 class="font-bold">Density</h2>
       </template>
-      <URadioGroup
-        v-model="density"
-        :items="densities"
-        legend="Density"
-      />
+      <URadioGroup v-model="density" :items="densities" legend="Density" />
     </UCard>
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Theme
-        </h2>
+        <h2 class="font-bold">Theme</h2>
       </template>
-      <URadioGroup
-        v-model="colorMode.preference"
-        :items="themes"
-        legend="Theme"
-      />
+      <URadioGroup v-model="colorMode.preference" :items="themes" legend="Theme" />
     </UCard>
   </div>
 </template>

@@ -2,19 +2,17 @@
   "name": "spk",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.18.0",
-  "engines": {
-    "node": "26.13.0"
-  },
   "scripts": {
-    "dev": "nuxt dev",
     "build": "nuxt build",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "typecheck": "nuxt typecheck",
-    "knip": "knip",
+    "dev": "nuxt dev",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
     "jscpd": "jscpd app server shared",
-    "test": "vitest run --passWithNoTests"
+    "knip": "knip",
+    "lint": "oxlint --type-aware && eslint .",
+    "lint:fix": "oxlint --type-aware --fix && eslint . --fix",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "nuxt typecheck"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.152",
@@ -54,20 +52,30 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@nuxt/eslint-plugin": "^1.17.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/sortablejs": "^1.15.9",
     "@types/web-push": "^3.6.4",
     "crossws": "0.3.5",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-better-tailwindcss": "^4.11.0",
+    "eslint-plugin-oxlint": "^1.93.0",
     "h3": "1.15.11",
     "happy-dom": "^21.0.4",
     "jiti": "^2.7.0",
     "jscpd": "5.4.3",
     "knip": "6.45.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2006",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0",
     "vue-tsc": "^3.3.14"
-  }
+  },
+  "engines": {
+    "node": "26.13.0"
+  },
+  "packageManager": "pnpm@12.18.0"
 }

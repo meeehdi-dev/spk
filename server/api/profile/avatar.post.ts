@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { user } from '../../db/schema'
 import { AVATAR_MAX_UPLOAD, isAvatarRawKey, processAvatar } from '../../utils/avatar'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const { key: rawKey } = await readBody<{ key?: string }>(event)
   if (!isAvatarRawKey(u.id, rawKey)) throw createError({ statusCode: 400, statusMessage: 'Invalid upload key' })

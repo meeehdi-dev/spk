@@ -5,7 +5,5 @@ if (first) await navigateTo(`/c/${first.id}`, { replace: true })
 </script>
 
 <template>
-  <div class="flex h-full items-center justify-center text-muted">
-    No channels yet.
-  </div>
+  <div class="flex h-full items-center justify-center text-muted">No channels yet.</div>
 </template>

@@ -1,6 +1,11 @@
 import { AwsClient } from 'aws4fetch'
 
-export interface R2Config { accountId: string, accessKeyId: string, secretAccessKey: string, bucket: string }
+export interface R2Config {
+  accountId: string
+  accessKeyId: string
+  secretAccessKey: string
+  bucket: string
+}
 
 export const r2Url = (c: R2Config, key: string) => {
   // `..` would be normalised away by URL and sign a different object than the key names.
@@ -13,11 +18,13 @@ function r2Client(c: R2Config) {
 }
 
 /** Presigned PUT with Content-Length and Content-Type signed, so the client can't send another size or type. */
-export async function presignPut(c: R2Config, key: string, o: { size: number, type: string, expiresIn?: number }) {
+export async function presignPut(c: R2Config, key: string, o: { size: number; type: string; expiresIn?: number }) {
   const url = new URL(r2Url(c, key))
   url.searchParams.set('X-Amz-Expires', String(o.expiresIn ?? 600))
   const req = await r2Client(c).sign(url.toString(), {
-    method: 'PUT', headers: { 'content-type': o.type, 'content-length': String(o.size) }, aws: { signQuery: true, allHeaders: true },
+    method: 'PUT',
+    headers: { 'content-type': o.type, 'content-length': String(o.size) },
+    aws: { signQuery: true, allHeaders: true },
   })
   return req.url
 }

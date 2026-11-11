@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{ href?: string, plain?: boolean }>()
+const props = defineProps<{ href?: string; plain?: boolean }>()
 const href = computed(() => safeHref(props.href))
 const el = ref<HTMLElement>()
 const text = () => el.value?.textContent ?? ''
@@ -31,18 +31,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <ChatInternalLink
-    v-if="href && isInternalLink(href)"
-    :href="href"
-  />
-  <a
-    v-else-if="href && gif && !failed"
-    ref="el"
-    :href="href"
-    target="_blank"
-    rel="noopener noreferrer"
-    class="block w-fit"
-  >
+  <ChatInternalLink v-if="href && isInternalLink(href)" :href="href" />
+  <a v-else-if="href && gif && !failed" ref="el" :href="href" target="_blank" rel="noopener noreferrer" class="block w-fit">
     <img
       :src="href"
       alt="Image"
@@ -50,15 +40,8 @@ onMounted(() => {
       referrerpolicy="no-referrer"
       class="max-h-[300px] max-w-[min(100%,400px)] rounded-md border border-default"
       @error="failed = true"
-    >
+    />
   </a>
-  <a
-    v-else-if="href"
-    ref="el"
-    :href="href"
-    target="_blank"
-    rel="noopener noreferrer"
-    class="break-all text-primary underline underline-offset-2"
-  ><slot /></a>
+  <a v-else-if="href" ref="el" :href="href" target="_blank" rel="noopener noreferrer" class="break-all text-primary underline underline-offset-2"><slot /></a>
   <span v-else><slot /></span>
 </template>

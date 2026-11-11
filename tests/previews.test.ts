@@ -15,10 +15,31 @@ import { composeBody, extractUrls, isImageUrl } from '../shared/utils/links'
 
 describe('isBlockedIp', () => {
   it.each([
-    '127.0.0.1', '127.1.2.3', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '0.0.0.0', '100.64.0.1',
-    '224.0.0.1', '255.255.255.255', '::1', '::', 'fe80::1', 'fc00::1', 'fd12:3456::1', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe', 'ff02::1', 'not-an-ip',
+    '127.0.0.1',
+    '127.1.2.3',
+    '10.1.2.3',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.1.1',
+    '169.254.169.254',
+    '0.0.0.0',
+    '100.64.0.1',
+    '224.0.0.1',
+    '255.255.255.255',
+    '::1',
+    '::',
+    'fe80::1',
+    'fc00::1',
+    'fd12:3456::1',
+    '::ffff:127.0.0.1',
+    '::ffff:10.0.0.1',
+    '::ffff:a9fe:a9fe',
+    'ff02::1',
+    'not-an-ip',
   ])('blocks %s', ip => expect(isBlockedIp(ip)).toBe(true))
-  it.each(['8.8.8.8', '1.1.1.1', '172.32.0.1', '93.184.216.34', '2606:4700:4700::1111', '::ffff:8.8.8.8'])('allows %s', ip => expect(isBlockedIp(ip)).toBe(false))
+  it.each(['8.8.8.8', '1.1.1.1', '172.32.0.1', '93.184.216.34', '2606:4700:4700::1111', '::ffff:8.8.8.8'])('allows %s', ip =>
+    expect(isBlockedIp(ip)).toBe(false),
+  )
 })
 
 describe('safeFetch', () => {
@@ -32,41 +53,34 @@ describe('safeFetch', () => {
       if (url === '/page') {
         res.setHeader('content-type', 'text/html; charset=utf-8')
         res.end('<title>x</title>')
-      } else
-        if (url === '/big') {
-          res.setHeader('content-type', 'text/html')
-          res.end('a'.repeat(5000))
-        } else
-          if (url === '/json') {
-            res.setHeader('content-type', 'application/json')
-            res.end('{}')
-          } else
-            if (url === '/img') {
-              res.setHeader('content-type', 'image/png')
-              res.end(Buffer.alloc(5000))
-            } else
-              if (url === '/loop') {
-                res.statusCode = 302
-                res.setHeader('location', '/loop')
-                res.end()
-              } else
-                if (url === '/to-private') {
-                  res.statusCode = 302
-                  res.setHeader('location', 'http://internal.test/secret')
-                  res.end()
-                } else
-                  if (url === '/slow') {
-                    res.setHeader('content-type', 'text/html')
-                    res.write('<title>') /* never ends */
-                  } else
-                    if (url === '/redir') {
-                      res.statusCode = 301
-                      res.setHeader('location', '/page')
-                      res.end()
-                    } else {
-                      res.statusCode = 404
-                      res.end()
-                    }
+      } else if (url === '/big') {
+        res.setHeader('content-type', 'text/html')
+        res.end('a'.repeat(5000))
+      } else if (url === '/json') {
+        res.setHeader('content-type', 'application/json')
+        res.end('{}')
+      } else if (url === '/img') {
+        res.setHeader('content-type', 'image/png')
+        res.end(Buffer.alloc(5000))
+      } else if (url === '/loop') {
+        res.statusCode = 302
+        res.setHeader('location', '/loop')
+        res.end()
+      } else if (url === '/to-private') {
+        res.statusCode = 302
+        res.setHeader('location', 'http://internal.test/secret')
+        res.end()
+      } else if (url === '/slow') {
+        res.setHeader('content-type', 'text/html')
+        res.write('<title>') /* never ends */
+      } else if (url === '/redir') {
+        res.statusCode = 301
+        res.setHeader('location', '/page')
+        res.end()
+      } else {
+        res.statusCode = 404
+        res.end()
+      }
     })
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     port = (server.address() as AddressInfo).port
@@ -84,16 +98,34 @@ describe('safeFetch', () => {
   const pub = { resolve: async () => ['93.184.216.34'] }
 
   it('rejects non-http schemes, bad ports, credentials and private/loopback literals (defaults)', async () => {
-    for (const u of ['file:///etc/passwd', 'ftp://example.com/', 'gopher://x/', 'javascript:alert(1)', 'http://example.com:8080/', 'https://example.com:22/',
-      'http://user:pw@example.com/', 'http://127.0.0.1/', 'http://127.0.0.1:80/', 'http://10.0.0.5/', 'http://169.254.169.254/latest/meta-data/', 'http://[::1]/',
-      'http://[fe80::1]/', 'http://[::ffff:127.0.0.1]/', 'http://0.0.0.0/', 'http://2130706433/', 'http://0x7f.1/']) {
+    for (const u of [
+      'file:///etc/passwd',
+      'ftp://example.com/',
+      'gopher://x/',
+      'javascript:alert(1)',
+      'http://example.com:8080/',
+      'https://example.com:22/',
+      'http://user:pw@example.com/',
+      'http://127.0.0.1/',
+      'http://127.0.0.1:80/',
+      'http://10.0.0.5/',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://[::1]/',
+      'http://[fe80::1]/',
+      'http://[::ffff:127.0.0.1]/',
+      'http://0.0.0.0/',
+      'http://2130706433/',
+      'http://0x7f.1/',
+    ]) {
       await expect(safeFetch(u, { accept: 'html', ...pub }), u).rejects.toBeInstanceOf(SsrfError)
     }
     expect(hits).toEqual([])
   })
 
   it('rejects a name when any of its addresses is private, without connecting', async () => {
-    await expect(safeFetch('http://rebind.test/', { accept: 'html', resolve: async () => ['93.184.216.34', '10.0.0.1'] })).rejects.toThrow(/Address not allowed/)
+    await expect(safeFetch('http://rebind.test/', { accept: 'html', resolve: async () => ['93.184.216.34', '10.0.0.1'] })).rejects.toThrow(
+      /Address not allowed/,
+    )
     await expect(safeFetch('http://localhost/', { accept: 'html', resolve: async () => ['::1'] })).rejects.toThrow(/Address not allowed/)
     await expect(safeFetch('http://nothing.test/', { accept: 'html', resolve: async () => [] })).rejects.toThrow(/did not resolve/)
   })
@@ -110,14 +142,18 @@ describe('safeFetch', () => {
 
   it('checks the address again after every redirect', async () => {
     const resolve = async (h: string) => (h === 'internal.test' ? ['10.0.0.1'] : ['127.0.0.1'])
-    await expect(safeFetch(`http://pub.test:${port}/to-private`, { accept: 'html', resolve, ...local, allowPort: () => true })).rejects.toThrow(/Address not allowed/)
+    await expect(safeFetch(`http://pub.test:${port}/to-private`, { accept: 'html', resolve, ...local, allowPort: () => true })).rejects.toThrow(
+      /Address not allowed/,
+    )
     expect(hits).toEqual([`pub.test:${port}/to-private`])
     const ok = await safeFetch(`http://pub.test:${port}/redir`, { accept: 'html', resolve, ...local })
     expect(ok.url).toBe(`http://pub.test:${port}/page`)
   })
 
   it('stops after too many redirects', async () => {
-    await expect(safeFetch(`http://pub.test:${port}/loop`, { accept: 'html', resolve: async () => ['127.0.0.1'], ...local })).rejects.toThrow(/Too many redirects/)
+    await expect(safeFetch(`http://pub.test:${port}/loop`, { accept: 'html', resolve: async () => ['127.0.0.1'], ...local })).rejects.toThrow(
+      /Too many redirects/,
+    )
     expect(hits.length).toBe(4) // the first request + 3 redirects
   })
 
@@ -144,7 +180,10 @@ describe('links', () => {
     const body = [
       'see https://a.example/x?y=1, and (https://b.example/p_(q)). also https://a.example/x?y=1',
       '<https://skip.example/> `https://code.example` ||https://spoiler.example||',
-      '```\nhttps://fence.example\n```', 'http://localhost:3000/c/abc/m/def', 'ftp://nope.example', '**https://bold.example**',
+      '```\nhttps://fence.example\n```',
+      'http://localhost:3000/c/abc/m/def',
+      'ftp://nope.example',
+      '**https://bold.example**',
     ].join('\n')
     expect(extractUrls(body, 'http://localhost:3000')).toEqual(['https://a.example/x?y=1', 'https://b.example/p_(q)', 'https://bold.example/'])
   })
@@ -167,17 +206,32 @@ describe('links', () => {
     expect(isImageUrl('<https://example.com/a.gif>')).toBe(false)
   })
   it('parseHtml reads Open Graph data and makes the image absolute', async () => {
-    const p = await parseHtml('<head><meta property="og:title" content="Hi"><meta property="og:description" content="D"><meta property="og:site_name" content="S"><meta property="og:image" content="/i.png"></head>', 'https://x.example/a/b')
+    const p = await parseHtml(
+      '<head><meta property="og:title" content="Hi"><meta property="og:description" content="D"><meta property="og:site_name" content="S"><meta property="og:image" content="/i.png"></head>',
+      'https://x.example/a/b',
+    )
     expect(p).toEqual({ title: 'Hi', description: 'D', siteName: 'S', image: 'https://x.example/i.png' })
   })
   it('mapGifs keeps order and skips entries without formats', () => {
-    const r = mapGifs({ data: { has_next: true, data: [
-      { id: 1, title: 'a', file: { md: { gif: { url: 'https://static.klipy.com/a.gif', width: 2, height: 3 } }, sm: { webp: { url: 'https://static.klipy.com/a.webp' } } } },
-      { type: 'ad', content: '<script>' },
-      { id: 2, title: 'b', file: { md: { gif: { url: 'https://static.klipy.com/b.gif' } } } },
-    ] } })
+    const r = mapGifs({
+      data: {
+        has_next: true,
+        data: [
+          {
+            id: 1,
+            title: 'a',
+            file: { md: { gif: { url: 'https://static.klipy.com/a.gif', width: 2, height: 3 } }, sm: { webp: { url: 'https://static.klipy.com/a.webp' } } },
+          },
+          { type: 'ad', content: '<script>' },
+          { id: 2, title: 'b', file: { md: { gif: { url: 'https://static.klipy.com/b.gif' } } } },
+        ],
+      },
+    })
     expect(r.hasNext).toBe(true)
-    expect(r.items.map(i => [i.id, i.url, i.preview])).toEqual([['1', 'https://static.klipy.com/a.gif', 'https://static.klipy.com/a.webp'], ['2', 'https://static.klipy.com/b.gif', 'https://static.klipy.com/b.gif']])
+    expect(r.items.map(i => [i.id, i.url, i.preview])).toEqual([
+      ['1', 'https://static.klipy.com/a.gif', 'https://static.klipy.com/a.webp'],
+      ['2', 'https://static.klipy.com/b.gif', 'https://static.klipy.com/b.gif'],
+    ])
   })
 })
 
@@ -185,9 +239,22 @@ describe('preview storage', () => {
   let db: Db
   beforeEach(() => {
     db = createDb(':memory:')
-    for (const id of ['a', 'b', 'c', 'admin']) db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id }).run()
-    db.insert(channels).values([{ id: 't', type: 'text', name: 't' }, { id: 'dm', type: 'dm' }]).run()
-    db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
+    for (const id of ['a', 'b', 'c', 'admin'])
+      db.insert(user)
+        .values({ id, name: id, email: `${id}@x.dev`, displayName: id })
+        .run()
+    db.insert(channels)
+      .values([
+        { id: 't', type: 'text', name: 't' },
+        { id: 'dm', type: 'dm' },
+      ])
+      .run()
+    db.insert(channelMembers)
+      .values([
+        { channelId: 'dm', userId: 'a' },
+        { channelId: 'dm', userId: 'b' },
+      ])
+      .run()
   })
   const card = { title: 'T', description: 'D', siteName: 'S', imageKey: 'previews/k.webp' }
 
@@ -198,7 +265,10 @@ describe('preview storage', () => {
     expect(cachedPreview(db, 'https://x.example', 1000 + 1000)).toBeTruthy()
     expect(cachedPreview(db, 'https://x.example', 1000 + 8 * 24 * 3600_000)).toBeUndefined()
     const updated = attachPreviews(db, m.id, ['https://x.example', 'https://y.example'])!
-    expect(updated.previews.map(p => [p.url, p.image])).toEqual([['https://x.example', false], ['https://y.example', true]])
+    expect(updated.previews.map(p => [p.url, p.image])).toEqual([
+      ['https://x.example', false],
+      ['https://y.example', true],
+    ])
     expect(listMessages(db, 't', {}).messages[0]!.previews.length).toBe(2)
     expect(attachPreviews(db, m.id, ['https://x.example'])).toBeNull() // nothing new
   })

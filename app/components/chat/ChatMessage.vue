@@ -2,8 +2,8 @@
 import type { MessageDto, ReactionDto } from '../../../server/db/messages'
 import type { MessageCtx } from '../../composables/messageContext'
 
-const props = defineProps<{ message: MessageDto, grouped: boolean, highlighted?: boolean, editing?: boolean }>()
-const emit = defineEmits<{ quote: [text: string], markUnread: [id: string], editStart: [id: string], editEnd: [] }>()
+const props = defineProps<{ message: MessageDto; grouped: boolean; highlighted?: boolean; editing?: boolean }>()
+const emit = defineEmits<{ quote: [text: string]; markUnread: [id: string]; editStart: [id: string]; editEnd: [] }>()
 
 const { byId, nameOf } = useUsers()
 const { data: me } = useMe()
@@ -12,16 +12,22 @@ const author = computed(() => byId.value.get(props.message.userId))
 const own = computed(() => me.value?.id === props.message.userId)
 const canDelete = computed(() => own.value || me.value?.role === 'admin')
 
-provide(messageCtxKey, reactive({
-  id: props.message.id, channelId: props.message.channelId, userId: props.message.userId, body: computed(() => props.message.body),
-  own,
-  quote: (t: string) => emit('quote', t),
-  // Changing a code block's language on your own message is a normal edit (shows "(edited)").
-  async setLanguage(occurrence: number, lang: string, code: string) {
-    const next = setFenceLanguage(props.message.body, occurrence, lang, code)
-    return next !== null && await actions.edit(props.message.id, next)
-  },
-}) as unknown as MessageCtx)
+provide(
+  messageCtxKey,
+  reactive({
+    id: props.message.id,
+    channelId: props.message.channelId,
+    userId: props.message.userId,
+    body: computed(() => props.message.body),
+    own,
+    quote: (t: string) => emit('quote', t),
+    // Changing a code block's language on your own message is a normal edit (shows "(edited)").
+    async setLanguage(occurrence: number, lang: string, code: string) {
+      const next = setFenceLanguage(props.message.body, occurrence, lang, code)
+      return next !== null && (await actions.edit(props.message.id, next))
+    },
+  }) as unknown as MessageCtx,
+)
 
 // Reactions, reply preview, delete confirmation.
 const picker = ref(false)
@@ -30,7 +36,7 @@ const moreOpen = ref(false)
 const whoOpen = ref<string | null>(null)
 const confirmDelete = ref(false)
 const mineOf = (r: ReactionDto) => !!me.value && r.userIds.includes(me.value.id)
-const react = (emoji: string) => actions.react(props.message.id, emoji, !(props.message.reactions.find(r => r.emoji === emoji && mineOf(r))))
+const react = (emoji: string) => actions.react(props.message.id, emoji, !props.message.reactions.find(r => r.emoji === emoji && mineOf(r)))
 const pick = (emoji: string) => {
   picker.value = false
   if (emoji) void react(emoji)
@@ -50,12 +56,13 @@ onMounted(() => {
   for (const el of [avatarEl.value, nameEl.value]) registerCtx(el, { kind: 'user', items: () => admin.userGroups(props.message.userId).flat() })
   registerCtx(replyEl.value, {
     kind: 'reply',
-    items: () => props.message.replyTo?.deleted
-      ? []
-      : [
-          { label: 'Jump to original', icon: 'i-lucide-corner-up-left', onSelect: () => actions.jump(props.message.replyTo!.id) },
-          { label: 'Copy link to original', icon: 'i-lucide-link', onSelect: () => copyText(replyLink()) },
-        ],
+    items: () =>
+      props.message.replyTo?.deleted
+        ? []
+        : [
+            { label: 'Jump to original', icon: 'i-lucide-corner-up-left', onSelect: () => actions.jump(props.message.replyTo!.id) },
+            { label: 'Copy link to original', icon: 'i-lucide-link', onSelect: () => copyText(replyLink()) },
+          ],
   })
 })
 
@@ -68,7 +75,7 @@ const lineCount = computed(() => props.message.body.split('\n').length)
 const visibleLines = ref(25)
 const long = computed(() => lineCount.value > 25)
 const expandedAll = computed(() => visibleLines.value >= lineCount.value)
-const bodyStyle = computed(() => long.value && !expandedAll.value ? { maxHeight: `${visibleLines.value * 1.5}rem` } : undefined)
+const bodyStyle = computed(() => (long.value && !expandedAll.value ? { maxHeight: `${visibleLines.value * 1.5}rem` } : undefined))
 
 const tree = shallowRef<Awaited<ReturnType<typeof parseChatMarkdown>>>()
 watchEffect(async () => {
@@ -81,10 +88,27 @@ const plain = () => root.value?.querySelector<HTMLElement>('[data-body]')?.inner
 
 const messageItems = () => [
   { label: 'Reply', icon: 'i-lucide-reply', onSelect: () => actions.reply(props.message.id) },
-  { label: 'React', icon: 'i-lucide-smile-plus', onSelect: () => { picker.value = true } },
+  {
+    label: 'React',
+    icon: 'i-lucide-smile-plus',
+    onSelect: () => {
+      picker.value = true
+    },
+  },
   { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('quote', selectionText() || props.message.body) },
   ...(own.value ? [{ label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => emit('editStart', props.message.id) }] : []),
-  ...(canDelete.value ? [{ label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { confirmDelete.value = true } }] : []),
+  ...(canDelete.value
+    ? [
+        {
+          label: 'Delete',
+          icon: 'i-lucide-trash-2',
+          color: 'error' as const,
+          onSelect: () => {
+            confirmDelete.value = true
+          },
+        },
+      ]
+    : []),
   { label: 'Copy text', icon: 'i-lucide-copy', onSelect: () => copyText(plain()) },
   { label: 'Copy Markdown', icon: 'i-lucide-file-code', onSelect: () => copyText(props.message.body) },
   { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => copyText(link()) },
@@ -100,7 +124,7 @@ function onContext(e: MouseEvent) {
     return
   } // selected text keeps the browser's menu
   const target = root.value ? findCtx(e.target, root.value) : null
-  items.value = target ? [target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never : messageItems()
+  items.value = target ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never) : messageItems()
 }
 
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
@@ -125,48 +149,22 @@ function onKey(e: KeyboardEvent) {
       @keydown="onKey"
     >
       <div class="relative w-9 shrink-0 text-right">
-        <button
-          v-if="!grouped"
-          ref="avatarEl"
-          type="button"
-          class="rounded-full"
-          :aria-label="`Profile of ${nameOf(message.userId)}`"
-          @click="openProfile"
-        >
-          <UAvatar
-            :src="avatarSrc(author)"
-            :alt="nameOf(message.userId)"
-            icon="i-lucide-user"
-            :chip="presenceChip(message.userId)"
-          />
+        <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
+          <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
-        <UTooltip
-          v-else
-          :text="exactTime(message.createdAt)"
-        >
+        <UTooltip v-else :text="exactTime(message.createdAt)">
           <span class="absolute -right-2 hidden text-[9px] leading-6 whitespace-nowrap text-dimmed group-hover:inline">{{ clockTime(message.createdAt) }}</span>
         </UTooltip>
       </div>
       <div class="min-w-0 flex-1">
-        <div
-          v-if="!grouped"
-          class="flex items-baseline gap-2 text-sm"
-        >
-          <button
-            ref="nameEl"
-            type="button"
-            class="font-bold hover:underline"
-            @click="openProfile"
-          >
+        <div v-if="!grouped" class="flex items-baseline gap-2 text-sm">
+          <button ref="nameEl" type="button" class="font-bold hover:underline" @click="openProfile">
             {{ nameOf(message.userId) }}
           </button>
           <UTooltip :text="exactTime(message.createdAt)">
             <span class="text-xs text-muted">{{ rel }}</span>
           </UTooltip>
-          <UTooltip
-            v-if="message.editedAt && !editing"
-            :text="exactTime(message.editedAt)"
-          >
+          <UTooltip v-if="message.editedAt && !editing" :text="exactTime(message.editedAt)">
             <span class="text-[10px] text-dimmed">(edited)</span>
           </UTooltip>
         </div>
@@ -179,100 +177,42 @@ function onKey(e: KeyboardEvent) {
           :aria-label="message.replyTo.deleted ? 'Original message deleted' : 'Jump to the original message'"
           @click="!message.replyTo.deleted && actions.jump(message.replyTo.id)"
         >
-          <UIcon
-            name="i-lucide-corner-up-right"
-            class="size-3.5 shrink-0"
-          />
-          <template v-if="message.replyTo.deleted">
-            Original message deleted
-          </template>
-          <template v-else>
-            <b class="shrink-0">{{ nameOf(message.replyTo.userId) }}</b><span class="truncate">{{ replyText }}</span>
-          </template>
+          <UIcon name="i-lucide-corner-up-right" class="size-3.5 shrink-0" />
+          <template v-if="message.replyTo.deleted"> Original message deleted </template>
+          <template v-else> <b class="shrink-0">{{ nameOf(message.replyTo.userId) }}</b><span class="truncate">{{ replyText }}</span> </template>
         </button>
         <ChatMessageEditor
           v-if="editing"
           :body="message.body"
-          @save="async (md: string) => { if (md === message.body || await actions.edit(message.id, md)) emit('editEnd') }"
+          @save="
+            async (md: string) => {
+              if (md === message.body || (await actions.edit(message.id, md))) emit('editEnd')
+            }
+          "
           @cancel="emit('editEnd')"
         />
-        <div
-          v-else-if="message.body || (grouped && message.editedAt)"
-          :class="grouped && message.editedAt ? 'flex items-end gap-1' : ''"
-        >
-          <div
-            v-if="message.body"
-            class="relative min-w-0"
-          >
-            <div
-              data-body
-              class="chat-body break-words"
-              :class="long && !expandedAll ? 'overflow-hidden' : ''"
-              :style="bodyStyle"
-            >
+        <div v-else-if="message.body || (grouped && message.editedAt)" :class="grouped && message.editedAt ? 'flex items-end gap-1' : ''">
+          <div v-if="message.body" class="relative min-w-0">
+            <div data-body class="chat-body break-words" :class="long && !expandedAll ? 'overflow-hidden' : ''" :style="bodyStyle">
               <Suspense>
-                <MDCRenderer
-                  v-if="tree"
-                  :body="tree"
-                  :data="{}"
-                  tag="div"
-                />
+                <MDCRenderer v-if="tree" :body="tree" :data="{}" tag="div" />
               </Suspense>
             </div>
-            <div
-              v-if="long && !expandedAll"
-              class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-default to-transparent"
-            />
+            <div v-if="long && !expandedAll" class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-default to-transparent" />
           </div>
-          <UTooltip
-            v-if="grouped && message.editedAt"
-            :text="exactTime(message.editedAt)"
-          >
+          <UTooltip v-if="grouped && message.editedAt" :text="exactTime(message.editedAt)">
             <span class="shrink-0 text-[10px] text-dimmed">(edited)</span>
           </UTooltip>
         </div>
-        <div
-          v-if="long && !editing"
-          class="mt-1 flex gap-1"
-        >
+        <div v-if="long && !editing" class="mt-1 flex gap-1">
           <template v-if="!expandedAll">
-            <UButton
-              label="Show 50 more"
-              icon="i-lucide-chevrons-down"
-              size="xs"
-              color="neutral"
-              variant="soft"
-              @click="visibleLines += 50"
-            />
-            <UButton
-              label="Show all"
-              icon="i-lucide-unfold-vertical"
-              size="xs"
-              color="neutral"
-              variant="soft"
-              @click="visibleLines = Infinity"
-            />
+            <UButton label="Show 50 more" icon="i-lucide-chevrons-down" size="xs" color="neutral" variant="soft" @click="visibleLines += 50" />
+            <UButton label="Show all" icon="i-lucide-unfold-vertical" size="xs" color="neutral" variant="soft" @click="visibleLines = Infinity" />
           </template>
-          <UButton
-            v-else
-            label="Collapse"
-            icon="i-lucide-chevrons-up"
-            size="xs"
-            color="neutral"
-            variant="soft"
-            @click="visibleLines = 25"
-          />
+          <UButton v-else label="Collapse" icon="i-lucide-chevrons-up" size="xs" color="neutral" variant="soft" @click="visibleLines = 25" />
         </div>
-        <div
-          v-if="message.attachments.length"
-          class="mt-1 flex flex-col items-start"
-        >
-          <ChatAttachmentView
-            v-for="f in message.attachments"
-            :key="f.id"
-            :file="f"
-            @open="actions.openImage"
-          />
+        <div v-if="message.attachments.length" class="mt-1 flex flex-col items-start">
+          <ChatAttachmentView v-for="f in message.attachments" :key="f.id" :file="f" @open="actions.openImage" />
         </div>
         <ChatPreviewCard
           v-for="p in message.previews"
@@ -282,18 +222,8 @@ function onKey(e: KeyboardEvent) {
           :can-remove="canDelete"
           @remove="(url: string) => actions.removePreview(message.id, url)"
         />
-        <div
-          v-if="message.reactions.length"
-          class="mt-1 flex flex-wrap gap-1"
-        >
-          <ChatReactionChip
-            v-for="r in message.reactions"
-            :key="r.emoji"
-            :reaction="r"
-            :mine="mineOf(r)"
-            @toggle="react(r.emoji)"
-            @who="whoOpen = r.emoji"
-          />
+        <div v-if="message.reactions.length" class="mt-1 flex flex-wrap gap-1">
+          <ChatReactionChip v-for="r in message.reactions" :key="r.emoji" :reaction="r" :mine="mineOf(r)" @toggle="react(r.emoji)" @who="whoOpen = r.emoji" />
         </div>
       </div>
       <div
@@ -301,11 +231,7 @@ function onKey(e: KeyboardEvent) {
         class="absolute top-full left-16 z-10 -mt-1 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-focus-within:flex group-hover:flex"
         :class="picker || moreOpen ? '!flex' : ''"
       >
-        <UTooltip
-          v-for="e in QUICK_REACTIONS"
-          :key="e"
-          :text="`React ${e}`"
-        >
+        <UTooltip v-for="e in QUICK_REACTIONS" :key="e" :text="`React ${e}`">
           <UButton
             size="xs"
             color="neutral"
@@ -317,49 +243,19 @@ function onKey(e: KeyboardEvent) {
             {{ e }}
           </UButton>
         </UTooltip>
-        <UPopover
-          v-model:open="picker"
-          :content="{ side: 'top', align: 'start' }"
-        >
+        <UPopover v-model:open="picker" :content="{ side: 'top', align: 'start' }">
           <UTooltip text="Add reaction">
-            <UButton
-              icon="i-lucide-smile-plus"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              aria-label="Add reaction"
-            />
+            <UButton icon="i-lucide-smile-plus" size="xs" color="neutral" variant="ghost" aria-label="Add reaction" />
           </UTooltip>
           <template #content>
             <ChatEmojiPicker @pick="pick" />
           </template>
         </UPopover>
-        <UTooltip
-          text="Reply"
-          :kbds="['R']"
-        >
-          <UButton
-            icon="i-lucide-reply"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            aria-label="Reply"
-            @click="actions.reply(message.id)"
-          />
+        <UTooltip text="Reply" :kbds="['R']">
+          <UButton icon="i-lucide-reply" size="xs" color="neutral" variant="ghost" aria-label="Reply" @click="actions.reply(message.id)" />
         </UTooltip>
-        <UTooltip
-          v-if="own"
-          text="Edit"
-          :kbds="['arrowup']"
-        >
-          <UButton
-            icon="i-lucide-pencil"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            aria-label="Edit message"
-            @click="emit('editStart', message.id)"
-          />
+        <UTooltip v-if="own" text="Edit" :kbds="['arrowup']">
+          <UButton icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Edit message" @click="emit('editStart', message.id)" />
         </UTooltip>
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
           <UButton
@@ -371,60 +267,31 @@ function onKey(e: KeyboardEvent) {
             @click="copy(message.body)"
           />
         </UTooltip>
-        <UDropdownMenu
-          v-model:open="moreOpen"
-          :items="messageItems()"
-          :content="{ align: 'start' }"
-        >
+        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start' }">
           <UTooltip text="More">
-            <UButton
-              icon="i-lucide-ellipsis"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              aria-label="More actions"
-            />
+            <UButton icon="i-lucide-ellipsis" size="xs" color="neutral" variant="ghost" aria-label="More actions" />
           </UTooltip>
         </UDropdownMenu>
       </div>
-      <UModal
-        v-model:open="confirmDelete"
-        title="Delete message?"
-        description="This removes the message and its files for everyone. It can't be undone."
-      >
+      <UModal v-model:open="confirmDelete" title="Delete message?" description="This removes the message and its files for everyone. It can't be undone.">
         <template #footer>
-          <UButton
-            label="Cancel"
-            color="neutral"
-            variant="ghost"
-            @click="confirmDelete = false"
-          />
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="confirmDelete = false" />
           <UButton
             label="Delete"
             icon="i-lucide-trash-2"
             color="error"
-            @click="confirmDelete = false; actions.remove(message.id)"
+            @click="
+              confirmDelete = false;
+              actions.remove(message.id)
+            "
           />
         </template>
       </UModal>
-      <UModal
-        :open="!!whoReaction"
-        :title="`${whoOpen} reactions`"
-        @update:open="whoOpen = null"
-      >
+      <UModal :open="!!whoReaction" :title="`${whoOpen} reactions`" @update:open="whoOpen = null">
         <template #body>
           <ul class="flex flex-col gap-2">
-            <li
-              v-for="id in whoReaction?.userIds"
-              :key="id"
-              class="flex items-center gap-2 text-sm"
-            >
-              <UAvatar
-                :src="avatarSrc(byId.get(id))"
-                :alt="nameOf(id)"
-                icon="i-lucide-user"
-                size="xs"
-              /> {{ nameOf(id) }}
+            <li v-for="id in whoReaction?.userIds" :key="id" class="flex items-center gap-2 text-sm">
+              <UAvatar :src="avatarSrc(byId.get(id))" :alt="nameOf(id)" icon="i-lucide-user" size="xs" /> {{ nameOf(id) }}
             </li>
           </ul>
         </template>
@@ -434,8 +301,19 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style>
-.chat-body p { margin: 0; white-space: pre-wrap; }
-.chat-body p + p { margin-top: 0.5rem; }
-.chat-body ul { list-style: disc; padding-left: 1.5rem; }
-.chat-body ol { list-style: decimal; padding-left: 1.5rem; }
+.chat-body p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.chat-body p + p {
+  margin-top: 0.5rem;
+}
+.chat-body ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.chat-body ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
 </style>

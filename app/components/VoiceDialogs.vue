@@ -3,24 +3,19 @@ import { userVolume } from '#shared/utils/voice'
 
 const v = useVoice()
 const { nameOf } = useUsers()
-const open = computed({ get: () => !!v.volumeFor.value, set: (o) => {
-  if (!o)
-    v.volumeFor.value = null
-} })
+const open = computed({
+  get: () => !!v.volumeFor.value,
+  set: o => {
+    if (!o) v.volumeFor.value = null
+  },
+})
 const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
 </script>
 
 <template>
-  <UModal
-    v-model:open="open"
-    :title="`Volume: ${nameOf(v.volumeFor.value ?? '')}`"
-    description="Only changes what you hear."
-  >
+  <UModal v-model:open="open" :title="`Volume: ${nameOf(v.volumeFor.value ?? '')}`" description="Only changes what you hear.">
     <template #body>
-      <div
-        v-if="v.volumeFor.value"
-        class="flex flex-col gap-4"
-      >
+      <div v-if="v.volumeFor.value" class="flex flex-col gap-4">
         <UFormField label="Mic volume">
           <USlider
             :model-value="vol.mic"
@@ -41,11 +36,7 @@ const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
             @update:model-value="v.setVolume(v.volumeFor.value!, { screen: $event as number })"
           />
         </UFormField>
-        <USwitch
-          :model-value="vol.muted"
-          label="Mute for me"
-          @update:model-value="v.setVolume(v.volumeFor.value!, { muted: $event })"
-        />
+        <USwitch :model-value="vol.muted" label="Mute for me" @update:model-value="v.setVolume(v.volumeFor.value!, { muted: $event })" />
       </div>
     </template>
   </UModal>

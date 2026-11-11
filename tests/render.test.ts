@@ -6,11 +6,12 @@ import { describe, expect, it } from 'vitest'
 import { remarkSpk } from '../shared/utils/markdown'
 
 async function parse(md: string) {
-  const p = await createParseProcessor({ remark: { plugins: { 'remark-mdc': false as never, 'spk': { instance: remarkSpk } } }, highlight: false, toc: false })
+  const p = await createParseProcessor({ remark: { plugins: { 'remark-mdc': false as never, spk: { instance: remarkSpk } } }, highlight: false, toc: false })
   return ((await p.process({ value: md })).result as { body: MDCRoot }).body
 }
-const tags = (n: MDCNode | MDCRoot): string[] => n.type === 'element' ? [n.tag, ...n.children.flatMap(tags)] : ('children' in n ? n.children : []).flatMap(tags)
-const text = (n: MDCNode | MDCRoot): string => n.type === 'text' ? n.value : ('children' in n ? n.children : []).map(text).join('')
+const tags = (n: MDCNode | MDCRoot): string[] =>
+  n.type === 'element' ? [n.tag, ...n.children.flatMap(tags)] : ('children' in n ? n.children : []).flatMap(tags)
+const text = (n: MDCNode | MDCRoot): string => (n.type === 'text' ? n.value : ('children' in n ? n.children : []).map(text).join(''))
 
 describe('chat markdown rendering', () => {
   it('<url> is marked plain; a bare url is not', async () => {

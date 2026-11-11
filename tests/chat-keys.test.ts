@@ -10,7 +10,8 @@ function press(content: string, key = 'ArrowUp') {
   const onArrowUp = vi.fn(() => true)
   const editor = new Editor({
     extensions: [Markdown, StarterKit, chatKeys({ onEnter: () => {}, onArrowUp })],
-    content, contentType: 'markdown',
+    content,
+    contentType: 'markdown',
   })
   const handled = editor.view.someProp('handleKeyDown', f => f(editor.view, new KeyboardEvent('keydown', { key })))
   editor.destroy()
@@ -50,8 +51,7 @@ describe('chatKeys Enter on a fence line', () => {
     return { onEnter, editor }
   }
   afterEach(() => {
-    for (const e of made)
-      e.destroy()
+    for (const e of made) e.destroy()
     made.length = 0
   })
   it('turns ```json into a json code block instead of sending', () => {

@@ -25,7 +25,10 @@ describe('push targets', () => {
   let db: Db
   beforeEach(() => {
     db = createDb(':memory:')
-    for (const id of ['a', 'b', 'c']) db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: id.toUpperCase() }).run()
+    for (const id of ['a', 'b', 'c'])
+      db.insert(user)
+        .values({ id, name: id, email: `${id}@x.dev`, displayName: id.toUpperCase() })
+        .run()
     db.insert(channels).values({ id: 't', type: 'text', name: 'general' }).run()
     for (const id of ['b', 'c']) savePush(db, id, `https://push.example/${id}`, { p256dh: 'k', auth: 'a' }, {})
   })

@@ -4,8 +4,7 @@ export type Presence = 'online' | 'idle' | 'offline'
 export function reducePresence(idleBySocket: Iterable<boolean>): Presence {
   let any = false
   for (const idle of idleBySocket) {
-    if (!idle)
-      return 'online'
+    if (!idle) return 'online'
     any = true
   }
   return any ? 'idle' : 'offline'

@@ -2,7 +2,7 @@ import { accessibleChannel } from '../../../db/messages'
 import { markUnreadFrom, readState } from '../../../db/reads'
 
 // Body { messageId }: that message and everything after it become unread.
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const db = useDb()
   const id = getRouterParam(event, 'id')!

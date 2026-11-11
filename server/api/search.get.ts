@@ -5,7 +5,7 @@ import { createLimiter } from '../utils/limiter'
 const allow = createLimiter(60, 60_000)
 
 // ?q=&scope=channel|channels|dms|everything&channelId=&cursor=  (20 per page)
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   if (!allow(u.id)) throw createError({ statusCode: 429, statusMessage: 'Slow down' })
   const q = getQuery(event)

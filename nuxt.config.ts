@@ -58,6 +58,6 @@ export default defineNuxtConfig({
       ],
     },
   },
-  eslint: { config: { stylistic: true } },
+  eslint: { config: { stylistic: false } },
   icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
 })

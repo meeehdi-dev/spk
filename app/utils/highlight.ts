@@ -34,7 +34,20 @@ export function detectLanguage(code: string): string | null {
   return r.language && r.relevance >= 5 ? (toShiki[r.language] ?? r.language) : null
 }
 
-const aliases: Record<string, string> = { js: 'javascript', ts: 'typescript', py: 'python', sh: 'bash', shell: 'bash', yml: 'yaml', rs: 'rust', cs: 'csharp', md: 'markdown', text: 'text', txt: 'text', plain: 'text' }
+const aliases: Record<string, string> = {
+  js: 'javascript',
+  ts: 'typescript',
+  py: 'python',
+  sh: 'bash',
+  shell: 'bash',
+  yml: 'yaml',
+  rs: 'rust',
+  cs: 'csharp',
+  md: 'markdown',
+  text: 'text',
+  txt: 'text',
+  plain: 'text',
+}
 
 /** Shiki HTML with one `.line` span per line (CSS adds the line numbers), or null when the language is unknown. */
 export async function highlightToHtml(code: string, lang: string): Promise<string | null> {
@@ -53,4 +66,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 /** Same markup shape as Shiki's output, without colors (used until/unless highlighting is available). */
 export const plainHtml = (code: string) =>
-  `<pre><code>${code.split('\n').map(l => `<span class="line">${esc(l) || ' '}</span>`).join('\n')}</code></pre>`
+  `<pre><code>${code
+    .split('\n')
+    .map(l => `<span class="line">${esc(l) || ' '}</span>`)
+    .join('\n')}</code></pre>`

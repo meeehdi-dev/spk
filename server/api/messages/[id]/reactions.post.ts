@@ -4,7 +4,7 @@ import { createLimiter } from '../../../utils/limiter'
 const allow = createLimiter(20, 10_000)
 
 // Body: { emoji, on } (on = true adds your reaction, false removes it).
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const u = await requireUser(event)
   if (!allow(u.id)) throw createError({ statusCode: 429, statusMessage: 'Slow down' })
   const b = await readBody(event)

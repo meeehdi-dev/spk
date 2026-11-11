@@ -16,7 +16,12 @@ export function notificationBody(body: string, nameOf: (userId: string) => strin
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text
 }
 
-export interface NotifyPrefs { dms?: boolean, pings?: boolean, dnd?: boolean, muted?: string[] }
+export interface NotifyPrefs {
+  dms?: boolean
+  pings?: boolean
+  dnd?: boolean
+  muted?: string[]
+}
 
 /** Whether a DM or a ping (mention/reply in a channel) may notify, given the user's settings. */
 export function allowedBy(prefs: NotifyPrefs, channelId: string, isDm: boolean): boolean {

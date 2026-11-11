@@ -6,7 +6,10 @@ import rnnoiseWasm from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url'
 import rnnoiseSimdWasm from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url'
 import rnnoiseWorklet from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url&no-inline'
 
-export interface MicProcessing { enhanced: boolean, thresholdDb: number }
+export interface MicProcessing {
+  enhanced: boolean
+  thresholdDb: number
+}
 
 const modules = new WeakMap<AudioContext, Promise<unknown>>()
 const addWorklets = (ctx: AudioContext) => {
@@ -14,7 +17,7 @@ const addWorklets = (ctx: AudioContext) => {
   return modules.get(ctx)!
 }
 let wasm: Promise<ArrayBuffer> | undefined
-const loadWasm = () => wasm ??= loadRnnoise({ url: rnnoiseWasm, simdUrl: rnnoiseSimdWasm })
+const loadWasm = () => (wasm ??= loadRnnoise({ url: rnnoiseWasm, simdUrl: rnnoiseSimdWasm }))
 
 /**
  * LiveKit mic processor: mic → [RNNoise when "Enhanced"] → noise gate (voice activation, the sensitivity slider) → one stable output track.
@@ -47,7 +50,7 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
   /** Rebuilds the nodes between source and output (serialized, so quick slider moves can't interleave). */
   update(cfg: MicProcessing) {
     this.cfg = cfg
-    return this.queue = this.queue.then(() => this.build()).catch(() => {})
+    return (this.queue = this.queue.then(() => this.build()).catch(() => {}))
   }
 
   private async build() {
@@ -65,8 +68,8 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
   private dispose() {
     this.src?.disconnect()
     for (const n of this.chain) {
-      n.disconnect();
-      (n as { destroy?: () => void }).destroy?.()
+      n.disconnect()
+      ;(n as { destroy?: () => void }).destroy?.()
     }
     this.chain = []
   }

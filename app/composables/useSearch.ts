@@ -9,7 +9,9 @@ export function useSearch() {
       s.value.open = true
       s.value.focusTick++
     },
-    close() { s.value.open = false },
+    close() {
+      s.value.open = false
+    },
   })
 }
 

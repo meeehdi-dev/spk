@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ReactionDto } from '../../../server/db/messages'
 
-const props = defineProps<{ reaction: ReactionDto, mine: boolean }>()
-const emit = defineEmits<{ toggle: [], who: [] }>()
+const props = defineProps<{ reaction: ReactionDto; mine: boolean }>()
+const emit = defineEmits<{ toggle: []; who: [] }>()
 const { nameOf } = useUsers()
 const el = ref<HTMLElement>()
 const names = computed(() => props.reaction.userIds.map(nameOf).join(', '))

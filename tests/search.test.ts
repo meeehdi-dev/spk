@@ -39,9 +39,23 @@ const search = (u: string, q: string, o: Record<string, unknown> = {}) => search
 
 beforeEach(() => {
   db = createDb(':memory:')
-  for (const [id, n] of Object.entries(names)) db.insert(user).values({ id, name: id, email: `${id}@x.dev`, displayName: n }).run()
-  db.insert(channels).values([{ id: 'g', type: 'text', name: 'general' }, { id: 'r', type: 'text', name: 'random' }, { id: 'dm', type: 'dm' }]).run()
-  db.insert(channelMembers).values([{ channelId: 'dm', userId: 'a' }, { channelId: 'dm', userId: 'b' }]).run()
+  for (const [id, n] of Object.entries(names))
+    db.insert(user)
+      .values({ id, name: id, email: `${id}@x.dev`, displayName: n })
+      .run()
+  db.insert(channels)
+    .values([
+      { id: 'g', type: 'text', name: 'general' },
+      { id: 'r', type: 'text', name: 'random' },
+      { id: 'dm', type: 'dm' },
+    ])
+    .run()
+  db.insert(channelMembers)
+    .values([
+      { channelId: 'dm', userId: 'a' },
+      { channelId: 'dm', userId: 'b' },
+    ])
+    .run()
 })
 
 describe('searchMessages', () => {

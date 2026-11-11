@@ -18,56 +18,18 @@ async function submit() {
 <template>
   <UCard class="w-full max-w-sm">
     <template #header>
-      <h1 class="font-bold">
-        Sign in to spk
-      </h1>
+      <h1 class="font-bold">Sign in to spk</h1>
     </template>
-    <UForm
-      :state="state"
-      class="flex flex-col gap-3"
-      @submit="submit"
-    >
-      <UFormField
-        label="Email"
-        name="email"
-      >
-        <UInput
-          v-model="state.email"
-          type="email"
-          autocomplete="email"
-          required
-          class="w-full"
-        />
+    <UForm :state="state" class="flex flex-col gap-3" @submit="submit">
+      <UFormField label="Email" name="email">
+        <UInput v-model="state.email" type="email" autocomplete="email" required class="w-full" />
       </UFormField>
-      <UFormField
-        label="Password"
-        name="password"
-      >
-        <UInput
-          v-model="state.password"
-          type="password"
-          autocomplete="current-password"
-          required
-          class="w-full"
-        />
+      <UFormField label="Password" name="password">
+        <UInput v-model="state.password" type="password" autocomplete="current-password" required class="w-full" />
       </UFormField>
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-circle-alert"
-        :title="error"
-      />
-      <UButton
-        type="submit"
-        label="Sign in"
-        icon="i-lucide-log-in"
-        :loading="loading"
-        block
-      />
-      <p class="text-xs text-muted">
-        No account? You need an invite link from an admin.
-      </p>
+      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
+      <UButton type="submit" label="Sign in" icon="i-lucide-log-in" :loading="loading" block />
+      <p class="text-xs text-muted">No account? You need an invite link from an admin.</p>
     </UForm>
   </UCard>
 </template>

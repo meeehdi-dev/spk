@@ -1,6 +1,6 @@
 // Search box syntax (PLAN.md §7), shared by the server (query building) and the client (autocomplete).
 const FILTER_KEYS = ['from', 'mentions', 'in', 'has', 'before', 'after'] as const
-export type FilterKey = typeof FILTER_KEYS[number]
+export type FilterKey = (typeof FILTER_KEYS)[number]
 export const HAS_VALUES = ['file', 'image', 'link'] as const
 const MAX_TERMS = 8
 
@@ -10,7 +10,7 @@ export interface ParsedSearch {
   from: string[]
   mentions: string[]
   in: string[]
-  has: Array<typeof HAS_VALUES[number]>
+  has: Array<(typeof HAS_VALUES)[number]>
   /** Day boundaries as ms (UTC midnight); `before` = older than that day, `after` = newer than the end of that day. */
   before?: number
   after?: number
@@ -37,18 +37,16 @@ export function parseSearch(q: string): ParsedSearch {
       const value = (m[2] ?? m[3] ?? '').trim()
       if (!value) continue // still being typed
       if (key === 'has') {
-        const v = value.toLowerCase() as typeof HAS_VALUES[number]
+        const v = value.toLowerCase() as (typeof HAS_VALUES)[number]
         if ((HAS_VALUES as readonly string[]).includes(v)) {
-          if (!out.has.includes(v))
-            out.has.push(v)
+          if (!out.has.includes(v)) out.has.push(v)
           continue
         }
       } else if (key === 'before' || key === 'after') {
         const day = parseDay(value)
         if (day !== null) {
-          if (key === 'before')
-            out.before = day; else
-            out.after = day + DAY
+          if (key === 'before') out.before = day
+          else out.after = day + DAY
           continue
         }
       } else {
@@ -65,7 +63,7 @@ export const hasAnything = (p: ParsedSearch) =>
   !!(p.terms.length || p.from.length || p.mentions.length || p.in.length || p.has.length || p.before !== undefined || p.after !== undefined)
 
 /** The filter token being typed at the end of the box (`from:Al`), for autocomplete. */
-export function activeFilter(q: string): { key: FilterKey, value: string, start: number } | null {
+export function activeFilter(q: string): { key: FilterKey; value: string; start: number } | null {
   const m = /(?:^|\s)(from|mentions|in|has):([^\s"]*)$/i.exec(q)
   return m ? { key: m[1]!.toLowerCase() as FilterKey, value: m[2]!, start: m.index + m[0].length - m[2]!.length } : null
 }

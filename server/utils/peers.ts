@@ -28,9 +28,8 @@ export const presenceSnapshot = () => Object.fromEntries([...peers.keys()].map(i
 /** A tab reports idle/active; returns the user's new overall presence if it changed. */
 export function setPeerIdle(userId: string, peer: Peer, idle: boolean) {
   const before = presenceOf(userId)
-  if (idle)
-    idlePeers.add(peer); else
-    idlePeers.delete(peer)
+  if (idle) idlePeers.add(peer)
+  else idlePeers.delete(peer)
   const after = presenceOf(userId)
   return after === before ? null : after
 }

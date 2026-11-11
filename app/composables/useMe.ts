@@ -1,4 +1,10 @@
-export interface Me { id: string, email: string, role: 'admin' | 'user', displayName: string | null, avatarKey: string | null }
+export interface Me {
+  id: string
+  email: string
+  role: 'admin' | 'user'
+  displayName: string | null
+  avatarKey: string | null
+}
 
 /** The signed-in user (null if signed out). Refresh after profile changes. */
 export function useMe() {

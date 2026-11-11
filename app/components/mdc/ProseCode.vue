@@ -7,8 +7,5 @@ onMounted(() => {
 </script>
 
 <template>
-  <code
-    ref="el"
-    class="rounded bg-elevated px-1 py-0.5 text-[0.9em]"
-  ><slot /></code>
+  <code ref="el" class="rounded bg-elevated px-1 py-0.5 text-[0.9em]"><slot /></code>
 </template>

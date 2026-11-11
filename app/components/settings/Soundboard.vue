@@ -6,10 +6,16 @@ import { cropMono, encodeWav, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BY
 
 const { data: sounds, refresh } = useSounds()
 const toast = useToast()
-const fail = (title: string) => (e: unknown) => toast.add({ title, description: (e as { statusMessage?: string, message?: string }).statusMessage || (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+const fail = (title: string) => (e: unknown) =>
+  toast.add({
+    title,
+    description: (e as { statusMessage?: string; message?: string }).statusMessage || (e as Error).message,
+    color: 'error',
+    icon: 'i-lucide-circle-alert',
+  })
 
 // Lucide icon names for the picker (loaded only on this tab; aliases left out).
-const iconItems = ref<Array<{ label: string, value: string, icon: string }>>([])
+const iconItems = ref<Array<{ label: string; value: string; icon: string }>>([])
 onMounted(async () => {
   const set = (await import('@iconify-json/lucide/icons.json')).default as { icons: Record<string, unknown> }
   iconItems.value = Object.keys(set.icons).map(n => ({ label: n, value: n, icon: `i-lucide-${n}` }))
@@ -55,30 +61,44 @@ async function load(file: File) {
     const ctx = new AudioContext({ sampleRate: SOUND_RATE })
     decoded.value = await ctx.decodeAudioData(await file.arrayBuffer())
     void ctx.close()
-  } catch { return fail('Could not read that file')({ message: 'The browser cannot decode it' }) }
+  } catch {
+    return fail('Could not read that file')({ message: 'The browser cannot decode it' })
+  }
   form.name = file.name.replace(/\.[^.]+$/, '').slice(0, 32)
   await nextTick()
   const [{ default: WaveSurfer }, { default: Regions }] = await Promise.all([import('wavesurfer.js'), import('wavesurfer.js/plugins/regions')])
   const regions = Regions.create()
-  ws = WaveSurfer.create({ container: box.value!, url: URL.createObjectURL(file), height: 96, waveColor: '#a1a1aa', progressColor: '#f59e0b', plugins: [regions] })
+  ws = WaveSurfer.create({
+    container: box.value!,
+    url: URL.createObjectURL(file),
+    height: 96,
+    waveColor: '#a1a1aa',
+    progressColor: '#f59e0b',
+    plugins: [regions],
+  })
   ws.on('play', () => {
     playing.value = true
   })
   ws.on('pause', () => {
     playing.value = false
   })
-  ws.on('decode', (d) => {
-    region = regions.addRegion({ start: 0, end: Math.min(d, MAX_SOUND_MS / 1000), color: 'rgba(245, 158, 11, 0.25)', minLength: 0.1, maxLength: MAX_SOUND_MS / 1000 })
+  ws.on('decode', d => {
+    region = regions.addRegion({
+      start: 0,
+      end: Math.min(d, MAX_SOUND_MS / 1000),
+      color: 'rgba(245, 158, 11, 0.25)',
+      minLength: 0.1,
+      maxLength: MAX_SOUND_MS / 1000,
+    })
     sel.value = { start: region.start, end: region.end }
   })
-  regions.on('region-updated', (r) => {
+  regions.on('region-updated', r => {
     sel.value = { start: r.start, end: r.end }
   })
 }
 const toggle = () => {
-  if (playing.value)
-    ws?.pause(); else
-    region?.play(true)
+  if (playing.value) ws?.pause()
+  else region?.play(true)
 }
 
 async function save() {
@@ -86,13 +106,24 @@ async function save() {
   saving.value = true
   try {
     const d = decoded.value
-    const mono = cropMono(Array.from({ length: d.numberOfChannels }, (_, i) => d.getChannelData(i)), d.sampleRate, sel.value.start, sel.value.end)
+    const mono = cropMono(
+      Array.from({ length: d.numberOfChannels }, (_, i) => d.getChannelData(i)),
+      d.sampleRate,
+      sel.value.start,
+      sel.value.end,
+    )
     const wav = encodeWav(mono, d.sampleRate)
     if (wav.length > MAX_SOUND_BYTES) throw new Error('The cropped sound is too big')
-    const { id, url, headers } = await $fetch<{ id: string, url: string, headers: Record<string, string> }>('/api/sounds/presign', { method: 'POST', body: { size: wav.length } })
+    const { id, url, headers } = await $fetch<{ id: string; url: string; headers: Record<string, string> }>('/api/sounds/presign', {
+      method: 'POST',
+      body: { size: wav.length },
+    })
     const put = await fetch(url, { method: 'PUT', headers, body: wav as BodyInit })
     if (!put.ok) throw new Error(`Upload failed (${put.status})`)
-    await $fetch('/api/sounds', { method: 'POST', body: { id, name: form.name, icon: form.icon, durationMs: Math.round(mono.length / d.sampleRate * 1000), size: wav.length } })
+    await $fetch('/api/sounds', {
+      method: 'POST',
+      body: { id, name: form.name, icon: form.icon, durationMs: Math.round((mono.length / d.sampleRate) * 1000), size: wav.length },
+    })
     toast.add({ title: 'Sound added', icon: 'i-lucide-check' })
     reset()
     await refresh()
@@ -104,11 +135,13 @@ async function save() {
 }
 
 // --- edit (name and icon) and delete ---
-const editing = ref<{ id: string, name: string, icon: string } | null>(null)
-const editOpen = computed({ get: () => !!editing.value, set: (o) => {
-  if (!o)
-    editing.value = null
-} })
+const editing = ref<{ id: string; name: string; icon: string } | null>(null)
+const editOpen = computed({
+  get: () => !!editing.value,
+  set: o => {
+    if (!o) editing.value = null
+  },
+})
 async function saveEdit() {
   const e = editing.value!
   try {
@@ -119,11 +152,13 @@ async function saveEdit() {
     fail('Could not save')(err)
   }
 }
-const confirmDelete = ref<{ id: string, name: string } | null>(null)
-const deleteOpen = computed({ get: () => !!confirmDelete.value, set: (o) => {
-  if (!o)
-    confirmDelete.value = null
-} })
+const confirmDelete = ref<{ id: string; name: string } | null>(null)
+const deleteOpen = computed({
+  get: () => !!confirmDelete.value,
+  set: o => {
+    if (!o) confirmDelete.value = null
+  },
+})
 async function remove() {
   const s = confirmDelete.value!
   try {
@@ -135,11 +170,26 @@ async function remove() {
     fail('Could not delete')(err)
   }
 }
-const menu = (s: { id: string, name: string, icon: string }) => [[
-  { label: 'Preview', icon: 'i-lucide-play', onSelect: () => playSound(s.id, true) },
-  { label: 'Edit name and icon', icon: 'i-lucide-pencil', onSelect: () => { editing.value = { id: s.id, name: s.name, icon: s.icon } } },
-  { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { confirmDelete.value = { id: s.id, name: s.name } } },
-]]
+const menu = (s: { id: string; name: string; icon: string }) => [
+  [
+    { label: 'Preview', icon: 'i-lucide-play', onSelect: () => playSound(s.id, true) },
+    {
+      label: 'Edit name and icon',
+      icon: 'i-lucide-pencil',
+      onSelect: () => {
+        editing.value = { id: s.id, name: s.name, icon: s.icon }
+      },
+    },
+    {
+      label: 'Delete',
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: () => {
+        confirmDelete.value = { id: s.id, name: s.name }
+      },
+    },
+  ],
+]
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 </script>
 
@@ -147,9 +197,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
   <div class="flex flex-col gap-6">
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Add a sound
-        </h2>
+        <h2 class="font-bold">Add a sound</h2>
       </template>
       <div class="flex flex-col gap-4">
         <UFormField
@@ -164,28 +212,13 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             @dragleave="over = false"
             @drop.prevent="drop"
           >
-            <UIcon
-              name="i-lucide-upload"
-              class="size-8"
-            />
+            <UIcon name="i-lucide-upload" class="size-8" />
             <span>Drop an audio file here, or click to choose</span>
-            <input
-              type="file"
-              accept="audio/*"
-              class="sr-only"
-              aria-label="Audio file"
-              @change="choose"
-            >
+            <input type="file" accept="audio/*" class="sr-only" aria-label="Audio file" @change="choose" />
           </label>
         </UFormField>
-        <div
-          v-show="decoded"
-          class="flex flex-col gap-4"
-        >
-          <div
-            ref="box"
-            class="rounded-md border border-default p-2"
-          />
+        <div v-show="decoded" class="flex flex-col gap-4">
+          <div ref="box" class="rounded-md border border-default p-2" />
           <div class="flex items-center gap-3 text-sm text-muted">
             <UButton
               :icon="playing ? 'i-lucide-pause' : 'i-lucide-play'"
@@ -197,41 +230,14 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             <span>{{ sel.start.toFixed(2) }} s – {{ sel.end.toFixed(2) }} s ({{ (sel.end - sel.start).toFixed(2) }} s, 10 s at most)</span>
           </div>
           <div class="flex flex-wrap items-end gap-2">
-            <UFormField
-              label="Name"
-              class="min-w-48 flex-1"
-            >
-              <UInput
-                v-model="form.name"
-                maxlength="32"
-                class="w-full"
-              />
+            <UFormField label="Name" class="min-w-48 flex-1">
+              <UInput v-model="form.name" maxlength="32" class="w-full" />
             </UFormField>
             <UFormField label="Icon">
-              <USelectMenu
-                v-model="form.icon"
-                :items="iconItems"
-                value-key="value"
-                :icon="`i-lucide-${form.icon}`"
-                virtualize
-                class="w-56"
-                aria-label="Icon"
-              />
+              <USelectMenu v-model="form.icon" :items="iconItems" value-key="value" :icon="`i-lucide-${form.icon}`" virtualize class="w-56" aria-label="Icon" />
             </UFormField>
-            <UButton
-              label="Save"
-              icon="i-lucide-save"
-              :loading="saving"
-              :disabled="!form.name.trim() || !iconItems.length"
-              @click="save"
-            />
-            <UButton
-              label="Discard"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              @click="reset"
-            />
+            <UButton label="Save" icon="i-lucide-save" :loading="saving" :disabled="!form.name.trim() || !iconItems.length" @click="save" />
+            <UButton label="Discard" icon="i-lucide-x" color="neutral" variant="ghost" @click="reset" />
           </div>
         </div>
       </div>
@@ -239,59 +245,27 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
     <UCard>
       <template #header>
-        <h2 class="font-bold">
-          Sounds
-        </h2>
+        <h2 class="font-bold">Sounds</h2>
       </template>
-      <p
-        v-if="!sounds.length"
-        class="text-sm text-muted"
-      >
-        No sounds yet.
-      </p>
+      <p v-if="!sounds.length" class="text-sm text-muted">No sounds yet.</p>
       <ul class="divide-y divide-default">
-        <UContextMenu
-          v-for="s in sounds"
-          :key="s.id"
-          :items="menu(s)"
-        >
+        <UContextMenu v-for="s in sounds" :key="s.id" :items="menu(s)">
           <li class="flex items-center gap-3 py-2 text-sm">
-            <UIcon
-              :name="`i-lucide-${s.icon}`"
-              class="size-5"
-            />
+            <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
             <span class="min-w-0 flex-1 truncate">{{ s.name }} <span class="text-xs text-muted">· {{ secs(s.durationMs) }}</span></span>
             <UDropdownMenu :items="menu(s)">
-              <UButton
-                icon="i-lucide-ellipsis"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                :aria-label="`Actions for ${s.name}`"
-              />
+              <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" size="sm" :aria-label="`Actions for ${s.name}`" />
             </UDropdownMenu>
           </li>
         </UContextMenu>
       </ul>
     </UCard>
 
-    <UModal
-      v-model:open="editOpen"
-      title="Edit sound"
-      description="Name and icon only. To change the crop, delete the sound and upload it again."
-    >
+    <UModal v-model:open="editOpen" title="Edit sound" description="Name and icon only. To change the crop, delete the sound and upload it again.">
       <template #body>
-        <form
-          v-if="editing"
-          class="flex flex-col gap-4"
-          @submit.prevent="saveEdit"
-        >
+        <form v-if="editing" class="flex flex-col gap-4" @submit.prevent="saveEdit">
           <UFormField label="Name">
-            <UInput
-              v-model="editing.name"
-              maxlength="32"
-              class="w-full"
-            />
+            <UInput v-model="editing.name" maxlength="32" class="w-full" />
           </UFormField>
           <UFormField label="Icon">
             <USelectMenu
@@ -304,33 +278,14 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
               aria-label="Icon"
             />
           </UFormField>
-          <UButton
-            type="submit"
-            label="Save"
-            icon="i-lucide-save"
-            :disabled="!editing.name.trim()"
-          />
+          <UButton type="submit" label="Save" icon="i-lucide-save" :disabled="!editing.name.trim()" />
         </form>
       </template>
     </UModal>
-    <UModal
-      v-model:open="deleteOpen"
-      title="Delete sound"
-      :description="`Delete “${confirmDelete?.name}”? This can't be undone.`"
-    >
+    <UModal v-model:open="deleteOpen" title="Delete sound" :description="`Delete “${confirmDelete?.name}”? This can't be undone.`">
       <template #footer>
-        <UButton
-          label="Cancel"
-          color="neutral"
-          variant="ghost"
-          @click="deleteOpen = false"
-        />
-        <UButton
-          label="Delete"
-          icon="i-lucide-trash-2"
-          color="error"
-          @click="remove"
-        />
+        <UButton label="Cancel" color="neutral" variant="ghost" @click="deleteOpen = false" />
+        <UButton label="Delete" icon="i-lucide-trash-2" color="error" @click="remove" />
       </template>
     </UModal>
   </div>

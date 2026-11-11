@@ -20,8 +20,7 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
   const buf = new ArrayBuffer(44 + samples.length * 2)
   const v = new DataView(buf)
   const text = (at: number, s: string) => {
-    for (let i = 0; i < s.length; i++)
-      v.setUint8(at + i, s.charCodeAt(i))
+    for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i))
   }
   text(0, 'RIFF')
   v.setUint32(4, 36 + samples.length * 2, true)

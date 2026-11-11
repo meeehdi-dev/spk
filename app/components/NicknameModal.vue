@@ -20,40 +20,14 @@ async function save() {
 </script>
 
 <template>
-  <UModal
-    :open="true"
-    :dismissible="false"
-    :close="false"
-    title="Welcome to spk"
-    description="Choose a nickname and, optionally, an avatar."
-  >
+  <UModal :open="true" :dismissible="false" :close="false" title="Welcome to spk" description="Choose a nickname and, optionally, an avatar.">
     <template #body>
-      <form
-        class="flex flex-col gap-4"
-        @submit.prevent="save"
-      >
+      <form class="flex flex-col gap-4" @submit.prevent="save">
         <AvatarPicker />
-        <UFormField
-          label="Nickname"
-          hint="2 to 32 characters"
-          :error="error"
-        >
-          <UInput
-            v-model="nickname"
-            minlength="2"
-            maxlength="32"
-            required
-            autofocus
-            class="w-full"
-          />
+        <UFormField label="Nickname" hint="2 to 32 characters" :error="error">
+          <UInput v-model="nickname" minlength="2" maxlength="32" required autofocus class="w-full" />
         </UFormField>
-        <UButton
-          type="submit"
-          label="Continue"
-          icon="i-lucide-check"
-          :loading="loading"
-          block
-        />
+        <UButton type="submit" label="Continue" icon="i-lucide-check" :loading="loading" block />
       </form>
     </template>
   </UModal>

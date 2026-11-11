@@ -18,7 +18,10 @@ export function dayLabel(ts: number, now = Date.now()) {
   const diff = Math.round((startOf(today) - startOf(d)) / 86_400_000)
   if (diff === 0) return 'Today'
   if (diff === 1) return 'Yesterday'
-  return d.toLocaleDateString([], d.getFullYear() === today.getFullYear() ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(
+    [],
+    d.getFullYear() === today.getFullYear() ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
 }
 
 export const dayKey = (ts: number) => new Date(ts).toDateString()

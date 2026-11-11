@@ -9,4 +9,5 @@ dist
 !.env.example
 *.log
 *.tsbuildinfo
+tests/.lint-*
 .DS_Store

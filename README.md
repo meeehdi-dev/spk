@@ -31,28 +31,38 @@ livekit-server --dev     # voice; dev key/secret are devkey / secret
 
 On first start with an empty database, the server logs an admin invite link. Open it to create the first admin. `localhost` allows mic and camera without HTTPS; elsewhere you need HTTPS.
 
-Run `pnpm lint` to check formatting, import order, Tailwind class order, and promise handling. Use `pnpm lint:fix` to apply autofixes, or `pnpm exec eslint <file> --fix` for individual files. ESLint uses Nuxt's generated configuration, so run `pnpm exec nuxt prepare` first in a fresh checkout. CI requires lint to pass alongside the existing checks.
+Run `pnpm exec nuxt prepare` first in a fresh checkout; both linters use Nuxt's generated configuration and types.
+
+- `pnpm lint` runs Oxlint with type-aware checks, then ESLint for unsupported checks. `pnpm lint:fix` applies their autofixes.
+- `pnpm fmt` formats files, sorts imports and Tailwind classes (including Nuxt UI `:ui`/`v-bind:ui` slots), and sorts `package.json`, including scripts. `pnpm fmt:check` checks without writing. Formatting targets 160 columns; Markdown prose wrapping is preserved.
+- For individual files, use `pnpm exec oxlint --type-aware <file> --fix`, `pnpm exec eslint <file> --fix`, and `pnpm exec oxfmt --write <file>`.
+
+Oxlint owns the migrated core, TypeScript, and supported Vue script rules. Its JavaScript plugins enforce Nuxt conventions and Tailwind ordering in variables, function calls, and tagged templates; Oxfmt sorts classes in attributes using the app stylesheet. ESLint retains Vue template rules and Vue rules without an equivalent implementation. It also retains unused-variable checks in Vue and declaration files, and type-import and floating-promise checks in Vue, where Oxlint lacks the required template or type analysis. The remaining core `no-octal` rule has no Oxlint equivalent. Existing rule options and underscore exceptions are preserved.
+
+CI checks lint and formatting in separate steps alongside the other checks. Oxfmt ignores generated database migrations and the dependency lockfile.
+
+Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks script variables/calls; ESLint checks Vue attributes and Nuxt UI slot values. Oxfmt preserves duplicates so lint can report them; `pnpm lint:fix` removes exact duplicates. Conflicting utilities require choosing the intended style; classes in separate slots, alternative branches, and distinct responsive variants are checked independently.
 
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `BETTER_AUTH_SECRET` | yes | Session signing secret |
-| `BETTER_AUTH_URL` | yes | Public app URL, e.g. `https://chat.example.com` |
-| `NUXT_DATABASE_PATH` | yes | SQLite file (`./data/spk.db` in dev, `/app/data/spk.db` in the image) |
-| `NUXT_R2_ACCOUNT_ID` | yes | Cloudflare R2 account id |
-| `NUXT_R2_ACCESS_KEY_ID` | yes | R2 API token key id (Object Read & Write) |
-| `NUXT_R2_SECRET_ACCESS_KEY` | yes | R2 API token secret |
-| `NUXT_R2_BUCKET` | yes | R2 bucket name |
-| `NUXT_PUBLIC_LIVEKIT_URL` | yes | LiveKit WebSocket URL used by the browser, e.g. `wss://rtc.chat.example.com` |
-| `NUXT_LIVEKIT_API_KEY` | yes | LiveKit API key (must match the LiveKit server) |
-| `NUXT_LIVEKIT_API_SECRET` | yes | LiveKit API secret (must match the LiveKit server) |
-| `NUXT_PUBLIC_VAPID_PUBLIC_KEY` | for push | Web Push public key |
-| `NUXT_VAPID_PRIVATE_KEY` | for push | Web Push private key |
-| `NUXT_VAPID_SUBJECT` | for push | Web Push contact, e.g. `mailto:you@example.com` |
-| `NUXT_KLIPY_API_KEY` | for GIFs | Klipy API key for the GIF proxy |
+| Variable                       | Required | Purpose                                                                      |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`           | yes      | Session signing secret                                                       |
+| `BETTER_AUTH_URL`              | yes      | Public app URL, e.g. `https://chat.example.com`                              |
+| `NUXT_DATABASE_PATH`           | yes      | SQLite file (`./data/spk.db` in dev, `/app/data/spk.db` in the image)        |
+| `NUXT_R2_ACCOUNT_ID`           | yes      | Cloudflare R2 account id                                                     |
+| `NUXT_R2_ACCESS_KEY_ID`        | yes      | R2 API token key id (Object Read & Write)                                    |
+| `NUXT_R2_SECRET_ACCESS_KEY`    | yes      | R2 API token secret                                                          |
+| `NUXT_R2_BUCKET`               | yes      | R2 bucket name                                                               |
+| `NUXT_PUBLIC_LIVEKIT_URL`      | yes      | LiveKit WebSocket URL used by the browser, e.g. `wss://rtc.chat.example.com` |
+| `NUXT_LIVEKIT_API_KEY`         | yes      | LiveKit API key (must match the LiveKit server)                              |
+| `NUXT_LIVEKIT_API_SECRET`      | yes      | LiveKit API secret (must match the LiveKit server)                           |
+| `NUXT_PUBLIC_VAPID_PUBLIC_KEY` | for push | Web Push public key                                                          |
+| `NUXT_VAPID_PRIVATE_KEY`       | for push | Web Push private key                                                         |
+| `NUXT_VAPID_SUBJECT`           | for push | Web Push contact, e.g. `mailto:you@example.com`                              |
+| `NUXT_KLIPY_API_KEY`           | for GIFs | Klipy API key for the GIF proxy                                              |
 
 ## Deploy
 

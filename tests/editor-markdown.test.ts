@@ -9,7 +9,12 @@ import { fixSpoilerSeams, Spoiler, SpkMention } from '../app/utils/editor-extens
 const names: Record<string, string> = { u1: 'Alex' }
 function roundTrip(md: string) {
   const editor = new Editor({
-    extensions: [Markdown.configure({ markedOptions: { gfm: true } }), StarterKit.configure({ underline: false }), SpkMention.configure({ getLabel: id => names[id] }), Spoiler],
+    extensions: [
+      Markdown.configure({ markedOptions: { gfm: true } }),
+      StarterKit.configure({ underline: false }),
+      SpkMention.configure({ getLabel: id => names[id] }),
+      Spoiler,
+    ],
     content: md,
     contentType: 'markdown',
   })
