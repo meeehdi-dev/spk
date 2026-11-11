@@ -99,16 +99,16 @@ const current = (saved?: { deviceId: string, label: string }, list: MediaDeviceI
      <div :class="panel ? 'flex items-center justify-center gap-1' : 'contents'">
       <SoundboardPopover />
       <UFieldGroup>
-      <UTooltip :text="v.screenOn.value ? 'Stop sharing' : 'Share screen'" :kbds="['meta', 'alt', 'shift', 'S']">
+      <UTooltip :text="v.screenOn.value || v.screenBusy.value ? 'Stop sharing' : 'Share screen'" :kbds="['meta', 'alt', 'shift', 'S']">
         <UButton :icon="v.screenOn.value ? 'i-lucide-monitor-off' : 'i-lucide-screen-share'" :color="v.screenOn.value ? 'primary' : 'neutral'" :variant="v.screenOn.value ? 'soft' : 'ghost'"
-          :disabled="!v.channelId.value" :aria-label="v.screenOn.value ? 'Stop sharing' : 'Share screen'" @click="v.toggleScreen()" />
+          :disabled="!v.channelId.value" :aria-label="v.screenOn.value || v.screenBusy.value ? 'Stop sharing' : 'Share screen'" @click="v.toggleScreen()" />
       </UTooltip>
       <UPopover :content="{ align: 'end', side: 'top' }">
         <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Screen share options" />
         <template #content>
           <div class="w-72 space-y-3 p-3 text-sm">
-            <URadioGroup v-model="v.settings.value.screenQuality" legend="Quality" :items="[{ label: 'Eco: 5 fps, up to 1440p', value: 'eco' }, { label: 'Smooth: 60 fps, up to 1080p', value: 'smooth' }]" />
-            <USwitch v-model="v.settings.value.screenAudio" label="Share audio" description="Applies the next time you start sharing." />
+            <URadioGroup :model-value="v.settings.value.screenQuality" :disabled="v.screenBusy.value" legend="Quality" :items="[{ label: 'Eco: 5 fps, up to 1440p', value: 'eco' }, { label: 'Smooth: 60 fps, up to 1080p', value: 'smooth' }]" @update:model-value="v.setScreenQuality($event as 'eco' | 'smooth')" />
+            <USwitch :model-value="v.settings.value.screenAudio" :disabled="v.screenBusy.value" label="Share audio" @update:model-value="v.setScreenAudio($event)" />
           </div>
         </template>
       </UPopover>

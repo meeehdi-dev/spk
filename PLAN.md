@@ -284,7 +284,9 @@ Per-channel GIF selections, reply targets, attachment queues (including running 
 
 ### Screen share
 - **One click** on the share button (or ⌘⌥⇧S) opens the browser's own picker (it can't be replaced in a web app). No pre-share dialog.
-- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch and the **Quality** choice (radio group, saved per browser, applies the next time you start sharing).
+- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch and the **Quality** choice (radio group, saved per browser). Both apply immediately during a share; inactive changes only save preferences.
+- Quality briefly republishes only screen video, retaining capture without another picker. Watch stays selected through this gap and later shares by the same person in this call, until Stop watching or either person leaves voice. Older clients may need to click Watch again.
+- Audio off immediately mutes screen audio; on resumes captured audio. If audio permission is missing, enabling it reopens the browser picker. Cancellation, denial, or a source without audio preserves the current share; successful permission can replace the shared surface.
 - Picker hints: `displaySurface`, `selfBrowserSurface: 'exclude'`, `systemAudio`, `surfaceSwitching: 'include'` (Chromium; other browsers ignore most of them).
 
 Screen share quality has two options. **Eco** is the default (tuned for sharp text, much less bandwidth and CPU/GPU); **Smooth** is for games and video:

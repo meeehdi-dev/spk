@@ -10,9 +10,9 @@ export interface VoiceSettings {
   sounds: Record<VoiceSound, { on: boolean, volume: number }>
   /** Soundboard sounds from others: its own switch and volume. */
   soundboard: { on: boolean, volume: number }
-  /** Share audio with the screen (the chevron next to the share button). */
+  /** Apply live; enabling audio may reopen the browser picker when permission is missing. */
   screenAudio: boolean
-  /** Screen share quality preset, applied the next time you start sharing. */
+  /** Apply live by briefly republishing screen video, retaining its capture. */
   screenQuality: ScreenQuality
 }
 

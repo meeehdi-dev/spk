@@ -32,7 +32,7 @@ const vol = computed(() => userVolume(v.volumes.value, props.tile.userId))
 const watchToggle = () => v.watch(props.tile.userId, !props.tile.watching)
 const items = computed(() => [[
   ...(props.tile.local ? (props.tile.screenLive ? [{ label: preview.value ? 'Hide preview' : 'Show preview', icon: 'i-lucide-eye', onSelect: () => { preview.value = !preview.value } }] : [])
-    : live.value ? [{ label: props.tile.watching ? 'Stop watching' : 'Watch', icon: props.tile.watching ? 'i-lucide-eye-off' : 'i-lucide-eye', kbds: ['W'], onSelect: watchToggle }] : []),
+    : live.value || props.tile.watching ? [{ label: props.tile.watching ? 'Stop watching' : 'Watch', icon: props.tile.watching ? 'i-lucide-eye-off' : 'i-lucide-eye', kbds: ['W'], onSelect: watchToggle }] : []),
   { label: props.theater ? 'Exit theater mode' : 'Theater mode', icon: 'i-lucide-rectangle-horizontal', kbds: ['T'], onSelect: () => emit('theater') },
   { label: 'Fullscreen', icon: 'i-lucide-maximize', kbds: ['F'], onSelect: () => fullscreen() }
 ], ...admin.userGroups(props.tile.userId)].filter(g => g.length))
@@ -45,7 +45,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   const k = e.key.toLowerCase()
   if (k === 't') emit('theater')
   else if (k === 'f') void fullscreen()
-  else if (k === 'w' && !props.tile.local && live.value) watchToggle()
+  else if (k === 'w' && !props.tile.local && (live.value || props.tile.watching)) watchToggle()
   else return
   e.preventDefault()
 })
@@ -73,7 +73,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       </span>
 
       <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-        <UTooltip v-if="!tile.local && live && tile.watching" text="Stop watching" :kbds="['W']"><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle" /></UTooltip>
+        <UTooltip v-if="!tile.local && tile.watching" text="Stop watching" :kbds="['W']"><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle" /></UTooltip>
         <UTooltip :text="theater ? 'Exit theater mode' : 'Theater mode'" :kbds="['T']"><UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" size="xs" aria-label="Theater mode" @click="emit('theater')" /></UTooltip>
         <UTooltip text="Fullscreen" :kbds="['F']"><UButton icon="i-lucide-maximize" color="neutral" variant="solid" size="xs" aria-label="Fullscreen" @click="fullscreen()" /></UTooltip>
       </div>

@@ -1,6 +1,6 @@
-import type { Participant, RemoteAudioTrack, Room, Track, VideoTrack } from 'livekit-client'
+import type { LocalAudioTrack, LocalTrack, LocalVideoTrack, Participant, RemoteAudioTrack, Room, ScreenShareCaptureOptions, Track, TrackPublishOptions, VideoTrack } from 'livekit-client'
 import { watch as watchSocket } from 'vue'
-import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
+import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type ScreenQuality, type UserVolume } from '#shared/utils/voice'
 import type { MicProcessor } from '~/utils/voice-processor'
 
 export interface VoiceMember { channelId: string, muted: boolean, deafened: boolean, speaking: boolean, cam: boolean, screen: boolean }
@@ -23,6 +23,12 @@ const tiles = shallowRef<VoiceTile[]>([])
 const watching = ref<string[]>([])
 const camOn = ref(false)
 const screenOn = ref(false)
+const screenBusy = ref(false)
+let screenEpoch = 0
+type ScreenSession = { video: LocalVideoTrack, audio?: LocalAudioTrack, publication?: LocalVideoTrack }
+let screenSession: ScreenSession | undefined
+// Stop/leave must reach accepted replacement capture even while publication is pending.
+let pendingScreenSession: ScreenSession | undefined
 const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
@@ -95,13 +101,13 @@ export function useVoice() {
   }
   function rebuild() {
     if (!room) { tiles.value = []; camOn.value = screenOn.value = false; return }
-    watching.value = watching.value.filter(id => room!.remoteParticipants.get(id)?.videoTrackPublications.size)
+    watching.value = watching.value.filter(id => room!.remoteParticipants.has(id))
     syncSubs()
     const make = (p: Participant): VoiceTile => {
-      const cam = p.getTrackPublication('camera' as Track.Source), scr = p.getTrackPublication('screen_share' as Track.Source)
+      const cam = p.getTrackPublication('camera' as Track.Source), scr = p.getTrackPublication('screen_share' as Track.Source), audio = p.getTrackPublication('screen_share_audio' as Track.Source)
       const camLive = !!cam && !cam.isMuted, local = p.isLocal, w = local || watching.value.includes(p.identity)
       return {
-        userId: p.identity, local, speaking: p.isSpeaking, camLive, screenLive: !!scr, screenAudio: !!p.getTrackPublication('screen_share_audio' as Track.Source), watching: w,
+        userId: p.identity, local, speaking: p.isSpeaking, camLive, screenLive: !!scr || (local && !!screenSession), screenAudio: !!audio && !audio.isMuted, watching: w,
         cam: camLive && w ? cam!.track as VideoTrack | undefined : undefined, screen: scr && w ? scr.track as VideoTrack | undefined : undefined
       }
     }
@@ -232,6 +238,11 @@ export function useVoice() {
     pending?.abort()
     const r = room
     if (!r && !channelId.value && !pending) return
+    screenEpoch++
+    for (const s of [screenSession, pendingScreenSession]) {
+      if (s) for (const t of screenTracks(s)) t.stop()
+    }
+    screenSession = pendingScreenSession = undefined
     room = undefined
     watching.value = []
     const was = channelId.value
@@ -288,23 +299,191 @@ export function useVoice() {
     await room.localParticipant.setCameraEnabled(on, on ? { deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId } : undefined).catch(fail('Could not turn the camera on'))
     rebuild()
   }
-  /** Must run from a click (the browser's picker needs a user gesture): the share button or its shortcut. */
-  async function startScreen() {
-    if (!room) return
-    const p = SCREEN_SHARE_PRESETS[settings.value.screenQuality]
-    // Screen audio is captured raw (no browser processing) and published as its own track with no processor, whatever the mic noise setting is.
-    await room.localParticipant.setScreenShareEnabled(true, {
-      audio: settings.value.screenAudio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: p.contentHint, // 0×0: LiveKit adds no `ideal` size
-      // `max` is a ceiling, so the capture is never upscaled past the shared surface; LiveKit's type only declares displaySurface.
-      video: { displaySurface: 'monitor', width: { max: p.resolution.width }, height: { max: p.resolution.height }, frameRate: { ideal: p.resolution.frameRate, max: p.resolution.frameRate } } as { displaySurface: 'monitor' }, selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include'
-    }, {
-      ...SCREEN_AUDIO_PUBLISH, simulcast: false, videoCodec: p.codec, backupCodec: p.codec === 'vp9' ? { codec: 'vp8' } : false, degradationPreference: p.degradationPreference,
-      screenShareEncoding: { maxBitrate: p.maxBitrate, maxFramerate: p.resolution.frameRate }
-    }).catch((e: Error) => { if (e.name !== 'NotAllowedError') fail('Could not share your screen')(e) }) // NotAllowedError = picker cancelled
-    rebuild()
+  const screenConstraints = (quality: ScreenQuality): MediaTrackConstraints => {
+    const { width, height, frameRate } = SCREEN_SHARE_PRESETS[quality].resolution
+    return { width: { max: width }, height: { max: height }, frameRate: { ideal: frameRate, max: frameRate } }
   }
-  const stopScreen = async () => { await room?.localParticipant.setScreenShareEnabled(false); rebuild() }
-  const toggleScreen = () => { if (!channelId.value) return; if (screenOn.value) void stopScreen(); else void startScreen() }
+  const screenCapture = (quality: ScreenQuality, audio: boolean): ScreenShareCaptureOptions => ({
+    audio: audio ? SCREEN_AUDIO_CAPTURE : false, resolution: { width: 0, height: 0 }, contentHint: SCREEN_SHARE_PRESETS[quality].contentHint,
+    // `max` never upscales the surface; LiveKit's type only declares displaySurface.
+    video: { displaySurface: 'monitor', ...screenConstraints(quality) } as { displaySurface: 'monitor' },
+    selfBrowserSurface: 'exclude', systemAudio: 'include', surfaceSwitching: 'include'
+  })
+  const screenPublish = (quality: ScreenQuality): TrackPublishOptions => {
+    const p = SCREEN_SHARE_PRESETS[quality]
+    return {
+      ...SCREEN_AUDIO_PUBLISH, simulcast: false, videoCodec: p.codec, backupCodec: { codec: 'vp8' }, degradationPreference: p.degradationPreference,
+      screenShareEncoding: { maxBitrate: p.maxBitrate, maxFramerate: p.resolution.frameRate }
+    }
+  }
+  const screenTracks = (s: NonNullable<typeof screenSession>): LocalTrack[] => [s.video, ...(s.publication ? [s.publication] : []), ...(s.audio ? [s.audio] : [])]
+  async function discardScreen(r: Room, tracks: LocalTrack[]) {
+    // Stop capture even if unpublishing fails (or the room has already disconnected).
+    for (const t of tracks) t.stop()
+    await Promise.all(tracks.map(t => r.localParticipant.unpublishTrack(t).catch(fail('Could not stop screen track'))))
+  }
+  function capturedScreen(video: LocalVideoTrack, audio?: LocalAudioTrack): NonNullable<typeof screenSession> {
+    const s = { video, audio }
+    video.mediaStreamTrack.addEventListener('ended', () => { if (screenSession === s) void stopScreen() }, { once: true })
+    return s
+  }
+  async function unpublishScreenVideo(r: Room, s: NonNullable<typeof screenSession>) {
+    if (!s.publication) return
+    // Stop primary AND backup clones before unpublish forgets them; the source stays owned.
+    s.publication.stop()
+    await r.localParticipant.unpublishTrack(s.publication)
+    s.publication = undefined
+  }
+  async function publishScreenVideo(r: Room, s: NonNullable<typeof screenSession>, quality: ScreenQuality) {
+    const { LocalVideoTrack } = await import('livekit-client')
+    if (s.video.mediaStreamTrack.readyState !== 'live') throw new Error('The screen capture stopped before it could be shared.')
+    const video = new LocalVideoTrack(s.video.mediaStreamTrack.clone())
+    video.source = s.video.source
+    s.publication = video
+    await r.localParticipant.publishTrack(video, screenPublish(quality))
+    // LiveKit can override the hint while configuring VP9; keep the selected preset.
+    video.mediaStreamTrack.contentHint = s.video.mediaStreamTrack.contentHint = SCREEN_SHARE_PRESETS[quality].contentHint
+  }
+  /** Must run directly from a click: no await before createScreenTracks opens the picker. */
+  async function startScreen() {
+    if (!room || screenBusy.value || screenSession) return
+    const r = room, epoch = ++screenEpoch, quality = settings.value.screenQuality
+    const current = () => room === r && screenEpoch === epoch
+    let tracks: LocalTrack[] = []
+    let captured: ScreenSession | undefined
+    screenBusy.value = true
+    try {
+      tracks = await r.localParticipant.createScreenTracks(screenCapture(quality, settings.value.screenAudio))
+      if (!current()) return
+      const video = tracks.find(t => t.kind === 'video') as LocalVideoTrack
+      const audio = tracks.find(t => t.kind === 'audio') as LocalAudioTrack | undefined
+      captured = capturedScreen(video, audio)
+      screenSession = captured
+      await publishScreenVideo(r, captured, quality)
+      if (!current()) return
+      if (audio) await r.localParticipant.publishTrack(audio, SCREEN_AUDIO_PUBLISH)
+      if (current()) settings.value.screenAudio = !!audio
+    } catch (e) {
+      if (current()) {
+        screenSession = undefined
+        await discardScreen(r, captured ? screenTracks(captured) : tracks)
+        if ((e as Error).name !== 'NotAllowedError') fail('Could not share your screen')(e)
+      }
+    } finally {
+      if (!current()) await discardScreen(r, captured ? screenTracks(captured) : tracks)
+      screenBusy.value = false
+      rebuild()
+    }
+  }
+  async function stopScreen() {
+    screenEpoch++
+    const r = room, tracks = [screenSession, pendingScreenSession].flatMap(s => s ? screenTracks(s) : [])
+    screenSession = pendingScreenSession = undefined
+    rebuild()
+    if (r) await discardScreen(r, tracks)
+  }
+  async function setScreenQuality(quality: ScreenQuality) {
+    if (screenBusy.value) return
+    if (!room || !screenSession) { settings.value.screenQuality = quality; return }
+    const r = room, s = screenSession, epoch = screenEpoch, previous = settings.value.screenQuality
+    const current = () => room === r && screenEpoch === epoch && screenSession === s
+    const apply = async (q: ScreenQuality) => {
+      await s.video.mediaStreamTrack.applyConstraints(screenConstraints(q))
+      if (!current()) return
+      await unpublishScreenVideo(r, s)
+      if (!current()) return
+      await publishScreenVideo(r, s, q)
+    }
+    screenBusy.value = true
+    try {
+      await apply(quality)
+      if (current()) settings.value.screenQuality = quality
+    } catch (e) {
+      if (current()) {
+        fail('Could not change screen quality')(e)
+        try { await apply(previous) } catch (restoreError) {
+          if (current()) { fail('Could not restore screen sharing')(restoreError); await stopScreen() }
+        }
+      }
+    } finally {
+      if (!current()) await discardScreen(r, screenTracks(s))
+      screenBusy.value = false
+      rebuild()
+    }
+  }
+  async function setScreenAudio(on: boolean) {
+    if (screenBusy.value) return
+    if (!room || !screenSession) { settings.value.screenAudio = on; return }
+    const r = room, s = screenSession, epoch = screenEpoch
+    const current = () => room === r && screenEpoch === epoch && screenSession === s
+    const usableAudio = s.audio?.mediaStreamTrack.readyState === 'live' ? s.audio : undefined
+    let tracks: LocalTrack[] = [], replaced = false
+    let replacement: NonNullable<typeof screenSession> | undefined
+    screenBusy.value = true
+    try {
+      if (!on || usableAudio) {
+        await (on ? usableAudio?.unmute() : s.audio?.mute())
+        if (current()) settings.value.screenAudio = on && !!usableAudio
+        return
+      }
+      // Capture raw screen audio, never mic processing. Keep the old share until permission succeeds.
+      tracks = await r.localParticipant.createScreenTracks(screenCapture(settings.value.screenQuality, true))
+      if (!current()) return
+      const video = tracks.find(t => t.kind === 'video') as LocalVideoTrack
+      const audio = tracks.find(t => t.kind === 'audio') as LocalAudioTrack | undefined
+      if (!audio) throw new Error('This browser or selected source did not provide audio. Choose an audio-capable source and enable audio in the picker.')
+      replacement = pendingScreenSession = capturedScreen(video, audio)
+      const requireLive = () => {
+        if (video.mediaStreamTrack.readyState !== 'live' || audio.mediaStreamTrack.readyState !== 'live') throw new Error('The replacement screen capture stopped before it could be shared.')
+      }
+      requireLive()
+      replaced = true
+      await unpublishScreenVideo(r, s)
+      if (!current()) return
+      requireLive()
+      if (s.audio) {
+        await r.localParticipant.unpublishTrack(s.audio, false)
+        if (!current()) return
+        requireLive()
+      }
+      await publishScreenVideo(r, replacement, settings.value.screenQuality)
+      if (!current()) return
+      requireLive()
+      await r.localParticipant.publishTrack(audio, SCREEN_AUDIO_PUBLISH)
+      if (!current()) return
+      requireLive()
+      screenSession = replacement
+      pendingScreenSession = undefined
+      settings.value.screenAudio = true
+      for (const t of screenTracks(s)) t.stop()
+      tracks = [] // owned by the new session now
+    } catch (e) {
+      if (current()) {
+        fail('Could not change screen audio')(e)
+        if (replaced) {
+          await discardScreen(r, replacement ? screenTracks(replacement) : tracks)
+          if (pendingScreenSession === replacement) pendingScreenSession = undefined
+          replacement = undefined
+          tracks = []
+          if (!current()) return
+          try {
+            await publishScreenVideo(r, s, settings.value.screenQuality)
+            if (current() && s.audio) await r.localParticipant.publishTrack(s.audio, SCREEN_AUDIO_PUBLISH)
+          } catch (restoreError) {
+            if (current()) { fail('Could not restore screen sharing')(restoreError); await stopScreen() }
+          }
+        }
+        if (current()) settings.value.screenAudio = !!s.audio && !s.audio.isMuted && s.audio.mediaStreamTrack.readyState === 'live'
+      }
+    } finally {
+      await discardScreen(r, tracks.length && replacement ? screenTracks(replacement) : tracks)
+      if (pendingScreenSession === replacement) pendingScreenSession = undefined
+      if (screenEpoch !== epoch || room !== r) await discardScreen(r, screenTracks(s))
+      screenBusy.value = false
+      rebuild()
+    }
+  }
+  const toggleScreen = () => { if (!channelId.value) return; if (screenOn.value || screenBusy.value) void stopScreen(); else void startScreen() }
   const watch = (id: string, on: boolean) => { watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id); rebuild() }
   const setVolume = (id: string, patch: Partial<UserVolume>) => { volumes.value = { ...volumes.value, [id]: { ...volumes.value[id], ...patch } }; applyOutput() }
   /** Context-menu entries for a person in the channel you're in: mute for me and the volume sliders. */
@@ -326,7 +505,7 @@ export function useVoice() {
     tiles: computed(() => {
       const remote = new Map(tiles.value.filter(t => !t.local).map(t => [t.userId, t]))
       return [...tiles.value.filter(t => t.local), ...Object.keys(presence.value).flatMap(id => remote.has(id) ? [remote.get(id)!] : [])]
-    }), watching, camOn, screenOn, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
+    }), watching, camOn, screenOn, screenBusy, setScreenQuality, setScreenAudio, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
     join, move, leave, toggleMic, toggleHeadphones, applySettings, pickDevice, routeOutputs, refreshDevices, cycleNoise, toggleEcho, toggleAgc, applyOutput,
     activeRoom: () => room
   }
