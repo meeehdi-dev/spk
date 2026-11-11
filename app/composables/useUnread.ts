@@ -52,9 +52,8 @@ export async function openDmWith(userId: string) {
     const dm = await $fetch<{ id: string }>('/api/dms', { method: 'POST', body: { userId } })
     await refreshNuxtData('channels')
     await navigateTo(`/c/${dm.id}`)
-  } catch (cause) {
-    const e = cause as { statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
-    useToast().add({ title: e?.statusMessage || 'Could not open the DM', color: 'error', icon: 'i-lucide-circle-alert' })
+  } catch (e) {
+    useToast().add({ title: errorText(e, 'Could not open the DM'), color: 'error', icon: 'i-lucide-circle-alert' })
   }
 }
 

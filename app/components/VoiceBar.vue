@@ -9,10 +9,11 @@ const name = computed(() => channels.value.find(c => c.id === v.channelId.value)
 const noiseItems = [
   { label: 'Off', value: 'off' },
   { label: 'Standard (browser)', value: 'standard' },
-  { label: 'Enhanced (RNNoise)', value: 'enhanced' },
+  { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' },
 ]
 const deviceItems = (list: MediaDeviceInfo[]) => list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))
-const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
 }
@@ -102,12 +103,21 @@ const current = (saved?: { deviceId: string; label: string }, list: MediaDeviceI
             <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Headphone options" />
             <template #content>
               <div class="flex w-72 flex-col gap-3 p-3 text-sm">
-                <UFormField v-if="v.canPickOutput" label="Output device">
+                <UFormField
+                  v-for="output in v.canPickOutput
+                    ? ([
+                        { kind: 'speaker', label: 'Voice output' },
+                        { kind: 'screenSpeaker', label: 'Screen-share output' },
+                      ] as const)
+                    : []"
+                  :key="output.kind"
+                  :label="output.label"
+                >
                   <USelect
-                    :model-value="current(v.settings.value.speaker, v.devices.value.speakers)"
-                    :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.speakers)]"
+                    :model-value="current(v.settings.value[output.kind], v.devices.value.speakers)"
+                    :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))]"
                     class="w-full"
-                    @update:model-value="pick('speaker', v.devices.value.speakers)($event as string)"
+                    @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)"
                   />
                 </UFormField>
                 <UFormField label="Output volume">
@@ -156,21 +166,36 @@ const current = (saved?: { deviceId: string; label: string }, list: MediaDeviceI
       <div :class="panel ? 'flex items-center justify-center gap-1' : 'contents'">
         <SoundboardPopover />
         <UFieldGroup>
-          <UTooltip :text="v.screenOn.value ? 'Stop sharing' : 'Share screen'" :kbds="['meta', 'alt', 'shift', 'S']">
+          <UTooltip :text="v.screenOn.value || v.screenBusy.value ? 'Stop sharing' : 'Share screen'" :kbds="['meta', 'alt', 'shift', 'S']">
             <UButton
               :icon="v.screenOn.value ? 'i-lucide-monitor-off' : 'i-lucide-screen-share'"
               :color="v.screenOn.value ? 'primary' : 'neutral'"
               :variant="v.screenOn.value ? 'soft' : 'ghost'"
               :disabled="!v.channelId.value"
-              :aria-label="v.screenOn.value ? 'Stop sharing' : 'Share screen'"
+              :aria-label="v.screenOn.value || v.screenBusy.value ? 'Stop sharing' : 'Share screen'"
               @click="v.toggleScreen()"
             />
           </UTooltip>
           <UPopover :content="{ align: 'end', side: 'top' }">
             <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Screen share options" />
             <template #content>
-              <div class="w-72 p-3 text-sm">
-                <USwitch v-model="v.settings.value.screenAudio" label="Share audio" description="Applies the next time you start sharing." />
+              <div class="w-72 space-y-3 p-3 text-sm">
+                <URadioGroup
+                  :model-value="v.settings.value.screenQuality"
+                  :disabled="v.screenBusy.value"
+                  legend="Quality"
+                  :items="[
+                    { label: 'Eco: 5 fps, up to 1440p', value: 'eco' },
+                    { label: 'Smooth: 60 fps, up to 1080p', value: 'smooth' },
+                  ]"
+                  @update:model-value="v.setScreenQuality($event as 'eco' | 'smooth')"
+                />
+                <USwitch
+                  :model-value="v.settings.value.screenAudio"
+                  :disabled="v.screenBusy.value"
+                  label="Share audio"
+                  @update:model-value="v.setScreenAudio($event)"
+                />
               </div>
             </template>
           </UPopover>

@@ -3,8 +3,8 @@ import type { Presence } from '#shared/utils/presence'
 import type { MessageDto } from '../../server/db/messages'
 import type { VoicePresence } from '../../server/utils/voicePresence'
 
-type SocketFrame =
-  | { type: 'channels:changed' | 'users:changed' | 'banned' }
+export type SocketFrame =
+  | { type: 'channels:changed' | 'users:changed' | 'banned' | 'signed-out' }
   | { type: 'presence:update'; userId: string; status: Presence }
   | { type: 'unread:update'; channelId: string; unread: number; mentions: number }
   | { type: 'message:new'; message: MessageDto; nonce?: string }
@@ -16,6 +16,7 @@ type SocketFrame =
   | { type: 'typing'; channelId: string; userId: string }
   | ({ type: 'voice:presence' } & (VoicePresence | { userId: string; channelId: null }))
   | { type: 'voice:sound'; userId: string; soundId: string }
+  | { type: 'voice:joined'; sid: string; channelId: string; nonce: string }
   | { type: 'voice:disconnect'; sid: string; reason: string }
   | { type: 'voice:move'; sid: string; channelId: string }
   | { type: 'voice:kicked'; sid: string }
@@ -36,7 +37,9 @@ function connect() {
   }
   ws.onmessage = e => {
     try {
-      handlers.forEach(h => h(JSON.parse(e.data)))
+      const m = JSON.parse(e.data)
+      if (m.type === 'ping') ws?.send('ping') // keeps the server's dead-socket check satisfied
+      handlers.forEach(h => h(m))
     } catch {
       /* ignore malformed frames */
     }
@@ -57,10 +60,14 @@ export function useSocket() {
       ws.send(JSON.stringify(data))
       return true
     },
-    /** Subscribe until the calling component unmounts. */
+    /** Subscribe until explicitly removed or the calling component unmounts. */
     on(h: Handler) {
       handlers.add(h)
-      onScopeDispose(() => handlers.delete(h))
+      const off = () => {
+        handlers.delete(h)
+      }
+      if (getCurrentScope()) onScopeDispose(off)
+      return off
     },
     onOpen(h: () => void) {
       openHandlers.add(h)

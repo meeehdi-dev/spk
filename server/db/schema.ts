@@ -65,14 +65,18 @@ export const account = sqliteTable(
   t => [index('accounts_user').on(t.userId)],
 )
 
-export const verification = sqliteTable('verifications', {
-  id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: ts('expires_at').notNull(),
-  createdAt: ts('created_at').notNull().default(now),
-  updatedAt: ts('updated_at').notNull().default(now),
-})
+export const verification = sqliteTable(
+  'verifications',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: ts('created_at').notNull().default(now),
+    updatedAt: ts('updated_at').notNull().default(now),
+  },
+  t => [index('verifications_identifier').on(t.identifier)],
+)
 
 // --- app tables ---
 export const invites = sqliteTable('invites', {

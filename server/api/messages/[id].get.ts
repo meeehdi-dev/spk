@@ -12,6 +12,6 @@ export default defineEventHandler(async event => {
     .from(messages)
     .where(eq(messages.id, getRouterParam(event, 'id')!))
     .get()
-  if (!m || !accessibleChannel(db, u.id, m.channelId)) throw createError({ statusCode: 403, statusMessage: 'No access' })
+  if (!m || !accessibleChannel(db, u.id, m.channelId)) throw createError({ statusCode: 403, message: 'No access' })
   return m
 })

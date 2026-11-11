@@ -37,5 +37,5 @@
     "preserveDuplicates": true,
     "preserveWhitespace": true
   },
-  "ignorePatterns": ["pnpm-lock.yaml", "server/db/migrations/**"]
+  "ignorePatterns": ["pnpm-lock.yaml", "server/db/migrations/**", ".agents/**"]
 }

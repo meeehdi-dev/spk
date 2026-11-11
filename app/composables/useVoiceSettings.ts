@@ -1,10 +1,11 @@
-import type { SavedDevice } from '#shared/utils/voice'
+import type { SavedDevice, ScreenQuality } from '#shared/utils/voice'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
 export interface VoiceSettings {
   mic?: SavedDevice
   speaker?: SavedDevice
+  screenSpeaker?: SavedDevice
   camera?: SavedDevice
   noise: NoiseMode
   echo: boolean
@@ -15,20 +16,23 @@ export interface VoiceSettings {
   sounds: Record<VoiceSound, { on: boolean; volume: number }>
   /** Soundboard sounds from others: its own switch and volume. */
   soundboard: { on: boolean; volume: number }
-  /** Share audio with the screen (the chevron next to the share button). */
+  /** Apply live; enabling audio may reopen the browser picker when permission is missing. */
   screenAudio: boolean
+  /** Apply live by briefly republishing screen video, retaining its capture. */
+  screenQuality: ScreenQuality
 }
 
 export const useVoiceSettings = () =>
   useLocalStorage<VoiceSettings>(
     'spk:voice',
     {
-      noise: 'standard',
+      noise: 'enhanced',
       echo: true,
       agc: true,
       sensitivity: 50,
       outputVolume: 1,
       screenAudio: true,
+      screenQuality: 'eco',
       soundboard: { on: true, volume: 0.7 },
       sounds: {
         join: { on: true, volume: 0.5 },

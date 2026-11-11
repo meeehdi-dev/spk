@@ -16,12 +16,6 @@ const voice = useVoice()
 const colorMode = useColorMode()
 const shortcutsOpen = useShortcutsOverlay()
 const settingsTab = useSettingsModal()
-async function signOut() {
-  settingsTab.value = null
-  await authClient.signOut()
-  await refreshNuxtData('me')
-  await navigateTo('/login')
-}
 const profileMenu = computed(() => [
   [
     {

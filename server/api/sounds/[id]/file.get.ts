@@ -4,6 +4,6 @@ import { getSound } from '../../../db/sounds'
 export default defineEventHandler(async event => {
   await requireUser(event)
   const s = getSound(useDb(), getRouterParam(event, 'id')!)
-  if (!s) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!s) throw createError({ statusCode: 404, message: 'Not found' })
   return { url: await presignGet(useR2(), s.r2Key, 900) }
 })

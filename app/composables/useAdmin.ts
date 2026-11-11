@@ -10,10 +10,7 @@ const dialog = ref<AdminDialog | null>(null)
 /** The message input watches this to insert `<@id>`. */
 const mentionRequest = ref<{ id: string; n: number } | null>(null)
 
-const fail = (title: string) => (error: unknown) => {
-  const e = error as { statusMessage?: string; message?: string } | null
-  return useToast().add({ title, description: e?.statusMessage ?? e?.message, color: 'error', icon: 'i-lucide-circle-alert' })
-}
+const fail = (title: string) => (e: unknown) => useToast().add({ title, description: errorText(e) || undefined, color: 'error', icon: 'i-lucide-circle-alert' })
 
 /** Keeps channels, the user directory and our session current when an admin changes them (or bans us). Layout only. */
 export function useAdminLive() {
@@ -21,7 +18,7 @@ export function useAdminLive() {
   socket.on(m => {
     if (m.type === 'channels:changed') void refreshNuxtData('channels')
     else if (m.type === 'users:changed') void refreshNuxtData(['users', 'me'])
-    else if (m.type === 'banned') window.location.assign('/login') // the sessions are gone; a reload also stops the socket's reconnects
+    else if (m.type === 'banned' || m.type === 'signed-out') window.location.assign('/login') // the sessions are gone; a reload also stops the socket's reconnects
   })
   const { data: channels } = useChannels()
   const route = useRoute()

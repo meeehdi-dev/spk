@@ -1,16 +1,13 @@
 import { createHash } from 'node:crypto'
 
-import { mapGifs } from '../../utils/klipy'
-import { createLimiter } from '../../utils/limiter'
-
 const allow = createLimiter(30, 60_000)
 
 // ?q=<search> (empty = trending), ?page=. The Klipy key stays here; the browser only sees the result.
 export default defineEventHandler(async event => {
   const u = await requireUser(event)
   const key = useRuntimeConfig().klipyApiKey
-  if (!key) throw createError({ statusCode: 503, statusMessage: 'GIFs are not set up' })
-  if (!allow(u.id)) throw createError({ statusCode: 429, statusMessage: 'Slow down' })
+  if (!key) throw createError({ statusCode: 503, message: 'GIFs are not set up' })
+  if (!allow(u.id)) throw createError({ statusCode: 429, message: 'Slow down' })
   const q = String(getQuery(event).q ?? '')
     .trim()
     .slice(0, 100)
@@ -22,6 +19,6 @@ export default defineEventHandler(async event => {
     })
     return mapGifs(json)
   } catch {
-    throw createError({ statusCode: 502, statusMessage: 'GIF service unavailable' })
+    throw createError({ statusCode: 502, message: 'GIF service unavailable' })
   }
 })

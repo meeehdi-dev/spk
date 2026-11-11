@@ -13,8 +13,7 @@ export default defineEventHandler(async event => {
           .where(and(eq(channels.id, channelId), eq(channels.type, 'voice')))
           .get()
       : undefined
-  if (!ch) throw createError({ statusCode: 404, statusMessage: 'Voice channel not found' })
-  if (typeof userId !== 'string' || !moveVoice(userId, ch.id))
-    throw createError({ statusCode: 409, statusMessage: 'That user is not in another voice channel' })
+  if (!ch) throw createError({ statusCode: 404, message: 'Voice channel not found' })
+  if (typeof userId !== 'string' || !moveVoice(userId, ch.id)) throw createError({ statusCode: 409, message: 'That user is not in another voice channel' })
   return { ok: true }
 })

@@ -39,17 +39,27 @@ export function matchDevice(saved: SavedDevice | undefined, devices: DeviceLike[
 /** Sensitivity 0–100 (higher hears quieter speech) → noise-gate threshold in dB. 50 → -50 dB. */
 export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math.max(0, sensitivity)) * 0.6
 
-/** Screen share audio is never processed: no browser suppression/echo/gain and no RNNoise (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
+/** Screen share audio is never processed: no browser suppression/echo/gain and no DeepFilterNet (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
 export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
 
-/** Screen share settings (PLAN §8): the smoothness preset. Single layer, never simulcast; VP9 with a VP8 backup. `resolution` is the ceiling (sent as `max` constraints), bitrate is an upper limit. */
-export const SCREEN_SHARE = {
-  resolution: { width: 1920, height: 1080, frameRate: 60 },
-  codec: 'vp9',
-  contentHint: 'motion',
-  degradationPreference: 'maintain-framerate',
-  maxBitrate: 15_000_000,
+/** Screen share presets by quality setting (PLAN §8). Eco (default): 5 fps up to 1440p tuned for sharp text. Smooth: 60 fps up to 1080p. Single layer, never simulcast; VP9 with a VP8 backup. `resolution` is the ceiling (sent as `max` constraints), bitrate is an upper limit. */
+export const SCREEN_SHARE_PRESETS = {
+  eco: {
+    resolution: { width: 2560, height: 1440, frameRate: 5 },
+    codec: 'vp9',
+    contentHint: 'detail',
+    degradationPreference: 'maintain-resolution',
+    maxBitrate: 5_000_000,
+  },
+  smooth: {
+    resolution: { width: 1920, height: 1080, frameRate: 60 },
+    codec: 'vp9',
+    contentHint: 'motion',
+    degradationPreference: 'maintain-framerate',
+    maxBitrate: 15_000_000,
+  },
 } as const
+export type ScreenQuality = keyof typeof SCREEN_SHARE_PRESETS
 
 /** Room-wide publish/capture defaults: one layer per track, 1080p30 camera at 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
 export const VOICE_PUBLISH_DEFAULTS = {

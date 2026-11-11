@@ -2,8 +2,8 @@
 interface Row {
   id: string
   note: string | null
-  createdAt: string
-  expiresAt: string
+  createdAt: number
+  expiresAt: number
   status: 'active' | 'used' | 'expired' | 'revoked'
   usedBy: { id: string; name: string } | null
 }
@@ -21,7 +21,7 @@ async function create() {
     form.note = ''
     await refresh()
   } catch (e) {
-    toast.add({ title: 'Could not create invite', description: (e as { statusMessage?: string }).statusMessage, color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: 'Could not create invite', description: errorText(e) || undefined, color: 'error', icon: 'i-lucide-circle-alert' })
   }
 }
 
@@ -53,7 +53,7 @@ const menu = (r: Row) => [
     : []),
 ]
 
-const fmt = (d: string) => new Date(d).toLocaleString()
+const fmt = (d: number) => new Date(d).toLocaleString()
 </script>
 
 <template>

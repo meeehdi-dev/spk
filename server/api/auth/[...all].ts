@@ -1,5 +1,3 @@
-import { logFailure } from '../../utils/errorLog'
-
 export default defineEventHandler(async event => {
   const res = await useAuth().handler(toWebRequest(event))
   // better-auth answers failures with a Response (nothing is thrown), so log it here. Only its error JSON ({ code, message }) is read, never the request.

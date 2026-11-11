@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 
 import { ChatError } from './messages'
 import { wouldRemoveLastAdmin } from './roles'
-import { attachments, session, sounds, user } from './schema'
+import { attachments, pushSubscriptions, session, sounds, user } from './schema'
 
 const exists = (db: Db, id: unknown) => typeof id === 'string' && !!db.select({ id: user.id }).from(user).where(eq(user.id, id)).get()
 
@@ -29,7 +29,10 @@ export function setBanned(db: Db, actorId: string, targetId: unknown, banned: bo
       .set({ banned, banReason: banned && typeof reason === 'string' ? reason.trim().slice(0, 200) || null : null, banExpires: null })
       .where(eq(user.id, id))
       .run()
-    if (banned) tx.delete(session).where(eq(session.userId, id)).run()
+    if (banned) {
+      tx.delete(session).where(eq(session.userId, id)).run()
+      tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, id)).run()
+    }
   })
 }
 

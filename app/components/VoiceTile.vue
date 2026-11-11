@@ -55,7 +55,7 @@ const items = computed(() =>
               },
             ]
           : []
-        : live.value
+        : live.value || props.tile.watching
           ? [
               {
                 label: props.tile.watching ? 'Stop watching' : 'Watch',
@@ -80,7 +80,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   const k = e.key.toLowerCase()
   if (k === 't') emit('theater')
   else if (k === 'f') void fullscreen()
-  else if (k === 'w' && !props.tile.local && live.value) watchToggle()
+  else if (k === 'w' && !props.tile.local && (live.value || props.tile.watching)) watchToggle()
   else return
   e.preventDefault()
 })
@@ -131,15 +131,15 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       </span>
 
       <div class="absolute top-2 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
-        <UTooltip v-if="!tile.local && live && tile.watching" text="Stop watching" :kbds="['W']">
-          <UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle" />
-        </UTooltip>
-        <UTooltip :text="theater ? 'Exit theater mode' : 'Theater mode'" :kbds="['T']">
-          <UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" size="xs" aria-label="Theater mode" @click="emit('theater')" />
-        </UTooltip>
-        <UTooltip text="Fullscreen" :kbds="['F']">
-          <UButton icon="i-lucide-maximize" color="neutral" variant="solid" size="xs" aria-label="Fullscreen" @click="fullscreen()" />
-        </UTooltip>
+        <UTooltip v-if="!tile.local && tile.watching" text="Stop watching" :kbds="['W']"
+          ><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle"
+        /></UTooltip>
+        <UTooltip :text="theater ? 'Exit theater mode' : 'Theater mode'" :kbds="['T']"
+          ><UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" size="xs" aria-label="Theater mode" @click="emit('theater')"
+        /></UTooltip>
+        <UTooltip text="Fullscreen" :kbds="['F']"
+          ><UButton icon="i-lucide-maximize" color="neutral" variant="solid" size="xs" aria-label="Fullscreen" @click="fullscreen()"
+        /></UTooltip>
       </div>
 
       <!-- Screen audio volume: same setting as the menus. Only on a watched screen share that has audio. -->

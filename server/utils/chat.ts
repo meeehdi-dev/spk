@@ -35,6 +35,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
   } catch {
     return
   }
+  if (!m || typeof m !== 'object') return
   if ((m.type === 'presence:idle' || m.type === 'presence:active') && socket) {
     const status = setPeerIdle(userId, socket as never, m.type === 'presence:idle')
     if (status) broadcast({ type: 'presence:update', userId, status })

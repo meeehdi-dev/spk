@@ -8,6 +8,7 @@ import { extractUrls, isImageUrl, MAX_PREVIEWS } from '../../shared/utils/links'
 import { attachPreviews, cachedPreview, savePreview, type ParsedPreview } from '../db/previews'
 import { messages } from '../db/schema'
 
+import { appOrigin } from './appOrigin'
 import { logBackground } from './errorLog'
 import { createLimiter } from './limiter'
 import { safeFetch } from './ssrf'
@@ -54,7 +55,7 @@ async function fetchOne(url: string): Promise<ParsedPreview> {
 
 /** Background job after a send or edit: up to 3 links, cached, then a `message:previews` event. Never throws. */
 export function queuePreviews(message: { id: string; channelId: string; userId: string; body: string }) {
-  const urls = extractUrls(message.body, process.env.BETTER_AUTH_URL || 'http://localhost:3000')
+  const urls = extractUrls(message.body, appOrigin())
     .filter(u => !isImageUrl(u))
     .slice(0, MAX_PREVIEWS)
   if (!urls.length) return

@@ -14,7 +14,7 @@ async function submit() {
     await $fetch('/api/reset-password', { method: 'POST', body: { token, password: password.value } })
     done.value = true
   } catch (e) {
-    error.value = (e as { statusMessage?: string }).statusMessage || 'Could not reset the password'
+    error.value = errorText(e, 'Could not reset the password')
   }
   loading.value = false
 }

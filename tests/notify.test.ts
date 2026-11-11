@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createDb, type Db } from '../server/db/client'
 import { openDm } from '../server/db/dms'
 import { createMessage } from '../server/db/messages'
-import { pushJobs, savePush } from '../server/db/push'
+import { pushJobs, savePush, setPushPrefs } from '../server/db/push'
 import { channels, user } from '../server/db/schema'
 import { allowedBy, notificationBody } from '../shared/utils/notifyText'
 
@@ -43,6 +43,13 @@ describe('push targets', () => {
     const m = createMessage(db, 'a', 't', 'hey <@b> and <@c>')
     expect(pushJobs(db, m, []).map(j => j.payload.title)).toEqual(['A in #general', 'A in #general'])
     expect(pushJobs(db, m, ['c']).map(j => j.endpoint)).toEqual(['https://push.example/b'])
+  })
+  it('a prefs update touches only that endpoint, and only for its owner', () => {
+    savePush(db, 'b', 'https://push.example/b2', { p256dh: 'k', auth: 'a' }, {})
+    setPushPrefs(db, 'b', 'https://push.example/b', { dnd: true })
+    setPushPrefs(db, 'c', 'https://push.example/b2', { dnd: true }) // not c's row
+    const m = createMessage(db, 'a', 't', 'hey <@b>')
+    expect(pushJobs(db, m, []).map(j => j.endpoint)).toEqual(['https://push.example/b2'])
   })
   it('respects the synced settings', () => {
     savePush(db, 'b', 'https://push.example/b', { p256dh: 'k', auth: 'a' }, { dnd: true })

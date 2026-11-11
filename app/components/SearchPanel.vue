@@ -47,9 +47,8 @@ async function run(more = false) {
     next.value = r.nextCursor
     searched.value = true
     if (!more) active.value = 0
-  } catch (cause) {
-    const e = cause as { statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
-    if (my === seq) toast.add({ title: e?.statusMessage || 'Search failed', color: 'error', icon: 'i-lucide-circle-alert' })
+  } catch (e) {
+    if (my === seq) toast.add({ title: errorText(e, 'Search failed'), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     if (my === seq) loading.value = false
   }

@@ -6,7 +6,7 @@ import { and, eq, gt, like } from 'drizzle-orm'
 
 import { hashToken } from './invites'
 import { ChatError } from './messages'
-import { account, session, user, verification } from './schema'
+import { account, pushSubscriptions, session, user, verification } from './schema'
 
 export const RESET_TTL_MS = 24 * 3_600_000
 const PREFIX = 'spk-reset:'
@@ -34,7 +34,7 @@ export const checkResetToken = (db: Db, token: string, now = Date.now()) =>
     .where(and(eq(verification.identifier, ident(token)), gt(verification.expiresAt, new Date(now))))
     .get()
 
-/** Uses the token (once), sets the new password hash and signs the user out everywhere. False if the token is unknown, used or expired. */
+/** Uses the token (once), sets the new password hash and signs the user out everywhere (sessions and push). Returns the user id, or false if the token is unknown, used or expired. */
 export function resetPassword(db: Db, token: string, passwordHash: string, now = Date.now()) {
   return db.transaction(tx => {
     const row = tx
@@ -50,6 +50,7 @@ export function resetPassword(db: Db, token: string, passwordHash: string, now =
       .run()
     if (r.changes !== 1) throw new ChatError(409, 'This account has no password to reset') // rolls the token back
     tx.delete(session).where(eq(session.userId, row.userId)).run()
-    return true
+    tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, row.userId)).run()
+    return row.userId
   })
 }

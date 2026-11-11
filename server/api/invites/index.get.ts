@@ -14,8 +14,8 @@ export default defineEventHandler(async event => {
   return rows.map(({ i, usedByName, usedByEmail }) => ({
     id: i.id,
     note: i.note,
-    createdAt: i.createdAt,
-    expiresAt: i.expiresAt,
+    createdAt: i.createdAt.getTime(),
+    expiresAt: i.expiresAt.getTime(),
     status: inviteStatus(i),
     usedBy: i.usedBy ? { id: i.usedBy, name: usedByName ?? usedByEmail } : null,
   }))

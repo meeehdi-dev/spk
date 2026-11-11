@@ -54,6 +54,22 @@ describe('sensitivity', () => {
 })
 
 describe('voice presence', () => {
+  it('replaces the middle member in place and transfers socket ownership', () => {
+    const old = {},
+      replacement = {},
+      others = {}
+    joinVoice('first', 'c1', 'a', others)
+    joinVoice('middle', 'c1', 'old', old)
+    joinVoice('last', 'c1', 'z', others)
+    joinVoice('middle', 'c1', 'new', replacement)
+    expect(voiceSnapshot().map(p => p.userId)).toEqual(['first', 'middle', 'last'])
+    expect(leaveVoice('middle', 'old')).toBeNull()
+    expect(updateVoice('middle', 'old', { muted: true })).toBeNull()
+    expect(dropVoiceOwner(old)).toEqual([])
+    expect(voiceSnapshot().map(p => p.userId)).toEqual(['first', 'middle', 'last'])
+    expect(dropVoiceOwner(replacement)).toEqual([{ userId: 'middle', channelId: 'c1' }])
+    dropVoiceOwner(others)
+  })
   it('one session per account: a second join replaces the first, the old leave is ignored', () => {
     const a = {},
       b = {}
@@ -97,9 +113,16 @@ describe('screen share audio', () => {
 })
 
 describe('screen share and per-user volume', () => {
-  it('has the single smoothness screen share setting', async () => {
-    const { SCREEN_SHARE } = await import('../shared/utils/voice')
-    expect(SCREEN_SHARE).toMatchObject({
+  it('has the Eco and Smooth screen share presets', async () => {
+    const { SCREEN_SHARE_PRESETS } = await import('../shared/utils/voice')
+    expect(SCREEN_SHARE_PRESETS.eco).toMatchObject({
+      contentHint: 'detail',
+      degradationPreference: 'maintain-resolution',
+      codec: 'vp9',
+      maxBitrate: 5_000_000,
+      resolution: { width: 2560, height: 1440, frameRate: 5 },
+    })
+    expect(SCREEN_SHARE_PRESETS.smooth).toMatchObject({
       contentHint: 'motion',
       degradationPreference: 'maintain-framerate',
       codec: 'vp9',

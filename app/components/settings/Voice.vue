@@ -6,14 +6,15 @@ const s = v.settings
 const noiseItems = [
   { label: 'Off', value: 'off' },
   { label: 'Standard (browser)', value: 'standard' },
-  { label: 'Enhanced (RNNoise)', value: 'enhanced' },
+  { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' },
 ]
 const items = (list: MediaDeviceInfo[]) => [
   { label: 'System default', value: 'default' },
   ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId })),
 ]
 const current = (saved: { deviceId: string; label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
-const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
   else s.value = { ...s.value, [kind]: undefined }
@@ -129,12 +130,21 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
             <UProgress :model-value="level * 100" class="max-w-xs" aria-label="Microphone level" />
           </div>
         </UFormField>
-        <UFormField v-if="v.canPickOutput" label="Speakers">
+        <UFormField
+          v-for="output in v.canPickOutput
+            ? ([
+                { kind: 'speaker', label: 'Voice output' },
+                { kind: 'screenSpeaker', label: 'Screen-share output' },
+              ] as const)
+            : []"
+          :key="output.kind"
+          :label="output.label"
+        >
           <USelect
-            :model-value="current(s.speaker, v.devices.value.speakers)"
-            :items="items(v.devices.value.speakers)"
+            :model-value="current(s[output.kind], v.devices.value.speakers)"
+            :items="items(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))"
             class="w-full"
-            @update:model-value="pick('speaker', v.devices.value.speakers)($event as string)"
+            @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)"
           />
         </UFormField>
         <UFormField label="Camera">
@@ -172,7 +182,7 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
         <h2 class="font-bold">Voice processing</h2>
       </template>
       <div class="flex flex-col gap-4">
-        <UFormField label="Noise suppression" description="Enhanced uses RNNoise and costs a little CPU.">
+        <UFormField label="Noise suppression" description="Enhanced is stronger: one-time download of about 11–22 MB, and it uses more CPU.">
           <USelect v-model="s.noise" :items="noiseItems" class="w-full max-w-xs" @update:model-value="v.applySettings()" />
         </UFormField>
         <USwitch v-model="s.echo" label="Echo cancellation" icon="i-lucide-audio-waveform" @update:model-value="v.applySettings()" />

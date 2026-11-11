@@ -6,13 +6,7 @@ import { cropMono, encodeWav, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BY
 
 const { data: sounds, refresh } = useSounds()
 const toast = useToast()
-const fail = (title: string) => (e: unknown) =>
-  toast.add({
-    title,
-    description: (e as { statusMessage?: string; message?: string }).statusMessage || (e as Error).message,
-    color: 'error',
-    icon: 'i-lucide-circle-alert',
-  })
+const fail = (title: string) => (e: unknown) => toast.add({ title, description: errorText(e), color: 'error', icon: 'i-lucide-circle-alert' })
 
 // Lucide icon names for the picker (loaded only on this tab; aliases left out).
 const iconItems = ref<Array<{ label: string; value: string; icon: string }>>([])

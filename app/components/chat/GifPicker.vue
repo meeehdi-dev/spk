@@ -18,9 +18,8 @@ async function load(more = false) {
     items.value = more ? [...items.value, ...r.items] : r.items
     page.value = p
     hasNext.value = r.hasNext
-  } catch (cause) {
-    const e = cause as { statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
-    error.value = e?.statusMessage || 'Could not load GIFs'
+  } catch (e) {
+    error.value = errorText(e, 'Could not load GIFs')
   } finally {
     loading.value = false
   }

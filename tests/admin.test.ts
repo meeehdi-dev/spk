@@ -1,5 +1,7 @@
+import type { Peer } from 'crossws'
+
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { listUsersWithStorage, setBanned, setRole } from '../server/db/admin'
 import { createChannel, deleteChannel, renameChannel, reorderChannels } from '../server/db/channelsAdmin'
@@ -7,7 +9,9 @@ import { createDb, type Db } from '../server/db/client'
 import { createMessage } from '../server/db/messages'
 import { checkResetToken, createResetToken, resetPassword, RESET_TTL_MS } from '../server/db/reset'
 import { isAdminRole } from '../server/db/roles'
-import { account, attachments, channels, messages, session, user, verification } from '../server/db/schema'
+import { account, attachments, channels, messages, pushSubscriptions, session, user, verification } from '../server/db/schema'
+import { addPeer } from '../server/utils/peers'
+import { endUserConnections } from '../server/utils/voiceAdmin'
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
@@ -15,6 +19,11 @@ const addUser = (id: string, role = 'user') =>
   db
     .insert(user)
     .values({ id, name: id, email: `${id}@x.dev`, role, displayName: id })
+    .run()
+const addPush = (userId: string) =>
+  db
+    .insert(pushSubscriptions)
+    .values({ userId, endpoint: `e-${userId}`, keys: '{}' })
     .run()
 const addSession = (userId: string) =>
   db
@@ -58,7 +67,16 @@ describe('ban', () => {
     createMessage(db, 'b', 't', 'hi', 1000)
     addSession('b')
     addSession('a')
+    addPush('b')
+    addPush('a')
     setBanned(db, 'a', 'b', true, ' spam ')
+    expect(
+      db
+        .select()
+        .from(pushSubscriptions)
+        .all()
+        .map(p => p.userId),
+    ).toEqual(['a'])
     const u = db.select().from(user).where(eq(user.id, 'b')).get()!
     expect(u).toMatchObject({ banned: true, banReason: 'spam' })
     expect(
@@ -83,12 +101,21 @@ describe('reset password link', () => {
   it('stores only a hash and works exactly once, signing the user out', () => {
     addCred()
     addSession('b')
+    addPush('b')
+    addPush('a')
     const token = createResetToken(db, 'b')
     expect(db.select().from(verification).get()!.identifier).not.toContain(token)
     expect(checkResetToken(db, token)).toBe(true)
-    expect(resetPassword(db, token, 'new-hash')).toBe(true)
+    expect(resetPassword(db, token, 'new-hash')).toBe('b')
     expect(db.select().from(account).get()!.password).toBe('new-hash')
     expect(db.select().from(session).all()).toHaveLength(0)
+    expect(
+      db
+        .select()
+        .from(pushSubscriptions)
+        .all()
+        .map(p => p.userId),
+    ).toEqual(['a'])
     expect(resetPassword(db, token, 'again')).toBe(false)
     expect(checkResetToken(db, token)).toBe(false)
     expect(db.select().from(account).get()!.password).toBe('new-hash')
@@ -190,5 +217,37 @@ describe('voice sessions for admin actions', () => {
     ).toEqual(['a', 'b'])
     dropVoiceOwner(o)
     expect(sessionOf('b')).toBeNull()
+  })
+})
+
+describe('endUserConnections', () => {
+  const fake = () => ({ send: vi.fn(), close: vi.fn() })
+  const setup = () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({ livekit: {}, public: {} }))
+    const p1 = fake(),
+      p2 = fake()
+    addPeer('u-end', p1 as unknown as Peer)
+    addPeer('u-end', p2 as unknown as Peer)
+    joinVoice('u-end', 'vc', 'sid1', {})
+    return [p1, p2]
+  }
+  const sent = (p: ReturnType<typeof fake>) => p.send.mock.calls.map(c => JSON.parse(c[0]).type)
+  it('reset: ends voice, sends voice:disconnect then signed-out, closes every peer with 4001', () => {
+    const ps = setup()
+    endUserConnections('u-end', 'reset')
+    expect(sessionOf('u-end')).toBeNull()
+    for (const p of ps) {
+      expect(sent(p)).toEqual(['voice:presence', 'voice:disconnect', 'signed-out'])
+      expect(p.close).toHaveBeenCalledWith(4001, 'signed out')
+    }
+  })
+  it('ban: still sends banned and closes with 4003', () => {
+    const ps = setup()
+    endUserConnections('u-end', 'banned')
+    expect(sessionOf('u-end')).toBeNull()
+    for (const p of ps) {
+      expect(sent(p)).toEqual(['voice:presence', 'voice:disconnect', 'banned'])
+      expect(p.close).toHaveBeenCalledWith(4003, 'banned')
+    }
   })
 })

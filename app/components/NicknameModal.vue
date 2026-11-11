@@ -12,7 +12,7 @@ async function save() {
     await $fetch('/api/profile/nickname', { method: 'POST', body: { displayName: nickname.value } })
     await refresh()
   } catch (e) {
-    error.value = (e as { statusMessage?: string }).statusMessage || 'Could not save'
+    error.value = errorText(e, 'Could not save')
   } finally {
     loading.value = false
   }

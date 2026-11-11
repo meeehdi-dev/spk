@@ -15,7 +15,7 @@ export interface Upload {
   preview?: string
 }
 
-/** Upload queue of one message input: presign, direct PUT to R2 with progress, cancel. */
+/** Retained queue of one channel draft: presign, direct PUT to R2 with progress, cancel. */
 export function useUploads() {
   const items = ref<Upload[]>([])
   const toast = useToast()
@@ -52,7 +52,7 @@ export function useUploads() {
     } catch (error) {
       const e = error as { statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
       it.state = 'error'
-      it.error = e?.statusMessage || e?.data?.statusMessage || e?.message || 'Upload failed'
+      it.error = errorText(e, 'Upload failed')
     }
   }
 
@@ -99,7 +99,7 @@ export function useUploads() {
     items,
     add,
     cancel,
-    /** After a successful send the server owns the files: forget them without deleting. */
+    /** Hand files off for sending: release previews without cancelling the server files. */
     clear: () => {
       for (const x of items.value) if (x.preview) URL.revokeObjectURL(x.preview)
       items.value = []

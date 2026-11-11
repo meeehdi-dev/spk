@@ -1,3 +1,5 @@
+import { noiseSuppressionAudioWorkletVitePlugin } from '@workadventure/noise-suppression/vite'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc'],
   devtools: { enabled: false },
@@ -10,6 +12,7 @@ export default defineNuxtConfig({
       meta: [{ name: 'theme-color', content: '#18181b' }],
     },
   },
+  experimental: { emitRouteChunkError: 'manual' },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     databasePath: './data/spk.db',
@@ -26,6 +29,7 @@ export default defineNuxtConfig({
     scheduledTasks: { '0 * * * *': ['attachments:cleanup'] }, // hourly: unsent uploads older than 24 h
   },
   vite: {
+    plugins: [noiseSuppressionAudioWorkletVitePlugin()],
     optimizeDeps: {
       include: [
         '@vueuse/integrations/useSortable',
@@ -56,6 +60,13 @@ export default defineNuxtConfig({
         'wavesurfer.js',
         'wavesurfer.js/plugins/regions',
       ],
+    },
+  },
+  hooks: {
+    // Nuxt's bare `assets` alias breaks the package's `new URL('assets/…', import.meta.url)`, so its worklet/wasm/model aren't emitted.
+    'vite:extendConfig'(config) {
+      const alias = config.resolve?.alias
+      if (alias && !Array.isArray(alias)) Reflect.deleteProperty(alias, 'assets')
     },
   },
   eslint: { config: { stylistic: false } },

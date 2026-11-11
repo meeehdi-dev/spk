@@ -18,7 +18,7 @@ A private, self-hosted chat and voice app (an IRC/TeamSpeak/Mumble/Discord repla
 | Search                                                | **SQLite FTS5** (built in)                                                                                                    |
 | Auth                                                  | **better-auth**: `emailAndPassword` + `admin` plugin                                                                          |
 | Voice, video, screen share                            | **LiveKit** (self-hosted SFU) + `livekit-client` + `livekit-server-sdk` (tokens)                                              |
-| Noise suppression                                     | Browser built-in + **`@sapphi-red/web-noise-suppressor`** (RNNoise)                                                           |
+| Noise suppression                                     | Browser built-in + **`@workadventure/noise-suppression`** (DeepFilterNet3)                                                    |
 | File storage                                          | **Cloudflare R2**, presigned URLs signed with **`aws4fetch`**                                                                 |
 | Image processing                                      | **`sharp`** (avatars, link preview thumbnails)                                                                                |
 | Markdown rendering                                    | **`@nuxtjs/mdc`** + **Shiki**                                                                                                 |
@@ -74,7 +74,9 @@ Docker host
 | `channel_reads`       | user_id, channel_id, last_read_at                                                                              |
 | `push_subscriptions`  | user_id, endpoint, keys                                                                                        |
 
-Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, message drafts per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
+Stored in the browser (`localStorage`), not in the database: device choices, noise and audio options, message draft text per channel, sidebar section open/closed state, hidden DMs, muted channels, Do Not Disturb, sounds settings.
+
+Per-channel GIF selections, reply targets, attachment queues (including running uploads and spoiler flags), and pending sends remain in this tab's memory across internal navigation. Only draft text survives a refresh or closing the tab. Unsent uploads still follow server retention: sending requires uploads younger than 23 hours; orphan cleanup runs after 24 hours.
 
 ---
 
@@ -238,6 +240,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 - Admins can **move** someone to another voice channel (a WebSocket event that tells their client to switch) or **disconnect** them.
 - Deleting a voice channel while people are in it disconnects them with a toast.
 - **Leaving while in voice:** closing or reloading the tab while connected to a voice channel shows the browser's "Leave site?" warning (`beforeunload`). No warning when not in voice.
+- **Internal navigation:** app updates and failed route-chunk loads do not automatically reload the document. Unavailable assets show an error toast advising a manual refresh; the route may remain unavailable until refreshed. Refreshing keeps saved draft text but loses tab-memory GIFs, attachments and reply targets.
 
 ### Voice bar
 
@@ -261,7 +264,7 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 ### Audio processing
 
 - **Standard:** the browser's own noise suppression.
-- **Enhanced:** RNNoise as a LiveKit track processor (the browser's suppression is turned off).
+- **Enhanced:** DeepFilterNet3 as a LiveKit track processor (the browser's suppression is turned off).
 - Echo cancellation and auto gain: toggles, on by default.
 - Mute with `track.enabled = false` (nothing to renegotiate).
 - **Mic quality:** Opus mono at up to 128 kbps, DTX off, RED on. Webcam: 1080p30, one layer, up to 6 Mbps.
@@ -296,19 +299,21 @@ Stored in the browser (`localStorage`), not in the database: device choices, noi
 ### Screen share
 
 - **One click** on the share button (or ⌘⌥⇧S) opens the browser's own picker (it can't be replaced in a web app). No pre-share dialog.
-- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch.
+- Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch and the **Quality** choice (radio group, saved per browser). Both apply immediately during a share; inactive changes only save preferences.
+- Quality briefly republishes only screen video, retaining capture without another picker. Watch stays selected through this gap and later shares by the same person in this call, until Stop watching or either person leaves voice. Older clients may need to click Watch again.
+- Audio off immediately mutes screen audio; on resumes captured audio. If audio permission is missing, enabling it reopens the browser picker. Cancellation, denial, or a source without audio preserves the current share; successful permission can replace the shared surface.
 - Picker hints: `displaySurface`, `selfBrowserSurface: 'exclude'`, `systemAudio`, `surfaceSwitching: 'include'` (Chromium; other browsers ignore most of them).
 
-Screen share quality is fixed (smoothness, no clarity option):
+Screen share quality has two options. **Eco** is the default (tuned for sharp text, much less bandwidth and CPU/GPU); **Smooth** is for games and video:
 
-|                         |                             |
-| ----------------------- | --------------------------- |
-| Resolution              | up to 1080p, never upscaled |
-| Frame rate              | up to 60 fps                |
-| `contentHint`           | `motion`                    |
-| `degradationPreference` | `maintain-framerate`        |
-| Bitrate (max)           | 15 Mbps                     |
-| Codec                   | VP9, VP8 as `backupCodec`   |
+|                         | Eco (default)               | Smooth                      |
+| ----------------------- | --------------------------- | --------------------------- |
+| Resolution              | up to 1440p, never upscaled | up to 1080p, never upscaled |
+| Frame rate              | up to 5 fps                 | up to 60 fps                |
+| `contentHint`           | `detail`                    | `motion`                    |
+| `degradationPreference` | `maintain-resolution`       | `maintain-framerate`        |
+| Bitrate (max)           | 5 Mbps                      | 15 Mbps                     |
+| Codec                   | VP9, VP8 as `backupCodec`   | VP9, VP8 as `backupCodec`   |
 
 - One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled.
 - **Screen audio:** Opus stereo, up to 256 kbps, DTX off.

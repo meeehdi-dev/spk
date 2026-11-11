@@ -67,11 +67,11 @@ export const savePush = (db: Db, userId: string, endpoint: string, keys: unknown
     .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { userId, keys: JSON.stringify(keys), prefs: JSON.stringify(prefs) } })
     .run()
 
-export const setPushPrefs = (db: Db, userId: string, prefs: unknown) =>
+export const setPushPrefs = (db: Db, userId: string, endpoint: string, prefs: unknown) =>
   db
     .update(pushSubscriptions)
     .set({ prefs: JSON.stringify(prefs) })
-    .where(eq(pushSubscriptions.userId, userId))
+    .where(and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, userId)))
     .run()
 
 export const removePush = (db: Db, endpoint: string, userId?: string) =>
@@ -79,3 +79,14 @@ export const removePush = (db: Db, endpoint: string, userId?: string) =>
     .delete(pushSubscriptions)
     .where(userId ? and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, userId)) : eq(pushSubscriptions.endpoint, endpoint))
     .run()
+
+/** Settings from a push request body; anything missing falls back to the defaults. */
+export const parsePrefs = (input: unknown) => {
+  const p = input as Record<string, unknown> | null | undefined
+  return {
+    dms: p?.dms !== false,
+    pings: p?.pings !== false,
+    dnd: !!p?.dnd,
+    muted: Array.isArray(p?.muted) ? p.muted.filter((x: unknown) => typeof x === 'string') : [],
+  }
+}
