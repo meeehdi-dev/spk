@@ -1,4 +1,5 @@
-import type { Participant, Room, Track, VideoTrack } from 'livekit-client'
+import type { Participant, RemoteAudioTrack, Room, Track, VideoTrack } from 'livekit-client'
+import { watch as watchSocket } from 'vue'
 import { effectiveVolume, initialMute, matchDevice, CAMERA_CAPTURE, SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE_PRESETS, VOICE_PUBLISH_DEFAULTS, sensitivityToDb, toggleDeafen, toggleMute, userVolume, type SavedDevice, type UserVolume } from '#shared/utils/voice'
 import type { MicProcessor } from '~/utils/voice-processor'
 
@@ -26,8 +27,10 @@ const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
 let processor: MicProcessor | undefined
+let pendingJoin: AbortController | undefined
+let pendingJoinDone: Promise<void> | undefined
 
-const asSaved = (d: MediaDeviceInfo): SavedDevice => ({ deviceId: d.deviceId, label: d.label })
+const asSaved = (d: SavedDevice): SavedDevice => ({ deviceId: d.deviceId, label: d.label })
 
 async function refreshDevices() {
   if (!navigator.mediaDevices?.enumerateDevices) return
@@ -58,6 +61,16 @@ export function useVoice() {
     if (wait > 0) { timer ??= setTimeout(() => { timer = undefined; pushState() }, wait); return }
     lastSent = Date.now()
     socket.send({ type: 'voice:state', sid, muted: mute.value.muted, deafened: mute.value.deafened, speaking: speaking && !mute.value.muted, cam: camOn.value, screen: screenOn.value })
+  }
+
+  const outputKind = (source: Track.Source): 'speaker' | 'screenSpeaker' => source === 'screen_share_audio' ? 'screenSpeaker' : 'speaker'
+  async function routeOutput(track: RemoteAudioTrack, kind = outputKind(track.source)) {
+    if (!canPickOutput) return
+    try {
+      await track.setSinkId(matchDevice(settings.value[kind], devices.value.speakers).deviceId ?? '')
+    } catch (e) {
+      toast.add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+    }
   }
 
   function applyOutput() {
@@ -108,49 +121,113 @@ export function useVoice() {
 
   async function join(id: string) {
     if (channelId.value === id || connecting.value) return
-    if (channelId.value) await leave(false)
     connecting.value = true
+    if (channelId.value) await leave(false)
+    const attempt = new AbortController()
+    pendingJoin = attempt
+    let settled!: () => void
+    pendingJoinDone = new Promise(resolve => { settled = resolve })
+    const signal = attempt.signal
+    let r: Room | undefined
+    let claimed = false
+    const stopSocketWatch = watchSocket(socket.connected, (on) => { if (!on) attempt.abort(new Error('Voice socket disconnected')) }, { flush: 'sync' })
+    const cancel = () => { if (claimed) socket.send({ type: 'voice:leave', sid }); void r?.disconnect() }
+    signal.addEventListener('abort', cancel, { once: true })
     try {
       // Permission first: it unlocks device labels, which the saved-device matching needs.
       try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop()) } catch { throw new Error('Microphone access was denied') }
+      signal.throwIfAborted()
       await refreshDevices()
+      signal.throwIfAborted()
       const mic = matchDevice(settings.value.mic, devices.value.mics)
-      const out = matchDevice(settings.value.speaker, devices.value.speakers)
       const { token, url } = await $fetch<{ token: string, url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
       const { Room, RoomEvent, Track } = await import('livekit-client')
-      const r = new Room({ adaptiveStream: true, dynacast: true, publishDefaults: VOICE_PUBLISH_DEFAULTS, videoCaptureDefaults: CAMERA_CAPTURE, audioCaptureDefaults: captureOptions(mic.deviceId), audioOutput: canPickOutput && out.deviceId ? { deviceId: out.deviceId } : undefined })
+      signal.throwIfAborted()
+      r = new Room({ adaptiveStream: true, dynacast: true, publishDefaults: VOICE_PUBLISH_DEFAULTS, videoCaptureDefaults: CAMERA_CAPTURE, audioCaptureDefaults: captureOptions(mic.deviceId) })
       r.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio) return
         document.body.append(track.attach()) // remote audio only plays while attached to an element
+        void routeOutput(track as RemoteAudioTrack)
         applyOutput()
       })
+      // Firefox: LiveKit's own default-device pick sets every remote sink on devicechange; restore ours.
+      r.on(RoomEvent.ActiveDeviceChanged, (kind) => { if (kind === 'audiooutput') { void routeOutputs('speaker'); void routeOutputs('screenSpeaker') } })
       r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
       r.on(RoomEvent.ActiveSpeakersChanged, (list) => { speaking = list.some(p => p.isLocal); pushState(); rebuild() })
       for (const ev of [RoomEvent.TrackPublished, RoomEvent.TrackUnpublished, RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted,
         RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected] as const) r.on(ev, rebuild)
-      r.on(RoomEvent.Disconnected, () => { if (room === r) void leave(false, 'You were disconnected from voice') })
+      r.on(RoomEvent.Disconnected, () => {
+        if (room === r) void leave(false, 'You were disconnected from voice')
+        else if (pendingJoin === attempt) attempt.abort(new Error('You were disconnected from voice'))
+      })
+      // Replace the server session before LiveKit can evict the previous browser.
+      const nonce = crypto.randomUUID()
+      await new Promise<void>((resolve, reject) => {
+        const finish = (error?: unknown) => {
+          clearTimeout(timeout)
+          off()
+          signal.removeEventListener('abort', aborted)
+          if (error) reject(error); else resolve()
+        }
+        const aborted = () => finish(signal.reason)
+        const off = socket.on((m) => {
+          if (m.type === 'voice:joined' && m.sid === sid && m.channelId === id && m.nonce === nonce) finish()
+        })
+        const timeout = setTimeout(() => finish(new Error('Voice join timed out')), 5000)
+        signal.addEventListener('abort', aborted, { once: true })
+        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: false, deafened: false })
+        if (!claimed) finish(new Error('Voice socket is not connected'))
+      })
+      signal.throwIfAborted()
       await r.connect(url, token, { autoSubscribe: false })
-      room = r
-      rebuild()
+      signal.throwIfAborted()
       await r.startAudio().catch(() => {})
+      signal.throwIfAborted()
       await r.localParticipant.setMicrophoneEnabled(true, captureOptions(mic.deviceId))
+      signal.throwIfAborted()
       const { MicProcessor } = await import('~/utils/voice-processor') // browser-only: needs AudioWorkletNode
-      processor = new MicProcessor(processing())
-      await micTrack()?.setProcessor(processor)
+      signal.throwIfAborted()
+      const nextProcessor = new MicProcessor(processing())
+      await r.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack?.setProcessor(nextProcessor)
+      signal.throwIfAborted()
+      room = r
+      processor = nextProcessor
+      rebuild()
       channelId.value = id
       mute.value = initialMute()
       lastSent = 0
-      socket.send({ type: 'voice:join', channelId: id, sid, muted: false, deafened: false })
       playVoiceSound('join')
     } catch (e) {
-      room?.disconnect(); room = undefined; processor = undefined
-      toast.add({ title: 'Could not join voice', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
-    } finally { connecting.value = false }
+      if (claimed) socket.send({ type: 'voice:leave', sid })
+      pendingJoin = undefined
+      await r?.disconnect()
+      if (!signal.aborted || signal.reason?.name !== 'AbortError') {
+        toast.add({ title: 'Could not join voice', description: ((signal.aborted ? signal.reason : e) as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+      }
+    } finally {
+      stopSocketWatch()
+      signal.removeEventListener('abort', cancel)
+      pendingJoin = undefined
+      pendingJoinDone = undefined
+      connecting.value = false
+      settled()
+    }
+  }
+
+  async function move(id: string) {
+    if (pendingJoin) {
+      const done = pendingJoinDone
+      pendingJoin.abort()
+      await done
+    }
+    await join(id)
   }
 
   async function leave(sound = true, reason?: string) {
+    const pending = pendingJoin
+    pending?.abort()
     const r = room
-    if (!r && !channelId.value) return
+    if (!r && !channelId.value && !pending) return
     room = undefined
     watching.value = []
     const was = channelId.value
@@ -185,11 +262,16 @@ export function useVoice() {
     await micTrack()?.restartTrack(captureOptions(room.getActiveDevice('audioinput')))
     applyOutput()
   }
-  async function pickDevice(kind: 'mic' | 'speaker' | 'camera', d: MediaDeviceInfo) {
-    settings.value = { ...settings.value, [kind]: asSaved(d) }
+  const routeOutputs = (kind: 'speaker' | 'screenSpeaker') => Promise.all([...room?.remoteParticipants.values() ?? []].flatMap(p => [...p.audioTrackPublications.values()]
+    .filter(pub => pub.track && outputKind(pub.source) === kind)
+    .map(pub => routeOutput(pub.track as RemoteAudioTrack, kind))))
+  async function pickDevice(kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', d: SavedDevice) {
+    const output = kind === 'speaker' || kind === 'screenSpeaker'
+    settings.value = { ...settings.value, [kind]: output && d.deviceId === 'default' ? undefined : asSaved(d) }
     try {
-      if (kind === 'mic') await room?.switchActiveDevice('audioinput', d.deviceId)
-      else if (kind === 'speaker') await room?.switchActiveDevice('audiooutput', d.deviceId)
+      if (output) {
+        await routeOutputs(kind)
+      } else if (kind === 'mic') await room?.switchActiveDevice('audioinput', d.deviceId)
       else if (camOn.value) await room?.switchActiveDevice('videoinput', d.deviceId)
     } catch (e) {
       toast.add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
@@ -237,8 +319,11 @@ export function useVoice() {
 
   return {
     me, sid, channelId, connecting, mute, devices, canPickOutput, settings,
-    tiles, watching, camOn, screenOn, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
-    join, leave, toggleMic, toggleHeadphones, applySettings, pickDevice, refreshDevices, cycleNoise, toggleEcho, toggleAgc, applyOutput,
+    tiles: computed(() => {
+      const remote = new Map(tiles.value.filter(t => !t.local).map(t => [t.userId, t]))
+      return [...tiles.value.filter(t => t.local), ...Object.keys(presence.value).flatMap(id => remote.has(id) ? [remote.get(id)!] : [])]
+    }), watching, camOn, screenOn, volumeFor, volumes, toggleCamera, startScreen, stopScreen, toggleScreen, watch, setVolume, volumeItems,
+    join, move, leave, toggleMic, toggleHeadphones, applySettings, pickDevice, routeOutputs, refreshDevices, cycleNoise, toggleEcho, toggleAgc, applyOutput,
     activeRoom: () => room
   }
 }
@@ -281,12 +366,12 @@ export function useVoiceLive() {
       }
     } else if (m.type === 'voice:sound') {
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)
-    } else if (m.type === 'voice:disconnect' && m.sid === sid && v.channelId.value) {
+    } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
       void v.leave(false, m.reason)
-    } else if (m.type === 'voice:move' && m.sid === sid && v.channelId.value) {
-      // An admin moved us: switch rooms (join leaves the old one first).
-      void v.join(m.channelId).then(() => { if (v.channelId.value === m.channelId) { useToast().add({ title: 'An admin moved you to another voice channel', color: 'warning', icon: 'i-lucide-move-right' }); void navigateTo(`/c/${m.channelId}`) } })
-    } else if (m.type === 'voice:kicked' && m.sid !== sid && v.channelId.value) {
+    } else if (m.type === 'voice:move' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
+      // Settle a pending connection before joining the admin's destination.
+      void v.move(m.channelId).then(() => { if (v.channelId.value === m.channelId) { useToast().add({ title: 'An admin moved you to another voice channel', color: 'warning', icon: 'i-lucide-move-right' }); void navigateTo(`/c/${m.channelId}`) } })
+    } else if (m.type === 'voice:kicked' && m.sid !== sid && (v.channelId.value || v.connecting.value)) {
       void v.leave(false, 'You joined voice from another tab or device')
     }
   })
@@ -295,15 +380,38 @@ export function useVoiceLive() {
   const wakeLock = useWakeLock()
   watch(() => !!v.channelId.value, on => (on ? wakeLock.request('screen') : wakeLock.release()).catch(() => {}))
   useEventListener(navigator.mediaDevices, 'devicechange', async () => {
+    const outputs = (['speaker', 'screenSpeaker'] as const).map(kind => ({ kind, active: matchDevice(v.settings.value[kind], devices.value.speakers).deviceId }))
+    const micBefore = matchDevice(v.settings.value.mic, devices.value.mics).deviceId
+    const defaultLabel = devices.value.mics.find(d => d.deviceId === 'default')?.label
     await v.refreshDevices()
     const r = v.activeRoom()
     if (!r) return
-    for (const [kind, list, label] of [['audioinput', devices.value.mics, 'microphone'], ['audiooutput', devices.value.speakers, 'speakers']] as const) {
-      const active = r.getActiveDevice(kind)
-      if (active && active !== 'default' && !list.some(d => d.deviceId === active)) {
-        await r.switchActiveDevice(kind, 'default').catch(() => {})
-        useToast().add({ title: `Your ${label} was unplugged`, description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' })
-      }
+    const active = r.getActiveDevice('audioinput')
+    const savedMic = v.settings.value.mic?.deviceId === 'default' ? undefined : v.settings.value.mic // Chromium's 'default' entry means follow the OS
+    const micNow = matchDevice(savedMic, devices.value.mics).deviceId
+    const unplugged = () => useToast().add({ title: 'Your microphone was unplugged', description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' })
+    if (savedMic && micBefore && !micNow) {
+      await r.switchActiveDevice('audioinput', 'default', false).catch(() => {}) // non-exact: Firefox has no device with id 'default'
+      unplugged()
+    } else if (savedMic && !micBefore && micNow && active !== micNow) {
+      await r.switchActiveDevice('audioinput', micNow)
+        .then(() => useToast().add({ title: `Switched back to ${savedMic.label}`, description: 'Your microphone is back.', icon: 'i-lucide-headphones', color: 'info' }))
+        .catch((e: Error) => useToast().add({ title: 'Could not switch device', description: e.message, color: 'error', icon: 'i-lucide-circle-alert' }))
+    } else if (!savedMic && active && active !== 'default' && !devices.value.mics.some(d => d.deviceId === active)) {
+      unplugged() // LiveKit recovers the track itself
+    } else if (!savedMic && active === 'default' && defaultLabel && defaultLabel !== devices.value.mics.find(d => d.deviceId === 'default')?.label) {
+      await v.applySettings().catch(() => {}) // Chromium keeps the old physical device when the OS default changes
+    }
+    if (v.canPickOutput) for (const { kind, active } of outputs) {
+      const saved = v.settings.value[kind]
+      if (!saved) continue
+      const now = matchDevice(saved, devices.value.speakers).deviceId
+      if (!!active === !!now) continue
+      await v.routeOutputs(kind)
+      const name = kind === 'speaker' ? 'voice output' : 'screen-share output'
+      useToast().add(now
+        ? { title: `Switched back to ${saved.label}`, description: `Your ${name} is back.`, icon: 'i-lucide-headphones', color: 'info' }
+        : { title: `Your ${name} was unplugged`, description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' })
     }
   })
   onMounted(() => v.refreshDevices())
