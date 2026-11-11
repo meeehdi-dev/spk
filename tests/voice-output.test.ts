@@ -83,6 +83,21 @@ afterEach(async () => {
 })
 
 describe('independent remote audio outputs', () => {
+  it.each([true, false])('defaults screen audio independently for a saved voice preference: %s', async (savedVoice) => {
+    settings.value.screenSpeaker = undefined
+    if (!savedVoice) settings.value.speaker = undefined
+    const mic = track('microphone'), screen = track('screen_share_audio')
+    media.connect = () => {
+      const r = media.rooms.at(-1)
+      r.emit('subscribed', mic); r.emit('subscribed', screen)
+    }
+    await setup()
+    expect(mic.setSinkId).toHaveBeenLastCalledWith(savedVoice ? 'voice' : '')
+    expect(screen.setSinkId).toHaveBeenLastCalledWith('')
+    expect(settings.value.speaker?.deviceId).toBe(savedVoice ? 'voice' : undefined)
+    expect(settings.value.screenSpeaker).toBeUndefined()
+  })
+
   it('routes subscriptions before room assignment, later subscriptions and rejoins using saved preferences', async () => {
     const mic = track('microphone'), screen = track('screen_share_audio')
     media.connect = () => {

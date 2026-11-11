@@ -7,7 +7,10 @@ const { data: channels } = useChannels()
 const name = computed(() => channels.value.find(c => c.id === v.channelId.value)?.name)
 const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
 const deviceItems = (list: MediaDeviceInfo[]) => list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))
-const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => { const d = list.find(x => x.deviceId === id); if (d) v.pickDevice(kind, d) }
+const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
+  const d = list.find(x => x.deviceId === id); if (d) v.pickDevice(kind, d)
+}
 const current = (saved?: { deviceId: string, label: string }, list: MediaDeviceInfo[] = []) => matchDevice(saved, list).deviceId ?? 'default'
 </script>
 
@@ -65,8 +68,8 @@ const current = (saved?: { deviceId: string, label: string }, list: MediaDeviceI
           <UButton icon="i-lucide-chevron-up" color="neutral" variant="ghost" size="sm" aria-label="Headphone options" />
           <template #content>
             <div class="flex w-72 flex-col gap-3 p-3 text-sm">
-              <UFormField v-if="v.canPickOutput" label="Output device">
-                <USelect :model-value="current(v.settings.value.speaker, v.devices.value.speakers)" :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.speakers)]" class="w-full" @update:model-value="pick('speaker', v.devices.value.speakers)($event as string)" />
+              <UFormField v-for="output in v.canPickOutput ? [{ kind: 'speaker', label: 'Voice output' }, { kind: 'screenSpeaker', label: 'Screen-share output' }] as const : []" :key="output.kind" :label="output.label">
+                <USelect :model-value="current(v.settings.value[output.kind], v.devices.value.speakers)" :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))]" class="w-full" @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)" />
               </UFormField>
               <UFormField label="Output volume">
                 <USlider v-model="v.settings.value.outputVolume" :min="0" :max="1" :step="0.05" aria-label="Output volume" @update:model-value="v.applyOutput()" />

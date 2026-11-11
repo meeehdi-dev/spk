@@ -5,7 +5,8 @@ const s = v.settings
 const noiseItems = [{ label: 'Off', value: 'off' }, { label: 'Standard (browser)', value: 'standard' }, { label: 'Enhanced (RNNoise)', value: 'enhanced' }]
 const items = (list: MediaDeviceInfo[]) => [{ label: 'System default', value: 'default' }, ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))]
 const current = (saved: { deviceId: string, label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
-const pick = (kind: 'mic' | 'speaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) v.pickDevice(kind, d)
   else s.value = { ...s.value, [kind]: undefined }
@@ -75,8 +76,8 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
             <UProgress :model-value="level * 100" class="max-w-xs" aria-label="Microphone level" />
           </div>
         </UFormField>
-        <UFormField v-if="v.canPickOutput" label="Speakers">
-          <USelect :model-value="current(s.speaker, v.devices.value.speakers)" :items="items(v.devices.value.speakers)" class="w-full" @update:model-value="pick('speaker', v.devices.value.speakers)($event as string)" />
+        <UFormField v-for="output in v.canPickOutput ? [{ kind: 'speaker', label: 'Voice output' }, { kind: 'screenSpeaker', label: 'Screen-share output' }] as const : []" :key="output.kind" :label="output.label">
+          <USelect :model-value="current(s[output.kind], v.devices.value.speakers)" :items="items(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))" class="w-full" @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)" />
         </UFormField>
         <UFormField label="Camera">
           <USelect :model-value="current(s.camera, v.devices.value.cams)" :items="items(v.devices.value.cams)" class="w-full" @update:model-value="pick('camera', v.devices.value.cams)($event as string)" />

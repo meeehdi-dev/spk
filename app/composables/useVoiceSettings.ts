@@ -3,7 +3,7 @@ import type { SavedDevice, ScreenQuality } from '#shared/utils/voice'
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
 export interface VoiceSettings {
-  mic?: SavedDevice, speaker?: SavedDevice, camera?: SavedDevice
+  mic?: SavedDevice, speaker?: SavedDevice, screenSpeaker?: SavedDevice, camera?: SavedDevice
   noise: NoiseMode, echo: boolean, agc: boolean
   /** 0–100, higher hears quieter speech. */
   sensitivity: number, outputVolume: number
