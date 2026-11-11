@@ -1,10 +1,11 @@
 import { createInvite, INVITE_TTL_MS } from '../db/invites'
 import { hasUsers, seedChannels } from '../db/seed'
 
-export default defineNitroPlugin(() => {
+export default defineNitroPlugin((nitroApp) => {
   const db = useDb() // runs migrations
+  nitroApp.hooks.hook('close', () => { db.$client.close() })
   seedChannels(db)
-  const base = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+  const base = appOrigin()
   // Print a fresh first-admin link now and each time the last one expires, until the first user exists.
   const print = () => {
     if (hasUsers(db)) return clearInterval(timer)

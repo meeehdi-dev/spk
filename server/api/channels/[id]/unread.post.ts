@@ -6,8 +6,8 @@ export default defineEventHandler(async (event) => {
   const u = await requireUser(event)
   const db = useDb()
   const id = getRouterParam(event, 'id')!
-  if (!accessibleChannel(db, u.id, id)) throw createError({ statusCode: 403, statusMessage: 'No access to this channel' })
-  if (!markUnreadFrom(db, u.id, id, (await readBody(event))?.messageId)) throw createError({ statusCode: 404, statusMessage: 'Message not found' })
+  if (!accessibleChannel(db, u.id, id)) throw createError({ statusCode: 403, message: 'No access to this channel' })
+  if (!markUnreadFrom(db, u.id, id, (await readBody(event))?.messageId)) throw createError({ statusCode: 404, message: 'Message not found' })
   const state = readState(db, u.id, id)
   sendToUser(u.id, { type: 'unread:update', channelId: id, ...state })
   return state

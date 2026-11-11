@@ -1,4 +1,3 @@
-import { logBackground } from '../../utils/errorLog'
 import { sweepOrphans } from '../../db/attachments'
 
 export default defineTask({

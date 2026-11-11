@@ -1,4 +1,3 @@
-import { logFailure } from '../../utils/errorLog'
 
 export default defineEventHandler(async (event) => {
   const res = await useAuth().handler(toWebRequest(event))

@@ -22,6 +22,7 @@ export function fanOut(channelId: string, userId: string, data: unknown, include
 export function handleClientFrame(userId: string, raw: string, socket?: unknown) {
   let m: { type?: string, sid?: string, channelId?: string, body?: string, nonce?: string, replyToId?: string | null, attachments?: Array<{ id: string, spoiler?: boolean }> }
   try { m = JSON.parse(raw) } catch { return }
+  if (!m || typeof m !== 'object') return
   if ((m.type === 'presence:idle' || m.type === 'presence:active') && socket) {
     const status = setPeerIdle(userId, socket as never, m.type === 'presence:idle')
     if (status) broadcast({ type: 'presence:update', userId, status })

@@ -46,7 +46,7 @@ export async function sweepOrphans(db: Db, deleteKey: (key: string) => Promise<v
   let removed = 0
   for (const o of old) {
     try { await deleteKey(o.key) } catch { continue } // keep the row, try again next run
-    db.delete(attachments).where(eq(attachments.id, o.id)).run()
+    db.delete(attachments).where(and(eq(attachments.id, o.id), isNull(attachments.messageId))).run()
     removed++
   }
   return removed

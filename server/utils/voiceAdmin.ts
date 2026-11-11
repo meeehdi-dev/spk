@@ -34,9 +34,10 @@ export function moveVoice(userId: string, channelId: string) {
   return true
 }
 
-/** A ban ends everything live: voice, and every open socket. */
-export function endUserConnections(userId: string) {
-  disconnectVoice(userId, 'You have been banned')
-  sendToUser(userId, { type: 'banned' })
-  for (const p of [...peersOf(userId)]) p.close(4003, 'banned')
+/** A ban or a password reset ends everything live: voice first, then the frame, then every open socket. */
+export function endUserConnections(userId: string, reason: 'banned' | 'reset') {
+  const banned = reason === 'banned'
+  disconnectVoice(userId, banned ? 'You have been banned' : 'You have been signed out')
+  sendToUser(userId, { type: banned ? 'banned' : 'signed-out' })
+  for (const p of [...peersOf(userId)]) banned ? p.close(4003, 'banned') : p.close(4001, 'signed out')
 }

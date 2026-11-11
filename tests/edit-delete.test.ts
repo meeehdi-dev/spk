@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { createDb, type Db } from '../server/db/client'
 import { cancelPending, createPendingAttachment, purgeObjects, sweepOrphans } from '../server/db/attachments'
 import { ChatError, createMessage, deleteMessage, editMessage, isEmoji, listMessages, setReaction } from '../server/db/messages'
@@ -127,6 +127,25 @@ describe('attachments', () => {
     expect(await sweepOrphans(db, ok, day + 2000)).toBe(1)
     expect(ok).toHaveBeenCalledWith(old.r2Key)
     expect(db.select().from(attachments).all()).toHaveLength(2)
+  })
+  it('rejects a pending upload older than 23 h, and the sweep never deletes a linked row', async () => {
+    const h = 3600_000
+    const stale = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 0)
+    expect(() => createMessage(db, 'a', 't', 'x', 23.5 * h, { attachments: [{ id: stale.id }] })).toThrow(/attachment/)
+    const ok = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 0)
+    createMessage(db, 'a', 't', 'x', 22 * h, { attachments: [{ id: ok.id }] })
+    const del = vi.fn(async () => {})
+    expect(await sweepOrphans(db, del, 30 * h)).toBe(1)
+    expect(del).toHaveBeenCalledWith(stale.r2Key)
+    expect(db.select().from(attachments).all().map(a => a.id)).toEqual([ok.id])
+  })
+  it('the sweep keeps a row that gets linked to a message while R2 is being deleted', async () => {
+    const raced = createPendingAttachment(db, 'a', { filename: 'f', mime: 'a/b', size: 1 }, 0)
+    const m = createMessage(db, 'a', 't', 'x', 1)
+    const link = vi.fn(async () => { db.update(attachments).set({ messageId: m.id }).where(eq(attachments.id, raced.id)).run() })
+    await sweepOrphans(db, link, 30 * 3600_000)
+    expect(link).toHaveBeenCalledWith(raced.r2Key)
+    expect(db.select().from(attachments).all().map(a => [a.id, a.messageId])).toEqual([[raced.id, m.id]])
   })
 })
 

@@ -6,5 +6,5 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   const token = await asHttp(() => createResetToken(useDb(), id))
   console.info(`[auth] reset-link user=${id} by=${admin.id}`)
-  return { url: `${process.env.BETTER_AUTH_URL || 'http://localhost:3000'}/reset-password?token=${token}` }
+  return { url: `${appOrigin()}/reset-password?token=${token}` }
 })

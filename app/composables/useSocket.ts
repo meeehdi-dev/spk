@@ -9,7 +9,11 @@ function connect() {
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws`)
   ws.onopen = () => { retry = 0; connected.value = true; openHandlers.forEach(h => h()) }
   ws.onmessage = (e) => {
-    try { handlers.forEach(h => h(JSON.parse(e.data))) } catch { /* ignore malformed frames */ }
+    try {
+      const m = JSON.parse(e.data)
+      if (m.type === 'ping') ws?.send('ping') // keeps the server's dead-socket check satisfied
+      handlers.forEach(h => h(m))
+    } catch { /* ignore malformed frames */ }
   }
   ws.onclose = () => {
     connected.value = false

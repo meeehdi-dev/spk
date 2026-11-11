@@ -39,7 +39,7 @@ export async function openDmWith(userId: string) {
     await refreshNuxtData('channels')
     await navigateTo(`/c/${dm.id}`)
   } catch (e: any) {
-    useToast().add({ title: e?.statusMessage || 'Could not open the DM', color: 'error', icon: 'i-lucide-circle-alert' })
+    useToast().add({ title: errorText(e, 'Could not open the DM'), color: 'error', icon: 'i-lucide-circle-alert' })
   }
 }
 

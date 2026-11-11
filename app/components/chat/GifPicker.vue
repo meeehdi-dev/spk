@@ -18,7 +18,7 @@ async function load(more = false) {
     items.value = more ? [...items.value, ...r.items] : r.items
     page.value = p
     hasNext.value = r.hasNext
-  } catch (e: any) { error.value = e?.statusMessage || 'Could not load GIFs' } finally { loading.value = false }
+  } catch (e: any) { error.value = errorText(e, 'Could not load GIFs') } finally { loading.value = false }
 }
 onMounted(() => load())
 watchDebounced(q, () => load(), { debounce: 350 })

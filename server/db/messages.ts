@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import type { Db } from './client'
 import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePreviews, messages, reactions, user } from './schema'
 import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
@@ -87,6 +87,9 @@ function syncMentions(tx: Conn, row: typeof messages.$inferSelect, replyAuthor: 
   if (all.size) tx.insert(messageMentions).values([...all].map(userId => ({ messageId: row.id, userId }))).run()
 }
 
+// Linked only while younger than the 24 h orphan sweep's cutoff, with a 1 h margin.
+const ATTACH_FRESH_MS = 23 * 3600_000
+
 export function createMessage(db: Db, userId: string, channelId: string, body: unknown, now = Date.now(), opts: SendOptions = {}): MessageDto {
   const files = opts.attachments ?? []
   if (typeof body !== 'string' || (!body.trim() && !files.length)) throw new ChatError(400, 'Message is empty')
@@ -106,7 +109,7 @@ export function createMessage(db: Db, userId: string, channelId: string, body: u
     for (const f of new Set(files.map(x => x.id))) {
       const spoiler = !!files.find(x => x.id === f)?.spoiler
       const r = tx.update(attachments).set({ messageId: row.id, spoiler })
-        .where(and(eq(attachments.id, f), eq(attachments.uploaderId, userId), isNull(attachments.messageId))).run()
+        .where(and(eq(attachments.id, f), eq(attachments.uploaderId, userId), isNull(attachments.messageId), gt(attachments.createdAt, new Date(now - ATTACH_FRESH_MS)))).run()
       if (!r.changes) throw new ChatError(400, 'An attachment is missing or already used')
     }
     syncMentions(tx, row, replyAuthor)

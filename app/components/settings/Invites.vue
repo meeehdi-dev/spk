@@ -1,5 +1,5 @@
 <script setup lang="ts">
-interface Row { id: string, note: string | null, createdAt: string, expiresAt: string, status: 'active' | 'used' | 'expired' | 'revoked', usedBy: { id: string, name: string } | null }
+interface Row { id: string, note: string | null, createdAt: number, expiresAt: number, status: 'active' | 'used' | 'expired' | 'revoked', usedBy: { id: string, name: string } | null }
 const { data: rows, refresh } = await useFetch<Row[]>('/api/invites', { default: () => [] })
 const toast = useToast()
 const form = reactive({ note: '' })
@@ -14,7 +14,7 @@ async function create() {
     form.note = ''
     await refresh()
   } catch (e) {
-    toast.add({ title: 'Could not create invite', description: (e as { statusMessage?: string }).statusMessage, color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: 'Could not create invite', description: errorText(e) || undefined, color: 'error', icon: 'i-lucide-circle-alert' })
   }
 }
 
@@ -36,7 +36,7 @@ const menu = (r: Row) => [
   ...(r.usedBy ? [{ label: 'View user', icon: 'i-lucide-user', onSelect: () => { admin.dialog.value = { kind: 'profile', userId: r.usedBy!.id } } }] : [])
 ]
 
-const fmt = (d: string) => new Date(d).toLocaleString()
+const fmt = (d: number) => new Date(d).toLocaleString()
 </script>
 
 <template>

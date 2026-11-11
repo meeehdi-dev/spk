@@ -226,7 +226,7 @@ function send(md: string, files: Upload[]) {
 }
 
 // --- edit, delete, react, reply ---
-const apiError = (e: any, fallback: string) => toast.add({ title: e?.statusMessage || e?.data?.statusMessage || fallback, color: 'error', icon: 'i-lucide-circle-alert' })
+const apiError = (e: any, fallback: string) => toast.add({ title: errorText(e, fallback), color: 'error', icon: 'i-lucide-circle-alert' })
 
 provide(chatActionsKey, {
   async edit(id, body) {

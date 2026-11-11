@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const row = db.select({ key: attachments.r2Key, filename: attachments.filename, channelId: messages.channelId })
     .from(attachments).innerJoin(messages, eq(messages.id, attachments.messageId))
     .where(and(eq(attachments.id, getRouterParam(event, 'id')!), isNull(messages.deletedAt))).get()
-  if (!row || !accessibleChannel(db, u.id, row.channelId)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!row || !accessibleChannel(db, u.id, row.channelId)) throw createError({ statusCode: 404, message: 'Not found' })
   const download = getQuery(event).download
   const url = await presignGet(useR2(), row.key, 900, download ? `attachment; filename*=UTF-8''${encodeURIComponent(row.filename)}` : undefined)
   if (getQuery(event).json) return { url }

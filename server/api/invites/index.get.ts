@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   const rows = useDb().select({ i: invites, usedByName: user.displayName, usedByEmail: user.email })
     .from(invites).leftJoin(user, eq(user.id, invites.usedBy)).orderBy(desc(invites.createdAt)).all()
   return rows.map(({ i, usedByName, usedByEmail }) => ({
-    id: i.id, note: i.note, createdAt: i.createdAt, expiresAt: i.expiresAt, status: inviteStatus(i),
+    id: i.id, note: i.note, createdAt: i.createdAt.getTime(), expiresAt: i.expiresAt.getTime(), status: inviteStatus(i),
     usedBy: i.usedBy ? { id: i.usedBy, name: usedByName ?? usedByEmail } : null
   }))
 })

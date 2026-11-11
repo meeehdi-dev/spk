@@ -11,7 +11,11 @@ export function usePush() {
 
   onMounted(async () => { subscribed.value = !!(await current()) })
   // Keep the server's copy of the settings current, so it never pushes what this browser would hide.
-  watchDebounced(() => JSON.stringify(prefs()), () => { if (subscribed.value) $fetch('/api/push', { method: 'PUT', body: { prefs: prefs() } }).catch(() => {}) }, { debounce: 500 })
+  watchDebounced(() => JSON.stringify(prefs()), async () => {
+    if (!subscribed.value) return
+    const sub = await current()
+    if (sub) $fetch('/api/push', { method: 'PUT', body: { endpoint: sub.endpoint, prefs: prefs() } }).catch(() => {})
+  }, { debounce: 500 })
 
   return {
     supported,

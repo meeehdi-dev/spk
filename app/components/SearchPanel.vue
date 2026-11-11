@@ -37,7 +37,7 @@ async function run(more = false) {
     searched.value = true
     if (!more) active.value = 0
   } catch (e: any) {
-    if (my === seq) toast.add({ title: e?.statusMessage || 'Search failed', color: 'error', icon: 'i-lucide-circle-alert' })
+    if (my === seq) toast.add({ title: errorText(e, 'Search failed'), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally { if (my === seq) loading.value = false }
 }
 const debounced = useDebounceFn(() => run(), 250)

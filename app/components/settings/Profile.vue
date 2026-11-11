@@ -14,7 +14,7 @@ async function saveNickname() {
     await refresh()
     toast.add({ title: 'Nickname saved', icon: 'i-lucide-check' })
   } catch (e) {
-    nickError.value = (e as { statusMessage?: string }).statusMessage || 'Could not save'
+    nickError.value = errorText(e, 'Could not save')
   }
 }
 

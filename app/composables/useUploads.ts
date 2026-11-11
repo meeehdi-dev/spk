@@ -34,7 +34,7 @@ export function useUploads() {
       if (items.value.some(x => x.key === it.key)) { it.state = 'done'; it.progress = 1 }
     } catch (e: any) {
       it.state = 'error'
-      it.error = e?.statusMessage || e?.data?.statusMessage || e?.message || 'Upload failed'
+      it.error = errorText(e, 'Upload failed')
     }
   }
 

@@ -7,6 +7,6 @@ export default defineEventHandler(async (event) => {
   const u = await requireUser(event)
   const db = useDb()
   const m = db.select({ channelId: messages.channelId, userId: messages.userId }).from(messages).where(eq(messages.id, getRouterParam(event, 'id')!)).get()
-  if (!m || !accessibleChannel(db, u.id, m.channelId)) throw createError({ statusCode: 403, statusMessage: 'No access' })
+  if (!m || !accessibleChannel(db, u.id, m.channelId)) throw createError({ statusCode: 403, message: 'No access' })
   return m
 })

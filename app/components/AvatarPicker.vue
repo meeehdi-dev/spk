@@ -15,7 +15,7 @@ async function pick(e: Event) {
     await $fetch('/api/profile/avatar', { method: 'POST', body: { key } })
     await refresh()
   } catch (err) {
-    toast.add({ title: 'Avatar upload failed', description: (err as { statusMessage?: string }).statusMessage || (err as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+    toast.add({ title: 'Avatar upload failed', description: errorText(err), color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     busy.value = false
     if (input.value) input.value.value = ''

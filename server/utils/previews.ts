@@ -1,3 +1,4 @@
+import { appOrigin } from './appOrigin'
 import { createHash } from 'node:crypto'
 import ogs from 'open-graph-scraper'
 import sharp from 'sharp'
@@ -45,7 +46,7 @@ async function fetchOne(url: string): Promise<ParsedPreview> {
 
 /** Background job after a send or edit: up to 3 links, cached, then a `message:previews` event. Never throws. */
 export function queuePreviews(message: { id: string, channelId: string, userId: string, body: string }) {
-  const urls = extractUrls(message.body, process.env.BETTER_AUTH_URL || 'http://localhost:3000').filter(u => !isImageUrl(u)).slice(0, MAX_PREVIEWS)
+  const urls = extractUrls(message.body, appOrigin()).filter(u => !isImageUrl(u)).slice(0, MAX_PREVIEWS)
   if (!urls.length) return
   void (async () => {
     const db = useDb()

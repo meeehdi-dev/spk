@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { createDb, type Db } from '../server/db/client'
 import { listUsersWithStorage, setBanned, setRole } from '../server/db/admin'
@@ -7,6 +7,8 @@ import { checkResetToken, createResetToken, resetPassword, RESET_TTL_MS } from '
 import { isAdminRole } from '../server/db/roles'
 import { account, attachments, channels, messages, pushSubscriptions, session, user, verification } from '../server/db/schema'
 import { createMessage } from '../server/db/messages'
+import { addPeer } from '../server/utils/peers'
+import { endUserConnections } from '../server/utils/voiceAdmin'
 import { dropVoiceOwner, joinVoice, sessionOf, sessionsIn } from '../server/utils/voicePresence'
 
 let db: Db
@@ -157,5 +159,35 @@ describe('voice sessions for admin actions', () => {
     expect(sessionsIn('v1').map(s => s.userId).sort()).toEqual(['a', 'b'])
     dropVoiceOwner(o)
     expect(sessionOf('b')).toBeNull()
+  })
+})
+
+describe('endUserConnections', () => {
+  const fake = () => ({ send: vi.fn(), close: vi.fn() })
+  const setup = () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({ livekit: {}, public: {} }))
+    const p1 = fake(), p2 = fake()
+    addPeer('u-end', p1 as any); addPeer('u-end', p2 as any)
+    joinVoice('u-end', 'vc', 'sid1', {})
+    return [p1, p2]
+  }
+  const sent = (p: ReturnType<typeof fake>) => p.send.mock.calls.map(c => JSON.parse(c[0]).type)
+  it('reset: ends voice, sends voice:disconnect then signed-out, closes every peer with 4001', () => {
+    const ps = setup()
+    endUserConnections('u-end', 'reset')
+    expect(sessionOf('u-end')).toBeNull()
+    for (const p of ps) {
+      expect(sent(p)).toEqual(['voice:presence', 'voice:disconnect', 'signed-out'])
+      expect(p.close).toHaveBeenCalledWith(4001, 'signed out')
+    }
+  })
+  it('ban: still sends banned and closes with 4003', () => {
+    const ps = setup()
+    endUserConnections('u-end', 'banned')
+    expect(sessionOf('u-end')).toBeNull()
+    for (const p of ps) {
+      expect(sent(p)).toEqual(['voice:presence', 'voice:disconnect', 'banned'])
+      expect(p.close).toHaveBeenCalledWith(4003, 'banned')
+    }
   })
 })
