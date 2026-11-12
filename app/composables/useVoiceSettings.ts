@@ -32,7 +32,7 @@ export const useVoiceSettings = () =>
       agc: true,
       sensitivity: 50,
       outputVolume: 1,
-      radioVolume: 0.5,
+      radioVolume: 0.1,
       screenAudio: true,
       screenQuality: DEFAULT_SCREEN_QUALITY,
       soundboard: { on: true, volume: 0.7 },
