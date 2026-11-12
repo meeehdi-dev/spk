@@ -89,6 +89,21 @@ export default defineNuxtConfig({
     },
   },
   hooks: {
+    listen(_server, listener: { getURLs: () => { type: string; url: string }[] }) {
+      if (process.env.NODE_ENV !== 'development') return
+      const tunnel = listener.getURLs().find(entry => entry.type === 'tunnel')
+      if (!tunnel) return
+      let url: URL
+      try {
+        url = new URL(tunnel.url)
+      } catch {
+        throw new Error('The development tunnel must provide a valid HTTPS URL')
+      }
+      if (url.protocol !== 'https:' || url.username || url.password) throw new Error('The development tunnel must provide a valid HTTPS URL')
+      // The CLI calls listen before building Nitro, so its worker inherits the exact public auth origin.
+      process.env.BETTER_AUTH_URL = url.origin
+      console.info(`[auth] development tunnel origin=${url.origin}`)
+    },
     'app:resolve'(app) {
       // The PWA module injects an empty asset helper even when generation is disabled.
       app.plugins = app.plugins.filter(plugin => !plugin.src.endsWith('/pwa-icons-plugin.ts'))

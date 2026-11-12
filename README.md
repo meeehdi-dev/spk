@@ -31,6 +31,8 @@ livekit-server --dev     # voice; dev key/secret are devkey / secret
 
 On first start with an empty database, the server logs an admin invite link. Open it to create the first admin. `localhost` allows mic and camera without HTTPS; elsewhere you need HTTPS.
 
+Jean's Run command starts a temporary HTTPS tunnel. In development with `--tunnel`, the app automatically sets `BETTER_AUTH_URL` to that tunnel's exact origin for authentication, API writes, and WebSocket checks. Open the tunnel URL printed in the terminal. A restart can change the URL and requires signing in again. Normal development without a tunnel and production keep the configured `BETTER_AUTH_URL`.
+
 Run `pnpm exec nuxt prepare` first in a fresh checkout; both linters use Nuxt's generated configuration and types.
 
 - `pnpm lint` runs Oxlint with type-aware checks, then ESLint for unsupported checks. `pnpm lint:fix` applies their autofixes.
