@@ -19,10 +19,6 @@ Nuxt UI's built-in Nuxt Fonts integration detects Geist and Geist Mono from the 
 
 ## Local development
 
-Jean's project setup command in `jean.json` installs the tools and dependencies and prepares Nuxt. Run that setup for a fresh workspace; it is not required at every new chat. Jean's run command uses the same mise wrapper.
-
-Outside Jean, run `bash scripts/with-mise.sh corepack pnpm install --frozen-lockfile`, then `bash scripts/with-mise.sh corepack pnpm exec nuxt prepare` once for a fresh checkout. The wrapper reuses mise if installed, or installs it into `~/.local/bin/mise` if missing, and installs any missing tools pinned in `mise.toml`. It requires Bash, curl, and network access for uncached downloads. Use `bash scripts/with-mise.sh corepack pnpm test` to run tests without shell activation.
-
 With mise, run `mise install` for the pinned Node and Corepack versions, then use `mise exec -- corepack pnpm …` for pnpm commands. With mise activated in your shell, `corepack enable pnpm` also makes the plain `pnpm` command available.
 
 ```sh
