@@ -17,6 +17,7 @@ const name = computed(() => channels.value.find(c => c.id === v.channelId.value)
       <VoiceControl kind="deafen" />
       <VoiceControl kind="camera" />
       <SoundboardPopover />
+      <RadioPopover />
       <VoiceControl kind="screen" />
       <VoiceControl kind="leave" />
     </div>

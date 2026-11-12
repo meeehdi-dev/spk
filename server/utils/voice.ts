@@ -7,6 +7,7 @@ import { channels } from '../db/schema'
 import { getSound } from '../db/sounds'
 
 import { createLimiter } from './limiter'
+import { handleRadioFrame } from './radio'
 
 const allowSound = createLimiter(1, SOUND_COOLDOWN_MS) // one soundboard sound per user per 3 s
 
@@ -19,6 +20,10 @@ const presenceFrame = (
 export function handleVoiceFrame(userId: string, m: Record<string, unknown>, owner: unknown) {
   const sid = typeof m.sid === 'string' ? m.sid : ''
   if (!sid) return
+  if (['voice:radio:set', 'voice:radio:stop', 'voice:radio:get'].includes(String(m.type))) {
+    void handleRadioFrame(userId, m, owner).catch(() => {})
+    return
+  }
   if (m.type === 'voice:join') {
     const ch =
       typeof m.channelId === 'string'
@@ -36,9 +41,11 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
     if (p || replacedVisible) broadcast(presenceFrame(p, userId)) // hidden new session: only retract the old one
     const peer = owner as Peer | undefined
     peer?.send(JSON.stringify({ type: 'voice:joined', sid, channelId: ch.id, nonce: typeof m.nonce === 'string' ? m.nonce : undefined }))
+    if (m.ready === true) void handleRadioFrame(userId, { type: 'voice:radio:get', sid }, owner).catch(() => {})
   } else if (m.type === 'voice:ready') {
     const p = readyVoice(userId, sid)
     if (p) broadcast(presenceFrame(p, userId))
+    void handleRadioFrame(userId, { type: 'voice:radio:get', sid }, owner).catch(() => {})
   } else if (m.type === 'voice:state') {
     const p = updateVoice(userId, sid, m)
     if (p) broadcast(presenceFrame(p, userId))

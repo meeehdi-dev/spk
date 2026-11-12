@@ -155,6 +155,16 @@ To add a migration, edit `server/db/schema.ts`, then run `pnpm exec drizzle-kit 
 
 Latest Chrome, Firefox and Safari are supported.
 
+## Channel radio
+
+While in voice, open **Radio** to search [Radio Browser](https://www.radio-browser.info/) and select a station for the channel. Any connected channel member can change the station or stop it for everyone. Changes have a three-second cooldown.
+
+Each listener's browser plays the stream directly. **Mute for me**, **Listen/Retry**, and radio volume affect only that listener. Radio follows the voice output device and output volume; deafen silences it, but microphone mute does not. Playback continues across app navigation and when the person who selected the station leaves. The station clears when the channel empties, is deleted, or the app restarts. Leaving voice stops local playback.
+
+The first version supports direct HTTPS MP3/AAC streams marked working by the directory. It does not support custom URLs, HLS playlists, or synchronized playback. Browser format support, station availability, redirects, and autoplay rules can prevent playback; open Radio and press **Listen** or **Retry** if needed. A failure in one browser does not stop other listeners.
+
+The server uses native `fetch` for directory data, with discovered API mirrors, short timeouts, bounded responses, and a short search cache. No API key, Radio Browser client library, audio proxy, or extra LiveKit service is needed. Station servers receive each listener's IP address. The app checks the selected URL and its current DNS addresses; redirects and later DNS changes are handled by the listener's browser and cannot be fully restricted without a media proxy.
+
 ## Notes
 
 - **Klipy:** the GIF proxy (`/api/gifs`) keeps the API key on the server, but Klipy's terms say proxying needs prior written approval from developers@klipy.com. Get it before relying on GIFs. Media loads directly from Klipy.
