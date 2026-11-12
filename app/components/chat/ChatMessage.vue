@@ -227,6 +227,8 @@ function onKey(e: KeyboardEvent) {
               <Suspense>
                 <MDCRenderer v-if="tree" :body="tree" :data="{}" tag="div" />
               </Suspense>
+              <!-- Raw text until the markdown is parsed, so the message takes about its final height. -->
+              <div v-if="!tree" class="whitespace-pre-wrap">{{ message.body }}</div>
             </div>
             <div v-if="long && !expandedAll" class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-default to-transparent" />
           </div>

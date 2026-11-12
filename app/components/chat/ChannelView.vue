@@ -25,6 +25,13 @@ const scroller = ref<HTMLElement>()
 const content = ref<HTMLElement>()
 const dividerSide = ref<'above' | 'below' | null>(null) // where the "New messages" divider is, when it is outside the visible list
 const awayFromBottom = ref(false) // more than a screen above the end
+const unseenBelow = ref(false) // a live message arrived while scrolled up
+const fade = {
+  enterActiveClass: 'transition duration-150 ease-out motion-reduce:transition-none',
+  leaveActiveClass: 'transition duration-150 ease-in motion-reduce:transition-none',
+  enterFromClass: 'translate-y-2 opacity-0',
+  leaveToClass: 'translate-y-2 opacity-0',
+}
 // Stay glued to the bottom while images, previews, code highlighting and fonts settle; derived from the scroll position.
 let pinned = false
 let smoothing = false // a smooth scroll to the end is in flight: resizes retarget it instead of jumping
@@ -52,18 +59,22 @@ watch(
 
 const fetchPage = (query: Record<string, string>) => $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
 
-async function load() {
+// Opens the latest page (or the linked message). `around` loads the page around the unread divider; `keepDivider` skips the unread lookup.
+async function load(around?: string, keepDivider = false) {
   const mine = ++gen
   pinned = false
   lastTop = 0
   loading.value = true
   denied.value = false
+  unseenBelow.value = false
   messages.value = []
   try {
-    const r = await fetchPage(props.messageId ? { around: props.messageId } : { unread: '1' })
+    const r = await fetchPage(around ? { around } : props.messageId ? { around: props.messageId } : keepDivider ? {} : { unread: '1' })
     if (mine !== gen) return
-    dividerId.value = r.firstUnreadId ?? null
-    holdRead = false
+    if (!around && !keepDivider) {
+      dividerId.value = r.firstUnreadId ?? null
+      holdRead = false
+    }
     messages.value = r.messages
     hasMoreBefore.value = r.hasMoreBefore
     hasMoreAfter.value = r.hasMoreAfter
@@ -80,8 +91,8 @@ async function load() {
   }
   if (mine !== gen) return
   await nextTick()
-  if (props.messageId) jumpTo(props.messageId)
-  else if (dividerId.value) document.getElementById(`msg-${dividerId.value}`)?.scrollIntoView({ block: 'start' })
+  if (around) document.getElementById('new-messages-divider')?.scrollIntoView({ block: 'start' })
+  else if (props.messageId) jumpTo(props.messageId)
   else {
     pinned = true
     scrollToEnd()
@@ -152,10 +163,14 @@ async function loadOlder() {
 async function loadNewer() {
   if (!hasMoreAfter.value || loadingNewer) return
   loadingNewer = true
+  const mine = gen
   try {
     const r = await fetchPage({ after: messages.value.at(-1)!.id })
+    if (mine !== gen) return
     messages.value = [...messages.value, ...r.messages]
     hasMoreAfter.value = r.hasMoreAfter
+  } catch {
+    toast.add({ title: 'Could not load newer messages', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     loadingNewer = false
   }
@@ -163,15 +178,14 @@ async function loadNewer() {
 
 async function toPresent() {
   if (props.messageId) await navigateTo(`/c/${props.channelId}`)
-  else {
-    await load()
-  }
+  else await load(undefined, true) // latest page only: older pages reload as you scroll up
 }
 
 function updateDividerSide() {
   const el = scroller.value
   const d = dividerId.value ? document.getElementById('new-messages-divider') : null
-  if (!el || !d) return (dividerSide.value = null)
+  if (!el || !dividerId.value) return (dividerSide.value = null)
+  if (!d) return (dividerSide.value = hasMoreBefore.value ? 'above' : null) // not loaded: older than the loaded page
   const box = el.getBoundingClientRect()
   const r = d.getBoundingClientRect()
   dividerSide.value = r.bottom <= box.top ? 'above' : r.top >= box.bottom ? 'below' : null
@@ -186,7 +200,11 @@ const toBottom = () => {
   pinned = true
   scrollToEnd('smooth')
 }
-const showDivider = () => document.getElementById('new-messages-divider')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+function showDivider() {
+  const d = document.getElementById('new-messages-divider')
+  if (d) d.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  else if (dividerId.value) void load(dividerId.value)
+}
 
 function onScroll() {
   const el = scroller.value
@@ -196,6 +214,7 @@ function onScroll() {
   pinned = pinAfterScroll(pinned, lastTop, el) // keyboard, drag and find-in-page going up release it; late content growth doesn't
   lastTop = el.scrollTop
   if (!pinned || atBottom(el)) smoothing = false
+  if (atBottom(el)) unseenBelow.value = false
   void loadOlder()
   if (hasMoreAfter.value && el.scrollHeight - el.scrollTop - el.clientHeight < 200) void loadNewer()
 }
@@ -224,9 +243,12 @@ socket.on(m => {
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
     if (dividerId.value === null && m.message.userId !== me.value?.id && !focused.value) dividerId.value = m.message.id
     const el = scroller.value
-    const atBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120 || m.message.userId === me.value?.id
+    const follow = !el || atBottom(el, 120) || m.message.userId === me.value?.id
     messages.value.push(m.message)
-    if (atBottom) void nextTick(scrollToEnd)
+    if (follow) {
+      pinned = true // keep following while its body, images and previews render
+      void nextTick(scrollToEnd)
+    } else unseenBelow.value = true
     if (m.message.userId !== me.value?.id) void nextTick(maybeRead)
   } else if (m.type === 'message:edit' && m.message.channelId === props.channelId) {
     const i = messages.value.findIndex(x => x.id === m.message.id)
@@ -336,7 +358,13 @@ const rows = computed(() => {
 })
 
 // Client only: history needs the session cookie, which a server-side $fetch doesn't carry.
-onMounted(() => watch(() => [props.channelId, props.messageId], load, { immediate: true }))
+onMounted(() =>
+  watch(
+    () => [props.channelId, props.messageId],
+    () => load(),
+    { immediate: true },
+  ),
+)
 // After a reconnect, pull what we missed while offline.
 socket.onOpen(() => {
   if (!loading.value && !hasMoreAfter.value && messages.value.length)
@@ -390,22 +418,30 @@ socket.onOpen(() => {
             </template>
           </div>
         </div>
-        <UButton
-          v-if="dividerSide"
-          label="New messages"
-          :icon="dividerSide === 'above' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'"
-          size="sm"
-          class="absolute top-2 left-1/2 -translate-x-1/2 shadow-md"
-          @click="showDivider"
-        />
-        <UButton
-          v-if="awayFromBottom || hasMoreAfter"
-          icon="i-lucide-chevrons-down"
-          aria-label="Scroll to latest messages"
-          size="sm"
-          class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full shadow-md"
-          @click="toBottom"
-        />
+        <div class="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-2">
+          <Transition v-bind="fade">
+            <UButton
+              v-if="dividerSide"
+              label="New messages"
+              :icon="dividerSide === 'above' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'"
+              size="sm"
+              class="pointer-events-auto rounded-full shadow-md"
+              @click="showDivider"
+            />
+          </Transition>
+          <Transition v-bind="fade">
+            <UButton
+              v-if="awayFromBottom || hasMoreAfter || unseenBelow"
+              :label="unseenBelow ? 'New messages below' : 'Jump to present'"
+              icon="i-lucide-chevrons-down"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+              class="pointer-events-auto rounded-full shadow-md"
+              @click="toBottom"
+            />
+          </Transition>
+        </div>
       </div>
       <div class="h-5 px-4 text-xs text-muted" aria-live="polite">
         {{ typingText }}

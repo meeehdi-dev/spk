@@ -13,6 +13,7 @@ const host = computed(() => {
 })
 const image = computed(() => `/api/messages/${props.messageId}/preview-image?url=${encodeURIComponent(props.preview.url)}`)
 const el = ref<HTMLElement>()
+const imgLoaded = ref(false)
 onMounted(() => {
   registerCtx(el.value, {
     kind: 'preview',
@@ -36,7 +37,16 @@ onMounted(() => {
       <span class="truncate text-xs text-muted">{{ preview.siteName || host }}</span>
       <span v-if="preview.title" class="line-clamp-2 font-bold text-primary">{{ preview.title }}</span>
       <span v-if="preview.description" class="line-clamp-3 text-xs text-toned">{{ preview.description }}</span>
-      <img v-if="preview.image" :src="image" alt="" loading="lazy" class="mt-1 max-h-48 w-fit max-w-full rounded object-cover" />
+      <img
+        v-if="preview.image"
+        :src="image"
+        alt=""
+        loading="lazy"
+        class="mt-1 max-h-48 max-w-full rounded object-cover"
+        :class="imgLoaded ? 'w-fit' : 'h-32 w-full animate-pulse bg-elevated'"
+        @load="imgLoaded = true"
+        @error="imgLoaded = true"
+      />
     </a>
     <UTooltip v-if="canRemove" text="Remove preview">
       <UButton

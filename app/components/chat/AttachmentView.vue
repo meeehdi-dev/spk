@@ -10,6 +10,7 @@ const kind = computed(() =>
   props.file.mime.startsWith('image/') ? 'image' : props.file.mime.startsWith('video/') ? 'video' : props.file.mime.startsWith('audio/') ? 'audio' : 'file',
 )
 const revealed = ref(!props.file.spoiler)
+const imgLoaded = ref(false)
 const lang = computed(() => previewLanguage(props.file.filename, props.file.size))
 
 // Text/code preview: first 64 KB through a Range request, rendered like a code block.
@@ -99,7 +100,15 @@ onMounted(() => {
         :aria-label="`Open ${file.filename}`"
         @click="revealed ? emit('open', file) : (revealed = true)"
       >
-        <img :src="src" :alt="file.filename" loading="lazy" class="max-h-[350px] max-w-full object-contain transition" :class="revealed ? '' : 'blur-2xl'" />
+        <img
+          :src="src"
+          :alt="file.filename"
+          loading="lazy"
+          class="max-h-[350px] max-w-full object-contain transition"
+          :class="[revealed ? '' : 'blur-2xl', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-elevated']"
+          @load="imgLoaded = true"
+          @error="imgLoaded = true"
+        />
         <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-default/30 text-xs font-bold">
           <UIcon name="i-lucide-eye-off" class="mr-1 size-4" /> Spoiler: click to reveal
         </span>
@@ -107,6 +116,7 @@ onMounted(() => {
     </template>
     <video v-else-if="kind === 'video'" :src="src" controls preload="metadata" class="max-h-[350px] max-w-full rounded-md border border-default" />
     <audio v-else-if="kind === 'audio'" :src="src" controls preload="none" class="max-w-full" />
+    <USkeleton v-else-if="lang && text === undefined && !failed" class="h-24 w-full max-w-xl" />
     <div v-else-if="lang && text !== undefined" class="overflow-hidden rounded-md border border-default bg-muted text-sm">
       <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">
         <UIcon :name="fileIcon(file.mime, file.filename)" class="size-4" />
