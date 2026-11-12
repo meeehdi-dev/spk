@@ -241,6 +241,7 @@ const onDrop = (channelId: string) => {
                   class="justify-start hover:bg-transparent compact:py-1"
                 />
               </UContextMenu>
+              <RadioIndicator v-if="voice.channelId.value === c.id" />
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>
@@ -315,6 +316,7 @@ const onDrop = (channelId: string) => {
       <VoiceControl kind="screen" />
       <SoundboardPopover />
       <RadioPopover />
+      <RadioIndicator />
       <VoiceControl kind="leave" />
     </div>
 
