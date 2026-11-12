@@ -62,7 +62,6 @@ export default defineNuxtConfig({
         '@vueuse/integrations/useSortable',
         'better-auth/client/plugins',
         'better-auth/vue',
-        'emoji-picker-element',
         'highlight.js/lib/core',
         'highlight.js/lib/languages/bash',
         'highlight.js/lib/languages/c',

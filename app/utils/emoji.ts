@@ -1,7 +1,7 @@
 import dataUrl from 'emoji-picker-element-data/en/emojibase/data.json?url'
 
 // The picker's data is bundled with the app (no CDN request).
-export const emojiDataUrl = () => new URL(dataUrl, location.href).href
+const emojiDataUrl = () => new URL(dataUrl, location.href).href
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂']
 

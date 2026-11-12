@@ -8,8 +8,7 @@
     "service-worker/sw.js",
   ],
   "ignoreDependencies": [
-    // Nuxt generates VueUse auto-imports and invokes vue-tsc through its CLI.
-    "@vueuse/core",
+    // Nuxt invokes vue-tsc through its CLI.
     "vue-tsc",
   ],
 }
