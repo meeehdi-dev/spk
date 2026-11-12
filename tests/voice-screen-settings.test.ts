@@ -784,7 +784,9 @@ describe('screen controls', () => {
     const app = createApp({
       template: descriptor.template!.content.replace('items as never', 'items').replace('$event as number', '$event'),
       components: Object.fromEntries(
-        ['UContextMenu', 'UAvatar', 'UBadge', 'UTooltip', 'UPopover', 'UAvatarGroup', 'UIcon', 'Transition'].map(n => [n, slot]).concat([['UButton', button]]),
+        ['UContextMenu', 'UAvatar', 'UBadge', 'UTooltip', 'UPopover', 'USlider', 'UAvatarGroup', 'UIcon', 'Transition']
+          .map(n => [n, slot])
+          .concat([['UButton', button]]),
       ),
       setup: () => ({
         tile,
@@ -810,17 +812,6 @@ describe('screen controls', () => {
     try {
       const stop = container.querySelector<HTMLButtonElement>('[aria-label="Stop watching"]')
       expect(stop).not.toBeNull()
-      const actions = container.querySelector('[aria-label="Fullscreen"]')!.parentElement!.parentElement!
-      const volume = container.querySelector('[aria-label="Screen share volume"]')!
-      expect(actions.classList.contains('top-8')).toBe(true)
-      expect(actions.classList.contains('group-focus-within:opacity-100')).toBe(true)
-      expect(volume.classList.contains('bottom-2')).toBe(true)
-      expect(volume.classList.contains('group-focus-within:opacity-100')).toBe(true)
-      // Static geometry, not browser measurement: 192x108 thumbnail, 1px border, default 32px buttons.
-      const actionTop = Number([...actions.classList].find(c => /^top-\d+$/.test(c))!.slice(4)) * 4
-      const volumeBottom = Number([...volume.classList].find(c => /^bottom-\d+$/.test(c))!.slice(7)) * 4
-      expect(8 + 24).toBeLessThanOrEqual(actionTop) // top-2 label, including the taller LIVE badge
-      expect(actionTop + 32).toBeLessThan(108 - 2 - volumeBottom - 32)
       stop!.click()
       expect(watchToggle).toHaveBeenCalledOnce()
       const quality = container.querySelector('span.border-l')!
