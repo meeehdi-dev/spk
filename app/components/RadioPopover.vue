@@ -65,7 +65,7 @@ const status = computed(() => {
             <UButton v-else label="Mute for me" color="neutral" variant="soft" @click="radio.mute" />
             <UButton label="Stop for everyone" color="neutral" variant="soft" @click="radio.stop" />
           </div>
-          <USlider v-model="radio.volume.value" :min="0" :max="1" :step="0.05" aria-label="Radio volume (only you)" />
+          <USlider v-model="radio.volume.value" :min="0" :max="1" :step="0.01" aria-label="Radio volume (only you)" />
         </template>
         <p v-else class="text-muted">No station selected.</p>
         <p v-if="radio.commandError.value" role="alert" class="text-error">{{ radio.commandError.value }}</p>

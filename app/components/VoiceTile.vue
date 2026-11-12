@@ -162,7 +162,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
                 :model-value="vol.screen"
                 :min="0"
                 :max="1"
-                :step="0.05"
+                :step="0.01"
                 aria-label="Screen share volume"
                 @update:model-value="v.setVolume(tile.userId, { screen: $event as number })"
               />
