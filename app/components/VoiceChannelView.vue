@@ -70,6 +70,7 @@ const toggleTheater = (id: string) => {
         <VoiceControl kind="camera" labeled />
         <VoiceControl kind="screen" labeled />
         <SoundboardPopover labeled />
+        <RadioPopover labeled />
         <VoiceControl kind="leave" labeled />
       </template>
     </div>

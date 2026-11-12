@@ -13,6 +13,7 @@ export interface VoiceSettings {
   /** 0–100, higher hears quieter speech. */
   sensitivity: number
   outputVolume: number
+  radioVolume: number
   sounds: Record<VoiceSound, { on: boolean; volume: number }>
   /** Soundboard sounds from others: its own switch and volume. */
   soundboard: { on: boolean; volume: number }
@@ -31,6 +32,7 @@ export const useVoiceSettings = () =>
       agc: true,
       sensitivity: 50,
       outputVolume: 1,
+      radioVolume: 0.5,
       screenAudio: true,
       screenQuality: DEFAULT_SCREEN_QUALITY,
       soundboard: { on: true, volume: 0.7 },

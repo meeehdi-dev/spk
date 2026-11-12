@@ -1,6 +1,7 @@
 import { RoomServiceClient } from 'livekit-server-sdk'
 
 import { broadcast, peersOf, sendToUser } from './peers'
+import { clearChannelRadio } from './radioState'
 import { leaveVoice, sessionOf, sessionsIn } from './voicePresence'
 
 /** Best effort: LiveKit may be down or unconfigured; the app-side session is already gone. */
@@ -26,6 +27,7 @@ export function disconnectVoice(userId: string, reason: string) {
 
 /** A voice channel is being deleted: everyone in it leaves (with a toast on their side). */
 export function disconnectChannel(channelId: string) {
+  clearChannelRadio(channelId)
   for (const s of sessionsIn(channelId)) disconnectVoice(s.userId, 'This voice channel was deleted')
   void livekit(c => c.deleteRoom(channelId))
 }

@@ -1,3 +1,5 @@
+import { clearChannelRadio } from './radioState'
+
 /** Who is in which voice channel (in memory; one replica only). One session per account. */
 export interface VoiceFlags {
   muted: boolean
@@ -43,6 +45,7 @@ export function joinVoice(userId: string, channelId: string, sid: string, owner:
     watching: [],
     ready: visible,
   })
+  if (old && old.channelId !== channelId) clearEmptyRadio(old.channelId)
   return { presence: pub(sessions.get(userId)!), visible, replacedVisible: !!old?.ready, replacedSid: old && old.sid !== sid ? old.sid : undefined }
 }
 
@@ -68,6 +71,7 @@ export function leaveVoice(userId: string, sid: string) {
   if (sessions.get(userId)?.sid !== sid) return null
   const { channelId, ready } = sessions.get(userId)!
   sessions.delete(userId)
+  clearEmptyRadio(channelId)
   return { userId, channelId, ready }
 }
 
@@ -77,6 +81,7 @@ export function dropVoiceOwner(owner: unknown) {
   for (const [userId, s] of sessions)
     if (s.owner === owner) {
       sessions.delete(userId)
+      clearEmptyRadio(s.channelId)
       if (s.ready) gone.push({ userId, channelId: s.channelId })
     }
   return gone
@@ -100,3 +105,13 @@ export const sessionOf = (userId: string) => {
 
 /** Everyone in a voice channel. */
 export const sessionsIn = (channelId: string) => [...sessions.values()].filter(s => s.channelId === channelId).map(s => ({ userId: s.userId, sid: s.sid }))
+
+/** Only a ready session can control radio; WS commands must also match its owning socket. */
+export function readySessionOf(userId: string, sid: string, owner: unknown) {
+  const s = sessions.get(userId)
+  return s?.ready && s.sid === sid && s.owner === owner ? { channelId: s.channelId } : null
+}
+
+function clearEmptyRadio(channelId: string) {
+  if (![...sessions.values()].some(s => s.channelId === channelId)) clearChannelRadio(channelId)
+}

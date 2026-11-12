@@ -314,6 +314,7 @@ const onDrop = (channelId: string) => {
       <VoiceControl kind="camera" />
       <VoiceControl kind="screen" />
       <SoundboardPopover />
+      <RadioPopover />
       <VoiceControl kind="leave" />
     </div>
 
