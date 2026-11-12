@@ -160,15 +160,10 @@ function onContext(e: MouseEvent) {
   items.value = target ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never) : messageItems()
 }
 
-// Mouse focus would highlight the message and arm `R`; only keyboard focus keeps it.
-const onFocus = () => {
-  if (!root.value?.matches(':focus-visible')) root.value?.blur()
-}
-
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
-// `R` on the focused message (not while typing in its editor) replies.
+// Only keyboard focus arms `R`; blurring mouse focus would interrupt text selection.
 function onKey(e: KeyboardEvent) {
-  if (e.target === root.value && e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  if (e.target === root.value && root.value?.matches(':focus-visible') && e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault()
     actions.reply(props.message.id)
   }
@@ -185,7 +180,6 @@ function onKey(e: KeyboardEvent) {
       :class="[highlighted ? 'bg-primary/10' : '', grouped ? '' : 'mt-3 compact:mt-1']"
       @contextmenu="onContext"
       @keydown="onKey"
-      @focus="onFocus"
     >
       <div class="relative w-9 shrink-0 text-right">
         <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
