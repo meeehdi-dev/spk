@@ -11,3 +11,4 @@ dist
 *.tsbuildinfo
 tests/.lint-*
 .DS_Store
+/.ai/todo.md
