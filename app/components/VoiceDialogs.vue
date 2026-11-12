@@ -21,7 +21,7 @@ const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
             :model-value="vol.mic"
             :min="0"
             :max="1"
-            :step="0.05"
+            :step="0.01"
             aria-label="Mic volume"
             @update:model-value="v.setVolume(v.volumeFor.value!, { mic: $event as number })"
           />
@@ -31,7 +31,7 @@ const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
             :model-value="vol.screen"
             :min="0"
             :max="1"
-            :step="0.05"
+            :step="0.01"
             aria-label="Screen share volume"
             @update:model-value="v.setVolume(v.volumeFor.value!, { screen: $event as number })"
           />

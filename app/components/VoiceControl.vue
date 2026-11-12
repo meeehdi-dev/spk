@@ -159,7 +159,7 @@ const c = computed(() => {
             />
           </UFormField>
           <UFormField label="Output volume">
-            <USlider v-model="v.settings.value.outputVolume" :min="0" :max="1" :step="0.05" aria-label="Output volume" @update:model-value="v.applyOutput()" />
+            <USlider v-model="v.settings.value.outputVolume" :min="0" :max="1" :step="0.01" aria-label="Output volume" @update:model-value="v.applyOutput()" />
           </UFormField>
         </div>
       </template>

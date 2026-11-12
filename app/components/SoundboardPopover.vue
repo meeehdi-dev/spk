@@ -46,7 +46,7 @@ const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().inclu
         </div>
         <USeparator />
         <USwitch v-model="sb.on" label="Hear soundboard sounds" />
-        <USlider v-model="sb.volume" :min="0" :max="1" :step="0.05" :disabled="!sb.on" aria-label="Soundboard volume" />
+        <USlider v-model="sb.volume" :min="0" :max="1" :step="0.01" :disabled="!sb.on" aria-label="Soundboard volume" />
       </div>
     </template>
   </UPopover>
