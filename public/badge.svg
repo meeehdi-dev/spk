@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>spk notification badge</title>
+  <path fill="#fbbf24" fill-rule="evenodd" d="M120 150h272a28 28 0 0 1 28 28v128a28 28 0 0 1-28 28H250l-80 62v-62h-50a28 28 0 0 1-28-28V178a28 28 0 0 1 28-28Zm54 78a4 4 0 0 0-4 4v14a4 4 0 0 0 4 4h164a4 4 0 0 0 4-4v-14a4 4 0 0 0-4-4Zm0 44a4 4 0 0 0-4 4v14a4 4 0 0 0 4 4h102a4 4 0 0 0 4-4v-14a4 4 0 0 0-4-4Z" />
+</svg>
