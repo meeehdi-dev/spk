@@ -5,7 +5,9 @@ const pushPrefs = () => {
   return { dms: s.dms, pings: s.pings, dnd: useMyStatus().value === 'busy', muted: s.muted }
 }
 const currentSubscription = async () =>
-  import.meta.client && 'serviceWorker' in navigator && 'PushManager' in window ? (await navigator.serviceWorker.ready).pushManager.getSubscription() : null
+  import.meta.client && !import.meta.env.DEV && 'serviceWorker' in navigator && 'PushManager' in window
+    ? (await navigator.serviceWorker.ready).pushManager.getSubscription()
+    : null
 
 /** Layout only: keeps the server's copy of the settings (incl. Busy) current, so it never pushes what this browser would hide. */
 export function usePushSync() {
@@ -22,7 +24,7 @@ export function usePushSync() {
 /** Web Push for this browser: subscribe from a button, keep the server's copy of the settings current. */
 export function usePush() {
   const key = useRuntimeConfig().public.vapidPublicKey as string
-  const supported = import.meta.client && 'serviceWorker' in navigator && 'PushManager' in window && !!key
+  const supported = import.meta.client && !import.meta.env.DEV && 'serviceWorker' in navigator && 'PushManager' in window && !!key
   const subscribed = ref(false)
   const prefs = pushPrefs
   const current = currentSubscription
@@ -34,6 +36,7 @@ export function usePush() {
     supported,
     subscribed,
     async subscribe() {
+      if (!supported) return
       const reg = await navigator.serviceWorker.ready
       const sub =
         (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }))

@@ -70,6 +70,7 @@ describe('push toggle', () => {
 
 describe('push prefs sync', () => {
   it('re-sends prefs to the server when the status becomes busy, without Settings mounted', async () => {
+    vi.stubEnv('DEV', false)
     vi.useFakeTimers()
     const status = ref('online')
     const fetchMock = vi.fn(async () => {})
@@ -90,5 +91,6 @@ describe('push prefs sync', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/push', { method: 'PUT', body: { endpoint: 'e', prefs: expect.objectContaining({ dnd: true }) } })
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 })

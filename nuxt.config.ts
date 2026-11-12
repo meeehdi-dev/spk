@@ -1,18 +1,45 @@
 import { noiseSuppressionAudioWorkletVitePlugin } from '@workadventure/noise-suppression/vite'
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc'],
+  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc', '@vite-pwa/nuxt'],
   devtools: { enabled: false },
   app: {
     head: {
       link: [
-        { rel: 'manifest', href: '/manifest.webmanifest' },
-        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+        { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
+        { rel: 'icon', href: '/logo.svg', sizes: 'any', type: 'image/svg+xml' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon-180x180.png' },
       ],
       meta: [{ name: 'theme-color', content: '#18181b' }],
     },
   },
-  experimental: { emitRouteChunkError: 'manual' },
+  experimental: { emitRouteChunkError: 'manual', checkOutdatedBuildInterval: 5 * 60 * 1000 },
+  pwa: {
+    strategies: 'injectManifest',
+    srcDir: '../service-worker',
+    filename: 'sw.js',
+    injectRegister: false,
+    injectManifest: { injectionPoint: undefined },
+    client: { registerPlugin: false },
+    devOptions: { enabled: false },
+    pwaAssets: { disabled: true },
+    manifest: {
+      name: 'spk',
+      short_name: 'spk',
+      description: 'Private chat and voice for friends',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      background_color: '#18181b',
+      theme_color: '#18181b',
+      icons: [
+        { src: '/pwa-64x64.png', sizes: '64x64', type: 'image/png' },
+        { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+  },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     databasePath: './data/spk.db',
@@ -63,6 +90,10 @@ export default defineNuxtConfig({
     },
   },
   hooks: {
+    'app:resolve'(app) {
+      // The PWA module injects an empty asset helper even when generation is disabled.
+      app.plugins = app.plugins.filter(plugin => !plugin.src.endsWith('/pwa-icons-plugin.ts'))
+    },
     // Nuxt's bare `assets` alias breaks the package's `new URL('assets/…', import.meta.url)`, so its worklet/wasm/model aren't emitted.
     'vite:extendConfig'(config) {
       const alias = config.resolve?.alias

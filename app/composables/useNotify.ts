@@ -75,7 +75,7 @@ function useNotify() {
           actions: [{ label: 'Open', icon: 'i-lucide-arrow-right', onClick: () => navigateTo(o.target) }],
         })
       } else if (notificationsSupported() && Notification.permission === 'granted') {
-        const n = new Notification(o.title, { body: o.body, tag: o.tag, icon: '/icons/icon-192.png' })
+        const n = new Notification(o.title, { body: o.body, tag: o.tag, icon: '/pwa-192x192.png' })
         n.onclick = () => {
           window.focus()
           void navigateTo(o.target)

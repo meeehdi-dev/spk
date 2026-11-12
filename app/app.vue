@@ -5,6 +5,7 @@ useHead({ htmlAttrs: { 'data-density': density } })
 </script>
 
 <template>
+  <VitePwaManifest />
   <UApp>
     <NuxtLayout>
       <NuxtPage />

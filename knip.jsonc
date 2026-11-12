@@ -4,8 +4,8 @@
     // MDC renders components by name; settings use resolveComponent().
     "app/components/mdc/**/*.vue",
     "app/components/settings/**/*.vue",
-    // Registered by URL in the client PWA plugin.
-    "public/sw.js",
+    // The PWA worker source is relative to Vite's app root.
+    "service-worker/sw.js",
   ],
   "ignoreDependencies": [
     // Nuxt generates VueUse auto-imports and invokes vue-tsc through its CLI.

@@ -43,6 +43,12 @@ CI checks lint and formatting in separate steps alongside the other checks. Oxfm
 
 Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks script variables/calls; ESLint checks Vue attributes and Nuxt UI slot values. Oxfmt preserves duplicates so lint can report them; `pnpm lint:fix` removes exact duplicates. Conflicting utilities require choosing the intended style; classes in separate slots, alternative branches, and distinct responsive variants are checked independently.
 
+### Icons and PWA
+
+`public/logo.svg` is the source for favicons and install icons. After editing it or `public/badge.svg`, run `pnpm icons` and commit the generated files in `public/`. The generator uses the recommended `minimal-2023` preset with default filenames and dark backgrounds; Nuxt serves the committed assets without regenerating them during builds.
+
+The production app supports browser installation and push notifications without offline caching. The service worker is disabled in development; test push with a local production build. Open apps check for new deployments every five minutes and offer a dismissible Refresh notice. Refreshing disconnects voice and loses unsent GIFs, attachments and replies; draft text is saved.
+
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.
