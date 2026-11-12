@@ -12,6 +12,7 @@ const { data: users, nameOf, byId } = useUsers()
 const { of: unreadOf } = useUnread()
 const { textChannels, voiceChannels } = useNavChannels()
 const voice = useVoice()
+const radioDirectory = useRadioDirectory()
 const settingsTab = useSettingsModal()
 const myStatus = useMyStatus()
 const voiceName = computed(() => allChannels.value.find(c => c.id === voice.channelId.value)?.name)
@@ -241,7 +242,7 @@ const onDrop = (channelId: string) => {
                   class="justify-start hover:bg-transparent compact:py-1"
                 />
               </UContextMenu>
-              <RadioIndicator v-if="voice.channelId.value === c.id" />
+              <RadioIndicator :station="radioDirectory[c.id]" />
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>

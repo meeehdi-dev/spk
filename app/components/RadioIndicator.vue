@@ -1,6 +1,8 @@
 <script setup lang="ts">
-const { station } = useRadio()
-const label = computed(() => (station.value?.name ? `Radio playing: ${station.value.name}` : 'Radio playing'))
+import type { RadioSummary } from '#shared/utils/radio'
+
+const props = defineProps<{ station: RadioSummary['station'] | undefined }>()
+const label = computed(() => `Radio selected: ${props.station?.name ?? ''}`)
 </script>
 
 <template>

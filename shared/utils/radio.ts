@@ -11,3 +11,8 @@ export interface RadioState {
   revision: number
   station: RadioStation | null
 }
+
+export interface RadioSummary {
+  channelId: string
+  station: Pick<RadioStation, 'id' | 'name'> | null
+}

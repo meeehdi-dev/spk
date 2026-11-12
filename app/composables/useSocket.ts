@@ -1,10 +1,12 @@
 import type { Presence } from '#shared/utils/presence'
-import type { RadioState } from '#shared/utils/radio'
+import type { RadioState, RadioSummary } from '#shared/utils/radio'
 
 import type { MessageDto } from '../../server/db/messages'
 import type { VoicePresence } from '../../server/utils/voicePresence'
 
 export type SocketFrame =
+  | { type: 'radio:snapshot'; channels: RadioSummary[] }
+  | ({ type: 'radio:update' } & RadioSummary)
   | ({ type: 'voice:radio:state'; sid: string } & RadioState)
   | { type: 'voice:radio:error'; sid: string; channelId?: string; error: string }
   | { type: 'channels:changed' | 'users:changed' | 'banned' | 'signed-out' }

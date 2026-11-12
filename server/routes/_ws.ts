@@ -1,6 +1,7 @@
 import type { Peer } from 'crossws'
 
 import { MANUAL_STATUSES, type ManualStatus } from '../../shared/utils/presence'
+import { radioSnapshot } from '../utils/radioState'
 
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
@@ -43,6 +44,7 @@ export default defineWebSocketHandler({
     userOf.set(peer, userId)
     const p = addPeer(userId, peer, peer.context.status as ManualStatus | undefined)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
+    peer.send(JSON.stringify({ type: 'radio:snapshot', channels: radioSnapshot() }))
     heard.set(peer, Date.now())
     timers.set(
       peer,

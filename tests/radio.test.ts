@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), click: vi.fn(), send: vi.fn() }))
 vi.mock('../server/utils/radioApi', () => ({ getRadioStation: mocks.lookup, countRadioClick: mocks.click, isStationId: (id: unknown) => id === 'station' }))
-vi.mock('../server/utils/peers', () => ({ sendToUser: mocks.send }))
+vi.mock('../server/utils/peers', () => ({ sendToUser: mocks.send, broadcast: vi.fn() }))
 
 let radio: typeof import('../server/utils/radio')
 let presence: typeof import('../server/utils/voicePresence')
@@ -38,12 +38,13 @@ afterEach(() => {
 describe('channel radio commands', () => {
   it('requires a ready session, matching sid and owning socket', async () => {
     await set()
+    await radio.handleRadioFrame('u', { type: 'voice:radio:stop', sid: 's' }, owner)
     presence.joinVoice('u', 'c', 's', owner, false)
     await set()
     presence.readyVoice('u', 's')
     await set('u', 'wrong')
     await set('u', 's', { send: owner.send })
-    expect(replies).toHaveLength(4)
+    expect(replies).toHaveLength(5)
     expect(replies.every(r => r.type === 'voice:radio:error')).toBe(true)
     expect(mocks.lookup).not.toHaveBeenCalled()
   })
