@@ -11,7 +11,14 @@ const { media, MockRoom } = vi.hoisted(() => {
   class MockRoom {
     events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
-    localParticipant = { identity: 'local', isLocal: true, getTrackPublication: () => undefined, setMicrophoneEnabled: vi.fn(async () => {}) }
+    mic = { stopOnMute: false, setProcessor: vi.fn(async () => {}), mute: vi.fn(async () => {}), unmute: vi.fn(async () => {}), stop: vi.fn() }
+    localParticipant = {
+      identity: 'local',
+      isLocal: true,
+      getTrackPublication: () => undefined,
+      createTracks: vi.fn(async () => [this.mic]),
+      publishTrack: vi.fn(async () => {}),
+    }
     on(event: string, fn: (...args: unknown[]) => void) {
       this.events.set(event, [...(this.events.get(event) ?? []), fn])
       return this
@@ -186,20 +193,51 @@ describe('acknowledged voice join', () => {
     expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(true)
   })
 
-  it('mutes the published mic before the processor loads when joining muted', async () => {
+  it('initializes the processor before muting and publishes only after capture is released', async () => {
     const b = await browser('early')
     b.v.toggleMic()
     const order: string[] = []
-    const track = {
-      mute: vi.fn(async () => void order.push('mute')),
-      unmute: vi.fn(async () => {}),
-      setProcessor: vi.fn(async () => void order.push('processor')),
-    }
     media.connect = async () => {
-      media.rooms[0]!.localParticipant.getTrackPublication = (() => ({ audioTrack: track })) as never
+      const r = media.rooms[0]!
+      r.localParticipant.createTracks.mockImplementation(async () => {
+        r.mic.setProcessor.mockImplementation(async () => {
+          order.push('processor')
+        })
+        r.mic.mute.mockImplementation(async () => {
+          expect(r.mic.stopOnMute).toBe(true)
+          order.push('mute')
+        })
+        return [r.mic]
+      })
+      r.localParticipant.publishTrack.mockImplementation(async () => {
+        order.push('publish')
+      })
     }
     await b.v.join('c1')
-    expect(order.slice(0, 2)).toEqual(['mute', 'processor'])
+    expect(order).toEqual(['processor', 'mute', 'publish'])
+    expect(media.rooms[0]!.mic.setProcessor).toHaveBeenCalledWith(expect.any(Object))
+  })
+
+  it('stops microphone capture that arrives after a pending join is cancelled', async () => {
+    const b = await browser('cancel-mic')
+    let release!: () => void
+    media.connect = async () => {
+      const r = media.rooms[0]!
+      r.localParticipant.createTracks.mockImplementation(async () => {
+        await new Promise<void>(resolve => {
+          release = resolve
+        })
+        return [r.mic]
+      })
+    }
+    const joining = b.v.join('c1')
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await b.v.leave(false)
+    release()
+    await joining
+    expect(media.rooms[0]!.mic.stop).toHaveBeenCalled()
+    expect(media.rooms[0]!.mic.setProcessor).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.localParticipant.publishTrack).not.toHaveBeenCalled()
   })
 
   it('replaces the middle browser before connecting, without observer sounds or reordering', async () => {
@@ -347,7 +385,7 @@ describe('acknowledged voice join', () => {
     expect(sessions.sessionOf('middle')?.channelId).toBe('c1')
     media.connect = async () => {
       expect(original.disconnect).toHaveBeenCalled()
-      expect(original.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled()
+      expect(original.localParticipant.createTracks).not.toHaveBeenCalled()
       expect(sessions.sessionOf('middle')?.channelId).toBe('c2')
     }
     b.receive({ type: 'voice:move', sid: b.v.sid, channelId: 'c2' })
@@ -402,7 +440,7 @@ describe('acknowledged voice join', () => {
     await flush()
     expect(media.rooms).toHaveLength(1)
     expect(b.send.mock.calls.filter(([m]) => m.type === 'voice:join').map(([m]) => m.channelId)).toEqual(['c1'])
-    expect(original.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled()
+    expect(original.localParticipant.createTracks).not.toHaveBeenCalled()
     expect(b.v.channelId.value).toBeNull()
     expect(b.v.activeRoom()).toBeUndefined()
     expect(b.v.connecting.value).toBe(false)

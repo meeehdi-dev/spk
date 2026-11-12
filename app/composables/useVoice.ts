@@ -123,6 +123,15 @@ export function useVoice() {
     channelCount: 1,
   })
 
+  async function allowMicrophone() {
+    await refreshDevices()
+    if (devices.value.mics.some(d => d.label)) return
+    const deviceId = settings.value.mic?.deviceId
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId } : true })
+    stream.getTracks().forEach(t => t.stop())
+    await refreshDevices()
+  }
+
   // The state the server shows to others: sent on change, at most every ~50 ms (the latest values go out).
   let speaking = false,
     lastSent = 0
@@ -222,7 +231,13 @@ export function useVoice() {
     applyOutput()
   }
   function applyMute() {
-    void (mute.value.muted ? micTrack()?.mute() : micTrack()?.unmute())
+    const track = micTrack()
+    void (mute.value.muted ? track?.mute() : track?.unmute())?.catch((e: unknown) => {
+      if (micTrack() !== track) return
+      mute.value = { ...mute.value, muted: track!.isMuted }
+      pushState()
+      toast.add({ title: 'Could not change microphone state', description: (e as Error).message, color: 'error', icon: 'i-lucide-mic-off' })
+    })
     applyOutput()
     pushState()
   }
@@ -239,6 +254,7 @@ export function useVoice() {
     })
     const signal = attempt.signal
     let r: Room | undefined
+    let localMic: LocalAudioTrack | undefined
     let claimed = false
     const stopSocketWatch = watchSocket(
       socket.connected,
@@ -249,18 +265,17 @@ export function useVoice() {
     )
     const cancel = () => {
       if (claimed) socket.send({ type: 'voice:leave', sid })
+      localMic?.stop()
       void r?.disconnect()
     }
     signal.addEventListener('abort', cancel, { once: true })
     try {
       // Permission first: it unlocks device labels, which the saved-device matching needs.
       try {
-        ;(await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
+        await allowMicrophone()
       } catch {
         throw new Error('Microphone access was denied')
       }
-      signal.throwIfAborted()
-      await refreshDevices()
       signal.throwIfAborted()
       const mic = matchDevice(settings.value.mic, devices.value.mics)
       const { token, url } = await $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
@@ -352,14 +367,23 @@ export function useVoice() {
       signal.throwIfAborted()
       await r.startAudio().catch(() => {})
       signal.throwIfAborted()
-      await r.localParticipant.setMicrophoneEnabled(true, captureOptions(mic.deviceId))
-      signal.throwIfAborted()
-      if (mute.value.muted) await r.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack?.mute() // don't let live audio out while the processor loads
-      signal.throwIfAborted()
       const { MicProcessor } = await import('~/utils/voice-processor') // browser-only: needs AudioWorkletNode
       signal.throwIfAborted()
+      const tracks = await r.localParticipant.createTracks({ audio: captureOptions(mic.deviceId) })
+      localMic = tracks[0] as LocalAudioTrack
+      signal.throwIfAborted()
       const nextProcessor = new MicProcessor(processing())
-      await r.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack?.setProcessor(nextProcessor)
+      try {
+        await localMic.setProcessor(nextProcessor)
+      } catch (e) {
+        await nextProcessor.destroy()
+        throw e
+      }
+      signal.throwIfAborted()
+      localMic.stopOnMute = true
+      if (mute.value.muted) await localMic.mute() // release capture before publishing a remembered mute
+      signal.throwIfAborted()
+      await r.localParticipant.publishTrack(localMic)
       signal.throwIfAborted()
       room = r
       processor = nextProcessor
@@ -374,6 +398,7 @@ export function useVoice() {
       if (claimed) socket.send({ type: 'voice:leave', sid })
       pendingJoin = undefined
       clearSpeaking()
+      localMic?.stop() // disconnect cannot stop a track that has not been published yet
       await r?.disconnect()
       if (!signal.aborted || signal.reason?.name !== 'AbortError') {
         toast.add({
@@ -469,7 +494,10 @@ export function useVoice() {
   async function applySettings() {
     if (!room) return
     void processor?.update(processing())
-    await micTrack()?.restartTrack(captureOptions(room.getActiveDevice('audioinput')))
+    const track = micTrack()
+    const options = captureOptions(room.getActiveDevice('audioinput'))
+    if (track?.isMuted) await track.applyConstraints(options) // stores constraints for reacquisition without opening the muted input
+    else await track?.restartTrack(options)
     applyOutput()
   }
   const routeOutputs = (kind: 'speaker' | 'screenSpeaker') =>
@@ -824,6 +852,7 @@ export function useVoice() {
     pickDevice,
     routeOutputs,
     refreshDevices,
+    allowMicrophone,
     cycleNoise,
     toggleEcho,
     toggleAgc,

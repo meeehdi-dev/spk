@@ -11,11 +11,26 @@ const { media, MockRoom } = vi.hoisted(() => {
     events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
     restartTrack = vi.fn(async () => {})
+    mic = {
+      stopOnMute: false,
+      isMuted: false,
+      restartTrack: this.restartTrack,
+      applyConstraints: vi.fn(async () => {}),
+      setProcessor: vi.fn(async () => {}),
+      mute: vi.fn(async () => {
+        this.mic.isMuted = true
+      }),
+      unmute: vi.fn(async () => {
+        this.mic.isMuted = false
+      }),
+      stop: vi.fn(),
+    }
     localParticipant = {
       identity: 'local',
       isLocal: true,
-      getTrackPublication: () => ({ audioTrack: { restartTrack: this.restartTrack, setProcessor: async () => {}, mute: vi.fn(), unmute: vi.fn() } }),
-      setMicrophoneEnabled: vi.fn(),
+      getTrackPublication: () => ({ audioTrack: this.mic }),
+      createTracks: vi.fn(async () => [this.mic]),
+      publishTrack: vi.fn(async () => {}),
     }
     on(event: string, fn: (...args: unknown[]) => void) {
       this.events.set(event, [...(this.events.get(event) ?? []), fn])
@@ -134,6 +149,45 @@ afterEach(async () => {
   document.body.replaceChildren()
   Reflect.deleteProperty(HTMLMediaElement.prototype, 'setSinkId')
   vi.unstubAllGlobals()
+})
+
+describe('microphone lifecycle', () => {
+  it('enumerates without capture and skips permission capture when labels are already known', async () => {
+    available.push(mic('mac', 'MacBook'))
+    settings.value.mic = { deviceId: 'mac', label: 'MacBook' }
+    const capture = vi.spyOn(navigator.mediaDevices, 'getUserMedia')
+    const mod = await import('../app/composables/useVoice')
+    voice = mod.useVoice()
+    await voice.refreshDevices()
+    expect(capture).not.toHaveBeenCalled()
+    await voice.join('channel')
+    expect(capture).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.localParticipant.createTracks).toHaveBeenCalledWith({ audio: expect.objectContaining({ deviceId: 'mac' }) })
+  })
+
+  it('targets the saved input for permission and releases the temporary stream', async () => {
+    settings.value.mic = { deviceId: 'mac', label: 'MacBook' }
+    const stop = vi.fn()
+    const capture = vi.spyOn(navigator.mediaDevices, 'getUserMedia').mockResolvedValue({ getTracks: () => [{ stop }] } as unknown as MediaStream)
+    await setup()
+    expect(capture).toHaveBeenCalledExactlyOnceWith({ audio: { deviceId: 'mac' } })
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('stores settings without restarting capture while muted and reports unmute failure', async () => {
+    const r = await setup()
+    voice.toggleMic()
+    await Promise.resolve()
+    await voice.applySettings()
+    expect(r.mic.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({ noiseSuppression: true }))
+    expect(r.restartTrack).not.toHaveBeenCalled()
+    r.mic.unmute.mockRejectedValueOnce(new Error('Microphone unavailable'))
+    voice.toggleMic()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(voice.mute.value.muted).toBe(true)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not change microphone state' }))
+  })
 })
 
 describe('independent remote audio outputs', () => {

@@ -86,7 +86,7 @@ function participant(identity: string, isLocal = false) {
     audioTrackPublications: new Map(),
     videoTrackPublications: new Map(),
     getTrackPublication: (source: string) => pubs.get(source),
-    setMicrophoneEnabled: vi.fn(async () => {}),
+    createTracks: vi.fn(async () => [Object.assign(track('audio', 'microphone'), { stopOnMute: false, setProcessor: vi.fn(async () => {}) })]),
     createScreenTracks: vi.fn<(options: ScreenShareCaptureOptions) => Promise<ReturnType<typeof track>[]>>(),
     publishTrack: vi.fn(async (track: TestTrack, options: TrackPublishOptions) => {
       pubs.set(track.source, {
@@ -206,8 +206,10 @@ beforeEach(async () => {
   })
   v = (await import('../app/composables/useVoice')).useVoice()
   await v.join('channel')
+  expect(toast.mock.calls).toEqual([])
   r = media.rooms[0]!
   p = r.localParticipant
+  p.publishTrack.mockClear() // screen assertions exclude the microphone published during join
 })
 afterEach(async () => {
   await v.leave(false)
@@ -283,7 +285,7 @@ describe('live screen settings', () => {
     expect(p.unpublishTrack.mock.calls.every(([t]) => t.kind === 'video' && t !== video)).toBe(true)
     for (const t of [video, sound!, mic, cam]) expect(t.stop).not.toHaveBeenCalled()
     expect(sound!.mute).not.toHaveBeenCalled()
-    expect(p.setMicrophoneEnabled).toHaveBeenCalledTimes(1)
+    expect(p.createTracks).toHaveBeenCalledTimes(1)
   })
 
   it('keeps Watch through publication gaps/later shares, but clears on unwatch, departure and local leave', async () => {

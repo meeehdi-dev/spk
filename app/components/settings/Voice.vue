@@ -22,7 +22,7 @@ const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaD
 const labelsHidden = computed(() => [...v.devices.value.mics, ...v.devices.value.speakers].some(d => !d.label))
 async function allow() {
   try {
-    ;(await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop())
+    await v.allowMicrophone()
   } catch {
     useToast().add({ title: 'Microphone access was denied', color: 'error', icon: 'i-lucide-mic-off' })
   }
@@ -32,39 +32,58 @@ onMounted(v.refreshDevices)
 
 // Level meter on the chosen mic (only while this page is open and you are not in a call).
 const level = ref(0)
-let stopMeter: (() => void) | undefined
-async function meter(on: boolean) {
-  stopMeter?.()
-  stopMeter = undefined
-  level.value = 0
-  if (!on) return
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: matchDevice(s.value.mic, v.devices.value.mics).deviceId } })
-    const ctx = new AudioContext(),
-      an = ctx.createAnalyser(),
-      buf = new Float32Array(1024)
-    an.fftSize = 1024
-    ctx.createMediaStreamSource(stream).connect(an)
-    let raf = 0
-    const tick = () => {
-      an.getFloatTimeDomainData(buf)
-      level.value = Math.min(1, Math.sqrt(buf.reduce((a, x) => a + x * x, 0) / buf.length) * 4)
-      raf = requestAnimationFrame(tick)
-    }
-    tick()
-    stopMeter = () => {
-      cancelAnimationFrame(raf)
-      stream.getTracks().forEach(t => t.stop())
-      void ctx.close()
-    }
-  } catch {
-    useToast().add({ title: 'Could not open the microphone', color: 'error', icon: 'i-lucide-mic-off' })
-    testing.value = false
-  }
-}
 const testing = ref(false)
-watch(testing, meter)
-onBeforeUnmount(() => stopMeter?.())
+watch(
+  testing,
+  async (on, _, onCleanup) => {
+    level.value = 0
+    if (!on) return
+    let cancelled = false
+    let stream: MediaStream | undefined
+    let ctx: AudioContext | undefined
+    let raf = 0
+    const stop = () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      stream?.getTracks().forEach(t => t.stop())
+      stream = undefined
+      if (ctx) void ctx.close()
+      ctx = undefined
+    }
+    onCleanup(stop)
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: matchDevice(s.value.mic, v.devices.value.mics).deviceId } })
+      if (cancelled) {
+        stream.getTracks().forEach(t => t.stop())
+        return
+      }
+      ctx = new AudioContext()
+      const an = ctx.createAnalyser(),
+        buf = new Float32Array(1024)
+      an.fftSize = 1024
+      ctx.createMediaStreamSource(stream).connect(an)
+      const tick = () => {
+        an.getFloatTimeDomainData(buf)
+        level.value = Math.min(1, Math.sqrt(buf.reduce((a, x) => a + x * x, 0) / buf.length) * 4)
+        raf = requestAnimationFrame(tick)
+      }
+      tick()
+    } catch {
+      if (cancelled) return
+      stop()
+      useToast().add({ title: 'Could not open the microphone', color: 'error', icon: 'i-lucide-mic-off' })
+      testing.value = false
+    }
+  },
+  { flush: 'sync' },
+)
+watch(
+  () => v.connecting.value || !!v.channelId.value,
+  active => {
+    if (active) testing.value = false
+  },
+  { flush: 'sync' },
+)
 
 // Camera preview: only while this page is open and you're not already using the camera in a call.
 const camPreview = ref(false)
@@ -167,7 +186,7 @@ const soundRows = [
               :label="testing ? 'Stop' : 'Test microphone'"
               color="neutral"
               variant="outline"
-              :disabled="!!v.channelId.value"
+              :disabled="v.connecting.value || !!v.channelId.value"
               @click="testing = !testing"
             />
             <UProgress :model-value="level * 100" class="max-w-xs" aria-label="Microphone level" />

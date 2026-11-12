@@ -70,6 +70,7 @@ export const VOICE_PUBLISH_DEFAULTS = {
   simulcast: false,
   videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 },
   audioPreset: { maxBitrate: 128_000 },
+  stopMicTrackOnMute: true,
   dtx: false,
   red: true,
 } as const
