@@ -19,7 +19,6 @@ const name = computed(() => channels.value.find(c => c.id === v.channelId.value)
       <SoundboardPopover />
       <RadioPopover />
       <VoiceControl kind="screen" />
-      <RadioIndicator />
       <VoiceControl kind="leave" />
     </div>
   </footer>

@@ -316,7 +316,6 @@ const onDrop = (channelId: string) => {
       <VoiceControl kind="screen" />
       <SoundboardPopover />
       <RadioPopover />
-      <RadioIndicator />
       <VoiceControl kind="leave" />
     </div>
 
