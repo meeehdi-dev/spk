@@ -2,11 +2,12 @@
 import type { MessageDto, ReactionDto } from '../../../server/db/messages'
 import type { MessageCtx } from '../../composables/messageContext'
 
-const props = defineProps<{ message: MessageDto; grouped: boolean; highlighted?: boolean; editing?: boolean }>()
+const props = defineProps<{ message: MessageDto; grouped: boolean; highlighted?: boolean; editing?: boolean; scroller?: HTMLElement; content?: HTMLElement }>()
 const emit = defineEmits<{ quote: [text: string]; markUnread: [id: string]; editStart: [id: string]; editEnd: [] }>()
 
 const { byId, nameOf } = useUsers()
 const { data: me } = useMe()
+const { quickReactions } = useRecentReactions()
 const actions = inject(chatActionsKey)!
 const author = computed(() => byId.value.get(props.message.userId))
 const own = computed(() => me.value?.id === props.message.userId)
@@ -84,6 +85,26 @@ watchEffect(async () => {
 
 const link = () => `${location.origin}/c/${props.message.channelId}/m/${props.message.id}`
 const root = ref<HTMLElement>()
+const toolbar = ref<HTMLElement>()
+const toolbarStyle = ref<{ top: string; left: string; maxWidth: string }>()
+const toolbarVisible = ref(false)
+function positionToolbar() {
+  if (!root.value || !toolbar.value || !props.scroller) return
+  const height = toolbar.value.offsetHeight
+  toolbarVisible.value = height > 0
+  if (!height) return
+  const row = root.value.getBoundingClientRect()
+  const viewportTop = props.scroller.getBoundingClientRect().top + props.scroller.clientTop
+  // Fixed positioning escapes scrollport clipping; keep the toolbar above the following row, even in compact mode.
+  toolbarStyle.value = {
+    top: `${Math.min(Math.max(row.top, viewportTop), row.bottom - height / 2)}px`,
+    left: `${row.right - 16}px`,
+    maxWidth: `${Math.max(0, row.width - 32)}px`,
+  }
+}
+// Earlier messages can grow and move this row without resizing it or scrolling.
+useResizeObserver([root, toolbar, () => props.scroller, () => (toolbarVisible.value ? props.content : undefined)], positionToolbar)
+useEventListener(() => (toolbarVisible.value ? props.scroller : undefined), 'scroll', positionToolbar, { passive: true })
 const plain = () => root.value?.querySelector<HTMLElement>('[data-body]')?.innerText ?? props.message.body
 
 const messageItems = () => [
@@ -268,10 +289,12 @@ function onKey(e: KeyboardEvent) {
       </div>
       <div
         v-if="!editing"
-        class="absolute top-full left-16 z-10 -mt-1 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
+        ref="toolbar"
+        :style="toolbarStyle"
+        class="fixed z-10 hidden w-max -translate-x-full -translate-y-1/2 gap-0.5 overflow-x-auto rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
         :class="picker || moreOpen ? '!flex' : ''"
       >
-        <UTooltip v-for="e in QUICK_REACTIONS" :key="e" :text="`React ${e}`">
+        <UTooltip v-for="e in quickReactions" :key="e" :text="`React ${e}`">
           <UButton
             color="neutral"
             variant="ghost"
@@ -282,7 +305,7 @@ function onKey(e: KeyboardEvent) {
             {{ e }}
           </UButton>
         </UTooltip>
-        <UPopover v-model:open="picker" :content="{ side: 'top', align: 'start' }">
+        <UPopover v-model:open="picker" :content="{ side: 'top', align: 'end' }">
           <UTooltip text="Add reaction">
             <UButton icon="i-lucide-smile-plus" color="neutral" variant="ghost" aria-label="Add reaction" />
           </UTooltip>
@@ -299,7 +322,7 @@ function onKey(e: KeyboardEvent) {
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
           <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="ghost" aria-label="Copy message" @click="copy(message.body)" />
         </UTooltip>
-        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start', ...menuContent }">
+        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'end', ...menuContent }">
           <UTooltip text="More">
             <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" aria-label="More actions" />
           </UTooltip>

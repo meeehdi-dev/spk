@@ -1,21 +1,42 @@
 <script setup lang="ts">
 const emit = defineEmits<{ pick: [emoji: string] }>()
-const host = ref<HTMLElement>()
-const colorMode = useColorMode()
+const items = shallowRef<Awaited<ReturnType<typeof loadEmojiItems>>>([])
+const loading = ref(true)
+const failed = ref(false)
+const input = { name: 'emoji-search', 'aria-label': 'Search emoji' }
+const groups = computed(() => [
+  {
+    id: 'emoji',
+    items: items.value.map(item => ({ ...item, label: item.name, onSelect: () => emit('pick', item.emoji) })),
+  },
+])
 
 onMounted(async () => {
-  const { Picker } = await import('emoji-picker-element')
-  const picker = new Picker({ dataSource: emojiDataUrl() })
-  picker.classList.add(colorMode.value === 'dark' ? 'dark' : 'light')
-  // Default yellow tone only and no recently-used list: hide those two parts.
-  const style = document.createElement('style')
-  style.textContent = '.favorites, .skintone-button-wrapper { display: none !important; }'
-  picker.shadowRoot?.appendChild(style)
-  picker.addEventListener('emoji-click', e => emit('pick', e.detail.unicode ?? ''))
-  host.value?.appendChild(picker)
+  try {
+    items.value = await loadEmojiItems()
+  } catch {
+    failed.value = true
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
 <template>
-  <div ref="host" />
+  <UCommandPalette
+    :groups="groups"
+    :loading="loading"
+    :fuse="{ fuseOptions: { keys: ['name', 'shortcodes', 'tags'] }, resultLimit: 100 }"
+    :input="input"
+    :autofocus="true"
+    placeholder="Search emoji…"
+    class="max-h-[min(24rem,var(--reka-popover-content-available-height))] w-80 max-w-[calc(100vw-2rem)]"
+  >
+    <template #item-leading="{ item }">
+      <span aria-hidden="true" class="size-5 shrink-0 text-center text-lg/5">{{ item.emoji }}</span>
+    </template>
+    <template #empty>
+      <p role="status">{{ loading ? 'Loading emoji…' : failed ? 'Could not load emoji.' : 'No emoji found.' }}</p>
+    </template>
+  </UCommandPalette>
 </template>

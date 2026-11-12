@@ -10,6 +10,7 @@ const focused = useWindowFocus()
 const dividerId = ref<string | null>(null) // the "New messages" divider sits above this message
 let holdRead = false // after "Mark as unread": don't auto-read until Esc or a channel switch
 const { data: me } = useMe()
+const { record: recordReaction } = useRecentReactions()
 const { nameOf } = useUsers()
 const socket = useSocket()
 const toast = useToast()
@@ -303,8 +304,10 @@ provide(chatActionsKey, {
     }
   },
   async react(id, emoji, on) {
+    const accountId = me.value?.id
     try {
       const r = await $fetch<{ reactions: MessageDto['reactions'] }>(`/api/messages/${id}/reactions`, { method: 'POST', body: { emoji, on } })
+      if (on) recordReaction(emoji, accountId)
       const x = byIdMsg(id)
       if (x) x.reactions = r.reactions
     } catch (e) {
@@ -404,6 +407,8 @@ socket.onOpen(() => {
                     <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
                   </div>
                   <ChatMessage
+                    :scroller="scroller"
+                    :content="content"
                     :message="r.message!"
                     :grouped="r.grouped! && dividerId !== r.message!.id"
                     :highlighted="highlightId === r.message!.id"
