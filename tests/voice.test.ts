@@ -10,6 +10,8 @@ import {
   initialMute,
   matchDevice,
   sensitivityToDb,
+  screenQualityName,
+  screenQualityFromName,
   toggleDeafen,
   toggleMute,
 } from '../shared/utils/voice'
@@ -135,6 +137,13 @@ describe('screen share audio', () => {
 })
 
 describe('screen share and per-user volume', () => {
+  it('round-trips advertised screen quality and rejects unknown or unsupported names', () => {
+    const quality = { height: 1440, fps: 5 } as const
+    expect(screenQualityFromName(screenQualityName(quality))).toEqual(quality)
+    for (const name of [undefined, '', 'screen', 'other:1440:5', 'spk:screen:900:5', 'spk:screen:1440:24', 'spk:screen:1440:5:extra']) {
+      expect(screenQualityFromName(name)).toBeUndefined()
+    }
+  })
   it('derives screen share encoding from resolution and fps', async () => {
     const { screenShareOptions, isScreenQuality } = await import('../shared/utils/voice')
     expect(screenShareOptions({ height: 1440, fps: 5 })).toMatchObject({

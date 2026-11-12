@@ -29,6 +29,8 @@ import {
   userVolume,
   type SavedDevice,
   screenShareOptions,
+  screenQualityName,
+  screenQualityFromName,
   type ScreenQuality,
   type UserVolume,
 } from '#shared/utils/voice'
@@ -58,6 +60,7 @@ export interface VoiceTile {
   speaking: boolean
   camLive: boolean
   screenLive: boolean
+  screenQuality?: ScreenQuality
   screenAudio: boolean
   watching: boolean
   cam?: VideoTrack
@@ -215,6 +218,7 @@ export function useVoice() {
         speaking: speakingIds.has(p.identity),
         camLive,
         screenLive: !!scr || (local && !!screenSession),
+        screenQuality: screenQualityFromName(scr?.trackName),
         screenAudio: !!audio && !audio.isMuted,
         watching: w,
         cam: camLive && w ? (cam!.track as VideoTrack | undefined) : undefined,
@@ -548,6 +552,7 @@ export function useVoice() {
     const p = screenShareOptions(quality)
     return {
       ...SCREEN_AUDIO_PUBLISH,
+      name: screenQualityName(quality),
       simulcast: false,
       videoCodec: p.codec,
       backupCodec: { codec: 'vp8' },

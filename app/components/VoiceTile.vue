@@ -38,31 +38,6 @@ watchEffect(onCleanup => {
   }
 })
 
-// Screen share stats, sampled once a second: height from the <video>, fps from counted frames (track setting if rVFC is missing).
-const stats = ref<string>()
-watchEffect(onCleanup => {
-  const el = mainEl.value,
-    t = screen.value
-  stats.value = undefined
-  if (!el || !t) return
-  let frames = 0,
-    id = 0
-  const tick = () => {
-    frames++
-    id = el.requestVideoFrameCallback(tick)
-  }
-  if ('requestVideoFrameCallback' in el) id = el.requestVideoFrameCallback(tick)
-  const timer = setInterval(() => {
-    const fps = 'requestVideoFrameCallback' in el ? frames : Math.round(t.mediaStreamTrack?.getSettings().frameRate ?? 0)
-    frames = 0
-    if (el.videoHeight) stats.value = `${el.videoHeight}p · ${fps} fps`
-  }, 1000)
-  onCleanup(() => {
-    clearInterval(timer)
-    if (id) el.cancelVideoFrameCallback(id)
-  })
-})
-
 const watchers = computed(() => (props.tile.screenLive ? watchersOf(props.tile.userId) : []))
 const soundIcon = computed(() => v.playing.value[props.tile.userId])
 const vol = computed(() => userVolume(v.volumes.value, props.tile.userId))
@@ -152,12 +127,22 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <UButton v-else-if="!tile.local && live && !tile.watching" label="Watch" icon="i-lucide-eye" @click="watchToggle" />
       </div>
 
-      <span class="absolute top-2 left-2 flex max-w-[70%] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
-        <span class="truncate">{{ tile.local ? 'You' : nameOf(tile.userId) }}</span>
-        <UBadge v-if="!tile.watching && live" :icon="tile.screenLive ? 'i-lucide-screen-share' : 'i-lucide-video'" label="LIVE" color="error" size="sm" />
+      <span class="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
+        <span class="min-w-0 truncate">{{ tile.local ? 'You' : nameOf(tile.userId) }}</span>
+        <span v-if="tile.screenLive && tile.screenQuality" class="shrink-0 border-l border-default pl-1.5 text-[10px] whitespace-nowrap">
+          {{ tile.screenQuality.height }}p · {{ tile.screenQuality.fps }} fps
+        </span>
+        <UBadge
+          v-if="!tile.watching && live"
+          class="shrink-0"
+          :icon="tile.screenLive ? 'i-lucide-screen-share' : 'i-lucide-video'"
+          label="LIVE"
+          color="error"
+          size="sm"
+        />
       </span>
 
-      <div class="absolute top-2 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
+      <div class="absolute top-8 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
         <UTooltip v-if="!tile.local && tile.watching" text="Stop watching" :kbds="['W']"
           ><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" aria-label="Stop watching" @click="watchToggle"
         /></UTooltip>
@@ -168,12 +153,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
           ><UButton icon="i-lucide-maximize" color="neutral" variant="solid" aria-label="Fullscreen" @click="fullscreen()"
         /></UTooltip>
       </div>
-
-      <span
-        v-if="stats"
-        class="pointer-events-none absolute bottom-12 left-1/2 -translate-x-1/2 rounded bg-default/80 px-1.5 py-0.5 text-xs whitespace-nowrap"
-        >{{ stats }}</span
-      >
 
       <UAvatarGroup v-if="watchers.length" :max="5" size="xs" class="absolute bottom-2 left-2">
         <UTooltip v-for="id in watchers" :key="id" :text="nameOf(id)">

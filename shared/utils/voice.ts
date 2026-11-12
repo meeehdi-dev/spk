@@ -53,6 +53,14 @@ export const DEFAULT_SCREEN_QUALITY: ScreenQuality = { height: 1080, fps: 30 }
 export const isScreenQuality = (q: unknown): q is ScreenQuality =>
   !!q && typeof q === 'object' && SCREEN_HEIGHTS.includes((q as ScreenQuality).height) && SCREEN_FPS.includes((q as ScreenQuality).fps)
 
+export const screenQualityName = ({ height, fps }: ScreenQuality) => `spk:screen:${height}:${fps}`
+export function screenQualityFromName(name?: string): ScreenQuality | undefined {
+  const match = /^spk:screen:(\d+):(\d+)$/.exec(name ?? '')
+  if (!match) return
+  const quality = { height: Number(match[1]), fps: Number(match[2]) }
+  return isScreenQuality(quality) ? quality : undefined
+}
+
 /** Capture constraints and publish options for a quality choice (PLAN §8). 5 fps is tuned for sharp text, 30/60 for motion. Single layer, never simulcast, never upscaled (`max`); VP9 with a VP8 backup. Bitrate scales with pixels × fps^0.674, anchored at 1440p5 ≈ 5 Mbps and 1080p60 ≈ 15 Mbps. */
 export function screenShareOptions({ height, fps }: ScreenQuality) {
   const width = Math.round((height * 16) / 9)

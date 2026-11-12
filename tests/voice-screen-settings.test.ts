@@ -75,6 +75,7 @@ function participant(identity: string, isLocal = false) {
       isMuted?: boolean
       options?: TrackPublishOptions
       source?: string
+      trackName?: string
       isDesired?: boolean
       setSubscribed?: (on: boolean) => void
     }
@@ -95,6 +96,7 @@ function participant(identity: string, isLocal = false) {
         videoTrack: track.kind === 'video' ? track : undefined,
         isMuted: track.isMuted,
         options,
+        trackName: options?.name,
       })
       // Simulate LiveKit's VP9 hint override; the action must restore the selected hint.
       if (track.kind === 'video') track.mediaStreamTrack.contentHint = 'motion'
@@ -243,6 +245,8 @@ describe('live screen settings', () => {
     expect(p.createScreenTracks).toHaveBeenCalledWith(
       expect.objectContaining({ audio: SCREEN_AUDIO_CAPTURE, video: expect.objectContaining({ width: { max: 1920 }, frameRate: { ideal: 60, max: 60 } }) }),
     )
+    expect(v.tiles.value[0]?.screenQuality).toEqual(SMOOTH)
+    expect(video.mediaStreamTrack.getSettings().height).toBe(720)
     expect(p.publishTrack).toHaveBeenCalledWith(audio, SCREEN_AUDIO_PUBLISH)
     expect(p.publishTrack).toHaveBeenCalledWith(
       expect.objectContaining({ mediaStreamTrack: video.mediaStreamTrack.clone.mock.results[0]!.value }),
@@ -260,6 +264,7 @@ describe('live screen settings', () => {
       await v.setScreenQuality(quality)
       const preset = screenShareOptions(quality)
       expect(settings.value.screenQuality).toEqual(quality)
+      expect(v.tiles.value[0]?.screenQuality).toEqual(quality)
       expect(video.mediaStreamTrack.getSettings()).toEqual({ width: 1280, height: 720 })
       expect(video.mediaStreamTrack.applyConstraints).toHaveBeenLastCalledWith({
         width: { max: preset.resolution.width },
@@ -286,6 +291,44 @@ describe('live screen settings', () => {
     for (const t of [video, sound!, mic, cam]) expect(t.stop).not.toHaveBeenCalled()
     expect(sound!.mute).not.toHaveBeenCalled()
     expect(p.createTracks).toHaveBeenCalledTimes(1)
+  })
+
+  it('derives remote quality without subscribing or using local preferences, and clears missing/invalid publications', async () => {
+    const handlers: Array<(m: Record<string, unknown>) => void> = []
+    vi.stubGlobal('useSocket', () => ({ on: (fn: (m: Record<string, unknown>) => void) => handlers.push(fn), onOpen: vi.fn() }))
+    vi.stubGlobal('useSounds', () => ({ data: ref([]) }))
+    vi.stubGlobal('onMounted', vi.fn())
+    vi.stubGlobal('useEventListener', vi.fn())
+    vi.stubGlobal('useWakeLock', vi.fn())
+    vi.stubGlobal('watch', vi.fn())
+    const { useVoiceLive } = await import('../app/composables/useVoice')
+    useVoiceLive()
+    for (const receive of handlers) receive({ type: 'voice:presence', userId: 'remote', channelId: 'channel' })
+    const remote = participant('remote')
+    const pub = { source: 'screen_share', trackName: 'spk:screen:1080:60', isDesired: false, setSubscribed: vi.fn() }
+    remote.trackPublications.set('screen_share', pub)
+    r.remoteParticipants.set('remote', remote)
+    r.emit('TrackPublished')
+    expect(settings.value.screenQuality).toEqual(ECO)
+    expect(v.tiles.value.find(t => t.userId === 'remote')).toMatchObject({ screenLive: true, watching: false, screenQuality: SMOOTH })
+    expect(v.tiles.value.find(t => t.userId === 'remote')?.screen).toBeUndefined()
+    expect(pub.setSubscribed).not.toHaveBeenCalled()
+    for (const name of ['', 'spk:screen:1080:24', 'malformed']) {
+      pub.trackName = name
+      r.emit('TrackPublished')
+      expect(v.tiles.value.find(t => t.userId === 'remote')?.screenQuality).toBeUndefined()
+    }
+    pub.trackName = 'spk:screen:1440:5'
+    r.emit('TrackPublished')
+    expect(v.tiles.value.find(t => t.userId === 'remote')?.screenQuality).toEqual(ECO)
+    remote.trackPublications.set('screen_share', { source: 'screen_share', isDesired: false, setSubscribed: vi.fn() })
+    r.emit('TrackPublished')
+    expect(v.tiles.value.find(t => t.userId === 'remote')?.screenQuality).toBeUndefined()
+    remote.trackPublications.clear()
+    remote.trackPublications.set('camera', { source: 'camera', trackName: 'spk:screen:1440:5', isDesired: false, setSubscribed: vi.fn() })
+    r.emit('TrackUnpublished')
+    expect(v.tiles.value.find(t => t.userId === 'remote')).toMatchObject({ screenLive: false, camLive: true })
+    expect(v.tiles.value.find(t => t.userId === 'remote')?.screenQuality).toBeUndefined()
   })
 
   it('keeps Watch through publication gaps/later shares, but clears on unwatch, departure and local leave', async () => {
@@ -324,6 +367,7 @@ describe('live screen settings', () => {
     p.publishTrack.mockRejectedValueOnce(new Error('publish failed'))
     await v.setScreenQuality(SMOOTH)
     expect(settings.value.screenQuality).toEqual(ECO)
+    expect(v.tiles.value[0]?.screenQuality).toEqual(ECO)
     expect(p.publishTrack).toHaveBeenCalledTimes(2)
     expect(p.getTrackPublication('screen_share')?.track?.mediaStreamTrack).toBe(video.mediaStreamTrack.clone.mock.results.at(-1)!.value)
     expect(video.mediaStreamTrack.contentHint).toBe('detail')
@@ -397,6 +441,7 @@ describe('live screen settings', () => {
     expect(next.stop).not.toHaveBeenCalled()
     expect(audio.stop).not.toHaveBeenCalled()
     expect(settings.value.screenAudio).toBe(true)
+    expect(v.tiles.value[0]?.screenQuality).toEqual(ECO)
   })
 
   it('preserves video and reflects absent audio on cancellation, denial or a source without audio', async () => {
@@ -433,6 +478,7 @@ describe('live screen settings', () => {
     expect(next.stop).toHaveBeenCalled()
     expect(audio.stop).toHaveBeenCalled()
     expect(settings.value.screenAudio).toBe(false)
+    expect(v.tiles.value[0]?.screenQuality).toEqual(ECO)
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'audio publish failed' }))
   })
 
@@ -674,6 +720,7 @@ describe('live screen settings', () => {
     expect(allocated.every(t => t.readyState === 'ended')).toBe(true)
     expect(next.mediaStreamTrack.readyState).toBe('ended')
     expect(audio.mediaStreamTrack.readyState).toBe('ended')
+    expect(v.tiles.value.every(t => t.screenQuality === undefined)).toBe(true)
   })
 
   it('reports mute failure and leaves the switch reflecting the outgoing audio', async () => {
@@ -717,7 +764,7 @@ describe('live screen settings', () => {
 
 // Render the real shared template: both panel/bar variants must invoke actions, not mutate storage.
 describe('screen controls', () => {
-  it('keeps Stop watching available between streams', () => {
+  it('renders the preset beside the name without playback and keeps Stop watching available between streams', async () => {
     const { descriptor } = parse(readFileSync('app/components/VoiceTile.vue', 'utf8'))
     const slot = defineComponent({
       setup:
@@ -732,14 +779,16 @@ describe('screen controls', () => {
           h('button', attrs),
     })
     const watchToggle = vi.fn()
+    const remoteName = 'Remote with a very long display name'
+    const tile = ref({ userId: 'remote', local: false, watching: true, screenLive: true, screenAudio: true, screenQuality: ECO as typeof ECO | undefined })
     const app = createApp({
       template: descriptor.template!.content.replace('items as never', 'items').replace('$event as number', '$event'),
       components: Object.fromEntries(
         ['UContextMenu', 'UAvatar', 'UBadge', 'UTooltip', 'UPopover', 'UAvatarGroup', 'UIcon', 'Transition'].map(n => [n, slot]).concat([['UButton', button]]),
       ),
       setup: () => ({
-        tile: { userId: 'remote', local: false, watching: true },
-        live: false,
+        tile,
+        live: computed(() => tile.value.screenLive),
         items: [],
         main: undefined,
         corner: undefined,
@@ -747,12 +796,13 @@ describe('screen controls', () => {
         mirrored: () => false,
         avatarSrc: () => '',
         byId: new Map(),
-        nameOf: () => 'Remote',
+        nameOf: () => remoteName,
         watchToggle,
         fullscreen: vi.fn(),
         theater: false,
         watchers: [],
         soundIcon: undefined,
+        vol: { screen: 1 },
       }),
     })
     const container = document.createElement('div')
@@ -760,8 +810,43 @@ describe('screen controls', () => {
     try {
       const stop = container.querySelector<HTMLButtonElement>('[aria-label="Stop watching"]')
       expect(stop).not.toBeNull()
+      const actions = container.querySelector('[aria-label="Fullscreen"]')!.parentElement!.parentElement!
+      const volume = container.querySelector('[aria-label="Screen share volume"]')!
+      expect(actions.classList.contains('top-8')).toBe(true)
+      expect(actions.classList.contains('group-focus-within:opacity-100')).toBe(true)
+      expect(volume.classList.contains('bottom-2')).toBe(true)
+      expect(volume.classList.contains('group-focus-within:opacity-100')).toBe(true)
+      // Static geometry, not browser measurement: 192x108 thumbnail, 1px border, default 32px buttons.
+      const actionTop = Number([...actions.classList].find(c => /^top-\d+$/.test(c))!.slice(4)) * 4
+      const volumeBottom = Number([...volume.classList].find(c => /^bottom-\d+$/.test(c))!.slice(7)) * 4
+      expect(8 + 24).toBeLessThanOrEqual(actionTop) // top-2 label, including the taller LIVE badge
+      expect(actionTop + 32).toBeLessThan(108 - 2 - volumeBottom - 32)
       stop!.click()
       expect(watchToggle).toHaveBeenCalledOnce()
+      const quality = container.querySelector('span.border-l')!
+      expect(quality.textContent?.trim()).toBe('1440p · 5 fps')
+      expect(quality.previousElementSibling?.textContent).toBe(remoteName)
+      expect(quality.previousElementSibling?.classList.contains('truncate')).toBe(true)
+      expect(quality.parentElement?.classList.contains('top-2')).toBe(true)
+      expect(quality.classList.contains('whitespace-nowrap')).toBe(true)
+      expect(container.querySelector('span.bottom-12')).toBeNull()
+      tile.value.watching = false
+      await nextTick()
+      expect(container.querySelector('span.border-l')?.nextElementSibling?.getAttribute('label')).toBe('LIVE')
+      tile.value.watching = true
+      tile.value.local = true // hidden local preview still has the preset
+      await nextTick()
+      expect(container.querySelector('span.border-l')?.previousElementSibling?.textContent).toBe('You')
+      tile.value.screenLive = false // camera-only/stopped tile cannot display stale quality
+      tile.value.local = false
+      await nextTick()
+      expect(container.querySelector('span.border-l')).toBeNull()
+      container.querySelector<HTMLButtonElement>('[aria-label="Stop watching"]')!.click()
+      expect(watchToggle).toHaveBeenCalledTimes(2)
+      tile.value.screenLive = true
+      tile.value.screenQuality = undefined
+      await nextTick()
+      expect(container.querySelector('span.border-l')).toBeNull()
     } finally {
       app.unmount()
     }
