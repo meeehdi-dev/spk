@@ -2,6 +2,12 @@
   "scripts": {
     "setup": "bash scripts/with-mise.sh corepack pnpm install --frozen-lockfile && bash scripts/with-mise.sh corepack pnpm exec nuxt prepare",
     "teardown": null,
-    "run": "bash scripts/with-mise.sh corepack pnpm run dev"
-  }
+    "run": "bash scripts/with-mise.sh corepack pnpm run dev --tunnel"
+  },
+  "ports": [
+    {
+      "port": 3000,
+      "label": "dev"
+    }
+  ]
 }
