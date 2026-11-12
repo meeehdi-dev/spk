@@ -14,8 +14,6 @@ spk is a self-hosted chat and voice app built with Nuxt 4, Vue, Nuxt UI, SQLite/
 
 ## Build, Test, and Development Commands
 
-Run project commands through `bash scripts/with-mise.sh corepack pnpm …` (for example, `bash scripts/with-mise.sh corepack pnpm test`). For Node commands, use `bash scripts/with-mise.sh node …`. Each tool call starts a separate shell, so shell activation in one call does not configure later calls. Jean's setup and run commands use the same wrapper.
-
 Use Node 26.13.0 and pnpm 12.18.0, pinned in `package.json`. `mise.toml` pins the same Node version and Corepack 0.36.0 for local development and CI. With mise, run `mise install`, then use `mise exec -- corepack pnpm …`. Configure `.env` from `.env.example` before starting.
 
 - `pnpm install --frozen-lockfile`: install locked dependencies; build permissions live in `pnpm-workspace.yaml`.
