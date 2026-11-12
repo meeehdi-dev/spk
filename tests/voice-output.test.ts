@@ -313,6 +313,14 @@ describe('microphone device changes', () => {
     expect(settings.value.mic!.deviceId).toBe('a')
   })
 
+  it('clears the saved mic and switches the live input non-exactly when System default is picked', async () => {
+    settings = ref({ ...settings.value, mic: mic('a') })
+    const r = await setup()
+    await voice.pickDevice('mic', device('default'))
+    expect(settings.value.mic).toBeUndefined()
+    expect(r.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'default', false)
+  })
+
   it('shows the switch-failure toast without throwing when switching back fails', async () => {
     available = [mic('b')]
     settings = ref({ ...settings.value, mic: mic('a') })

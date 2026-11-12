@@ -12,9 +12,10 @@ const label = useChannelLabel()
 const { data: users, byId, nameOf } = useUsers()
 const toast = useToast()
 
-const inChannel = computed(() => (route.path.startsWith('/c/') ? String(route.params.channelId) : ''))
+const current = computed(() => (route.path.startsWith('/c/') ? channels.value.find(c => c.id === route.params.channelId) : undefined))
+const inChannel = computed(() => (current.value && current.value.type !== 'voice' ? current.value.id : ''))
 const scopes = computed(() => [
-  ...(inChannel.value ? [{ label: 'This channel', value: 'channel' }] : []),
+  ...(inChannel.value ? [{ label: current.value!.type === 'dm' ? 'This conversation' : 'This channel', value: 'channel' }] : []),
   { label: 'All channels', value: 'channels' },
   { label: 'DMs', value: 'dms' },
   { label: 'Everything', value: 'everything' },

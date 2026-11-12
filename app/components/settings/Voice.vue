@@ -10,14 +10,13 @@ const noiseItems = [
 ]
 const items = (list: MediaDeviceInfo[]) => [
   { label: 'System default', value: 'default' },
-  ...list.map(d => ({ label: d.label || 'Device', value: d.deviceId })),
+  ...list.filter(d => d.deviceId !== 'default').map(d => ({ label: d.label || 'Device', value: d.deviceId })),
 ]
 const current = (saved: { deviceId: string; label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
 const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
-  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
+  if (id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
-  else s.value = { ...s.value, [kind]: undefined }
 }
 // Labels are blank until the browser grants a device permission; this button asks once.
 const labelsHidden = computed(() => [...v.devices.value.mics, ...v.devices.value.speakers].some(d => !d.label))
@@ -91,7 +90,43 @@ watch(camPreview, async on => {
 })
 onBeforeUnmount(stopCam)
 
-const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafen', camera: 'Camera', screen: 'Screen share' } as const
+// Each test entry plays one tune: up = rising (unmute, on, start), otherwise falling.
+const soundRows = [
+  { kind: 'join', label: 'Join', tests: [{ name: 'Join', up: true }] },
+  { kind: 'leave', label: 'Leave', tests: [{ name: 'Leave', up: true }] },
+  {
+    kind: 'mute',
+    label: 'Mute / Unmute',
+    tests: [
+      { name: 'Unmute', up: true },
+      { name: 'Mute', up: false },
+    ],
+  },
+  {
+    kind: 'deafen',
+    label: 'Deafen / Undeafen',
+    tests: [
+      { name: 'Undeafen', up: true },
+      { name: 'Deafen', up: false },
+    ],
+  },
+  {
+    kind: 'camera',
+    label: 'Camera on / off',
+    tests: [
+      { name: 'Camera on', up: true },
+      { name: 'Camera off', up: false },
+    ],
+  },
+  {
+    kind: 'screen',
+    label: 'Screen share start / stop',
+    tests: [
+      { name: 'Screen share start', up: true },
+      { name: 'Screen share stop', up: false },
+    ],
+  },
+] as const
 </script>
 
 <template>
@@ -212,14 +247,41 @@ const soundLabels = { join: 'Join', leave: 'Leave', mute: 'Mute', deafen: 'Deafe
         <h2 class="font-bold">Sounds</h2>
       </template>
       <div class="flex flex-col gap-4">
-        <div v-for="(label, k) in soundLabels" :key="k" class="flex items-center gap-4">
-          <USwitch v-model="s.sounds[k].on" :label="label" class="w-32" />
-          <USlider v-model="s.sounds[k].volume" :min="0" :max="1" :step="0.05" :disabled="!s.sounds[k].on" class="max-w-xs" :aria-label="`${label} volume`" />
-          <UButton icon="i-lucide-play" color="neutral" variant="ghost" :aria-label="`Test ${label} sound`" @click="playVoiceSound(k, true, true)" />
+        <div v-for="row in soundRows" :key="row.kind" class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap">
+          <USwitch v-model="s.sounds[row.kind].on" :label="row.label" class="w-full shrink-0 sm:w-60 sm:whitespace-nowrap" />
+          <USlider
+            v-model="s.sounds[row.kind].volume"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            :disabled="!s.sounds[row.kind].on"
+            class="max-w-xs flex-1"
+            :aria-label="`${row.label} volume`"
+          />
+          <div class="flex w-20 shrink-0">
+            <UButton
+              v-for="t in row.tests"
+              :key="t.name"
+              icon="i-lucide-play"
+              color="neutral"
+              variant="ghost"
+              :aria-label="`Test ${t.name} sound`"
+              @click="playVoiceSound(row.kind, t.up, true)"
+            />
+          </div>
         </div>
-        <div class="flex items-center gap-4">
-          <USwitch v-model="s.soundboard.on" label="Soundboard" class="w-32" />
-          <USlider v-model="s.soundboard.volume" :min="0" :max="1" :step="0.05" :disabled="!s.soundboard.on" class="max-w-xs" aria-label="Soundboard volume" />
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap">
+          <USwitch v-model="s.soundboard.on" label="Soundboard" class="w-full shrink-0 sm:w-60" />
+          <USlider
+            v-model="s.soundboard.volume"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            :disabled="!s.soundboard.on"
+            class="max-w-xs flex-1"
+            aria-label="Soundboard volume"
+          />
+          <div class="w-20 shrink-0" />
         </div>
       </div>
     </UCard>

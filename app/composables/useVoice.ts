@@ -481,12 +481,13 @@ export function useVoice() {
     )
   async function pickDevice(kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', d: SavedDevice) {
     const output = kind === 'speaker' || kind === 'screenSpeaker'
-    settings.value = { ...settings.value, [kind]: output && d.deviceId === 'default' ? undefined : asSaved(d) }
+    const system = d.deviceId === 'default'
+    settings.value = { ...settings.value, [kind]: system ? undefined : asSaved(d) }
     try {
       if (output) {
         await routeOutputs(kind)
-      } else if (kind === 'mic') await room?.switchActiveDevice('audioinput', d.deviceId)
-      else if (camOn.value) await room?.switchActiveDevice('videoinput', d.deviceId)
+      } else if (kind === 'mic') await room?.switchActiveDevice('audioinput', d.deviceId, !system) // non-exact: Firefox has no device with id 'default'
+      else if (camOn.value) await room?.switchActiveDevice('videoinput', d.deviceId, !system)
     } catch (e) {
       toast.add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
     }

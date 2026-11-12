@@ -23,8 +23,11 @@ const denied = ref(false)
 const highlightId = ref<string>()
 const scroller = ref<HTMLElement>()
 const content = ref<HTMLElement>()
+const dividerSide = ref<'above' | 'below' | null>(null) // where the "New messages" divider is, when it is outside the visible list
+const awayFromBottom = ref(false) // more than a screen above the end
 // Stay glued to the bottom while images, previews, code highlighting and fonts settle; derived from the scroll position.
 let pinned = false
+let smoothing = false // a smooth scroll to the end is in flight: resizes retarget it instead of jumping
 let lastTop = 0 // scrollTop at the previous scroll event
 let loadingNewer = false
 let gen = 0 // bumped per load(), so a late page of the previous channel is dropped
@@ -110,9 +113,9 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   void markChannelRead(props.channelId)
 })
 
-function scrollToEnd() {
-  const el = scroller.value
-  if (el) el.scrollTop = el.scrollHeight
+function scrollToEnd(behavior: ScrollBehavior = 'instant') {
+  scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior })
+  smoothing = behavior === 'smooth'
 }
 
 function jumpTo(id: string) {
@@ -165,11 +168,34 @@ async function toPresent() {
   }
 }
 
+function updateDividerSide() {
+  const el = scroller.value
+  const d = dividerId.value ? document.getElementById('new-messages-divider') : null
+  if (!el || !d) return (dividerSide.value = null)
+  const box = el.getBoundingClientRect()
+  const r = d.getBoundingClientRect()
+  dividerSide.value = r.bottom <= box.top ? 'above' : r.top >= box.bottom ? 'below' : null
+}
+function updateAway() {
+  const el = scroller.value
+  awayFromBottom.value = !!el && !atBottom(el, el.clientHeight)
+}
+watch([dividerId, messages], () => (updateDividerSide(), updateAway()), { flush: 'post' })
+const toBottom = () => {
+  if (hasMoreAfter.value) return void toPresent()
+  pinned = true
+  scrollToEnd('smooth')
+}
+const showDivider = () => document.getElementById('new-messages-divider')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+
 function onScroll() {
   const el = scroller.value
   if (!el) return
+  updateDividerSide()
+  updateAway()
   pinned = pinAfterScroll(pinned, lastTop, el) // keyboard, drag and find-in-page going up release it; late content growth doesn't
   lastTop = el.scrollTop
+  if (!pinned || atBottom(el)) smoothing = false
   void loadOlder()
   if (hasMoreAfter.value && el.scrollHeight - el.scrollTop - el.clientHeight < 200) void loadNewer()
 }
@@ -177,7 +203,9 @@ function onScroll() {
 // Content or viewport height changed: keep the bottom while pinned, and keep fetching while the page doesn't fill the view
 // (no scroll event fires then). Browser scroll anchoring stays on: it holds the view while bodies above it render late.
 useResizeObserver([content, scroller], () => {
-  if (pinned) scrollToEnd()
+  if (pinned) scrollToEnd(smoothing ? 'smooth' : 'instant')
+  updateDividerSide()
+  updateAway()
   void loadOlder()
 })
 
@@ -325,42 +353,59 @@ socket.onOpen(() => {
   <div class="flex h-full min-h-0 flex-col">
     <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted"><UIcon name="i-lucide-lock" /> No access</div>
     <template v-else>
-      <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto pb-9" @scroll.passive="onScroll">
-        <div ref="content">
-          <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
-          <template v-else>
-            <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
-              <div v-if="channel?.type === 'dm'" class="font-bold text-default">This is the start of your conversation with {{ label(channel).slice(1) }}</div>
-              <div v-if="!messages.length">No messages yet. Say something!</div>
-            </div>
-            <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
-              <template v-if="loadingMore"> <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages… </template>
-            </div>
-            <template v-for="r in rows" :key="r.key">
-              <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted">
-                <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
-              </div>
-              <template v-else>
-                <div v-if="dividerId === r.message!.id" class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error">
-                  <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
+      <div class="relative min-h-0 flex-1">
+        <div ref="scroller" class="h-full overflow-y-auto pb-9" @scroll.passive="onScroll">
+          <div ref="content">
+            <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
+            <template v-else>
+              <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
+                <div v-if="channel?.type === 'dm'" class="font-bold text-default">
+                  This is the start of your conversation with {{ label(channel).slice(1) }}
                 </div>
-                <ChatMessage
-                  :message="r.message!"
-                  :grouped="r.grouped! && dividerId !== r.message!.id"
-                  :highlighted="highlightId === r.message!.id"
-                  :editing="editingId === r.message!.id"
-                  @quote="input?.quote($event)"
-                  @mark-unread="markUnread"
-                  @edit-start="editingId = $event"
-                  @edit-end="endEdit"
-                />
+                <div v-if="!messages.length">No messages yet. Say something!</div>
+              </div>
+              <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
+                <template v-if="loadingMore"> <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages… </template>
+              </div>
+              <template v-for="r in rows" :key="r.key">
+                <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted">
+                  <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
+                </div>
+                <template v-else>
+                  <div v-if="dividerId === r.message!.id" id="new-messages-divider" class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error">
+                    <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
+                  </div>
+                  <ChatMessage
+                    :message="r.message!"
+                    :grouped="r.grouped! && dividerId !== r.message!.id"
+                    :highlighted="highlightId === r.message!.id"
+                    :editing="editingId === r.message!.id"
+                    @quote="input?.quote($event)"
+                    @mark-unread="markUnread"
+                    @edit-start="editingId = $event"
+                    @edit-end="endEdit"
+                  />
+                </template>
               </template>
             </template>
-          </template>
+          </div>
         </div>
-      </div>
-      <div v-if="hasMoreAfter" class="flex justify-center py-1">
-        <UButton label="Jump to present" icon="i-lucide-chevrons-down" @click="toPresent" />
+        <UButton
+          v-if="dividerSide"
+          label="New messages"
+          :icon="dividerSide === 'above' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'"
+          size="sm"
+          class="absolute top-2 left-1/2 -translate-x-1/2 shadow-md"
+          @click="showDivider"
+        />
+        <UButton
+          v-if="awayFromBottom || hasMoreAfter"
+          icon="i-lucide-chevrons-down"
+          aria-label="Scroll to latest messages"
+          size="sm"
+          class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full shadow-md"
+          @click="toBottom"
+        />
       </div>
       <div class="h-5 px-4 text-xs text-muted" aria-live="polite">
         {{ typingText }}

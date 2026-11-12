@@ -38,7 +38,7 @@ const panel = ref<{ onKey: (e: KeyboardEvent) => void }>()
 const searchFocus = () => {
   if (!search.open) search.show(inChat.value ? 'channel' : 'everything')
 }
-const inChat = computed(() => route.path.startsWith('/c/'))
+const inChat = computed(() => route.path.startsWith('/c/') && !isVoice.value)
 const { all: navChannels } = useNavChannels()
 const { of: unreadOf } = useUnread()
 const switcher = ref(false)

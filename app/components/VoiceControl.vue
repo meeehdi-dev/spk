@@ -11,7 +11,7 @@ const noiseItems = [
 ]
 const deviceItems = (list: MediaDeviceInfo[]) => list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))
 const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
-  if ((kind === 'speaker' || kind === 'screenSpeaker') && id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
+  if (id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
 }
@@ -111,7 +111,7 @@ const c = computed(() => {
           <UFormField label="Input device">
             <USelect
               :model-value="current(v.settings.value.mic, v.devices.value.mics)"
-              :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.mics)]"
+              :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.mics.filter(d => d.deviceId !== 'default'))]"
               class="w-full"
               @update:model-value="pick('mic', v.devices.value.mics)($event as string)"
             />
@@ -172,7 +172,7 @@ const c = computed(() => {
           <UFormField label="Camera">
             <USelect
               :model-value="current(v.settings.value.camera, v.devices.value.cams)"
-              :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.cams)]"
+              :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.cams.filter(d => d.deviceId !== 'default'))]"
               class="w-full"
               @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
             />

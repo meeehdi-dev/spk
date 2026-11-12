@@ -146,14 +146,9 @@ function onContext(e: MouseEvent) {
   items.value = target ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never) : messageItems()
 }
 
-// Clicking the focused message again (not an interactive element, not a text selection) blurs it.
-function onClick(e: MouseEvent) {
-  if (!wasFocused || selectionText() || (e.target as HTMLElement).closest('a,button,input,textarea,[contenteditable],[role=button]')) return
-  root.value?.blur()
-}
-let wasFocused = false
-const onPointerDown = () => {
-  wasFocused = document.activeElement === root.value
+// Mouse focus would highlight the message and arm `R`; only keyboard focus keeps it.
+const onFocus = () => {
+  if (!root.value?.matches(':focus-visible')) root.value?.blur()
 }
 
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
@@ -172,12 +167,11 @@ function onKey(e: KeyboardEvent) {
       :id="`msg-${message.id}`"
       ref="root"
       tabindex="0"
-      class="group relative flex gap-3 px-4 py-0.5 outline-none hover:bg-elevated/50 focus:bg-elevated/70 compact:py-0"
+      class="group relative flex gap-3 px-4 py-0.5 outline-none hover:bg-elevated/50 focus-visible:bg-elevated/70 compact:py-0"
       :class="[highlighted ? 'bg-primary/10' : '', grouped ? '' : 'mt-3 compact:mt-1']"
       @contextmenu="onContext"
       @keydown="onKey"
-      @pointerdown="onPointerDown"
-      @click="onClick"
+      @focus="onFocus"
     >
       <div class="relative w-9 shrink-0 text-right">
         <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
@@ -264,7 +258,7 @@ function onKey(e: KeyboardEvent) {
       </div>
       <div
         v-if="!editing"
-        class="absolute top-full left-16 z-10 -mt-1 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-focus-within:flex group-hover:flex"
+        class="absolute top-full left-16 z-10 -mt-1 hidden gap-0.5 rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
         :class="picker || moreOpen ? '!flex' : ''"
       >
         <UTooltip v-for="e in QUICK_REACTIONS" :key="e" :text="`React ${e}`">
