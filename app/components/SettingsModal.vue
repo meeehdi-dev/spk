@@ -42,7 +42,7 @@ const view = computed(() =>
     title="Settings"
     description="Your profile and preferences"
     :fullscreen="!wide"
-    :ui="{ content: wide ? 'h-[85dvh] max-w-4xl' : '', body: 'flex min-h-0 flex-col p-0 sm:p-0 md:flex-row' }"
+    :ui="{ content: wide ? 'h-[85dvh] max-w-6xl' : '', body: 'flex min-h-0 flex-col p-0 sm:p-0 md:flex-row' }"
   >
     <template #body>
       <!-- Sidebar on desktop; on mobile the same menu is a compact grid above the content. -->

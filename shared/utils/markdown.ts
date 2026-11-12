@@ -38,6 +38,9 @@ export const isEmojiOnly = (body: string) => EMOJI_ONLY_RE.test(body.trim())
 
 const BLOCK_PARENTS = new Set(['root', 'blockquote', 'listItem'])
 
+// Not `break`: mdast-util-to-hast follows that with a "\n" text node, a second line under `white-space: pre-wrap`.
+const BREAK: Node = { type: 'spkBreak', data: { hName: 'br' } }
+
 function splitText(value: string): Node[] {
   const out: Node[] = []
   const push = (v: string) => {
@@ -52,7 +55,7 @@ function splitText(value: string): Node[] {
     }
   }
   for (const [i, line] of value.split('\n').entries()) {
-    if (i > 0) out.push({ type: 'break' })
+    if (i > 0) out.push(BREAK)
     let last = 0
     for (const m of line.matchAll(/<@([\w-]+)>|\|\|/g)) {
       push(line.slice(last, m.index))
@@ -102,6 +105,8 @@ function walk(parent: Node, src: string) {
       next.push({ type: 'link', url: c.url, children: [{ type: 'text', value: String(c.alt || c.url) }] })
     } else if (c.type === 'heading') {
       next.push({ type: 'paragraph', children: [{ type: 'strong', children: c.children }] })
+    } else if (c.type === 'break') {
+      next.push(BREAK)
     } else if (c.type === 'text') {
       next.push(...splitText(c.value!))
     } else {

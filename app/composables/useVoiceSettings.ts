@@ -1,7 +1,7 @@
 import { DEFAULT_SCREEN_QUALITY, isScreenQuality, type SavedDevice, type ScreenQuality } from '#shared/utils/voice'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
-export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
+export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen' | 'watch'
 export interface VoiceSettings {
   mic?: SavedDevice
   speaker?: SavedDevice
@@ -41,6 +41,7 @@ export const useVoiceSettings = () =>
         deafen: { on: true, volume: 0.5 },
         camera: { on: true, volume: 0.5 },
         screen: { on: true, volume: 0.5 },
+        watch: { on: true, volume: 0.5 },
       },
     },
     {
@@ -55,14 +56,16 @@ export const useVoiceSettings = () =>
   )
 
 let audio: AudioContext | undefined
-// Notes per sound, synthesized so no files are needed. `up` = joining / unmuting, otherwise leaving / muting.
-const NOTES: Record<VoiceSound, { up: number[]; down: number[] }> = {
+// Notes and waveform per sound, synthesized so no files are needed. `up` = joining / unmuting, otherwise leaving / muting.
+// Each kind differs in pitch, length or waveform, and none matches the message blip (660, 880).
+const NOTES: Record<VoiceSound, { up: number[]; down: number[]; type?: OscillatorType }> = {
   join: { up: [523, 784], down: [784, 523] },
   leave: { up: [784, 523], down: [784, 523] },
-  mute: { up: [660, 880], down: [440, 330] },
-  deafen: { up: [660, 880, 990], down: [440, 330, 247] },
-  camera: { up: [440, 587, 740], down: [740, 587, 440] },
-  screen: { up: [349, 523, 698], down: [698, 523, 349] },
+  mute: { up: [330, 415], down: [415, 262], type: 'triangle' },
+  deafen: { up: [262, 330, 392], down: [392, 294, 196], type: 'triangle' },
+  camera: { up: [494, 622, 740], down: [740, 622, 494] },
+  screen: { up: [349, 523, 698], down: [698, 523, 349], type: 'square' },
+  watch: { up: [466, 622], down: [622, 466], type: 'sawtooth' },
 }
 
 /** Plays one of the voice sounds at its own volume, if enabled. `up` picks the rising variant (unmute, undeafen). */
@@ -72,12 +75,15 @@ export function playVoiceSound(kind: VoiceSound, up = true, force = false) {
   try {
     audio ??= new AudioContext()
     const t = audio.currentTime
-    for (const [i, f] of NOTES[kind][up ? 'up' : 'down'].entries()) {
+    const { type = 'sine', ...notes } = NOTES[kind]
+    // Harsher waveforms are quieter to stay soft.
+    const gain = type === 'sine' || type === 'triangle' ? 0.3 : 0.12
+    for (const [i, f] of notes[up ? 'up' : 'down'].entries()) {
       const o = audio.createOscillator(),
         g = audio.createGain()
-      o.type = 'sine'
+      o.type = type
       o.frequency.value = f
-      g.gain.setValueAtTime(0.3 * volume, t + i * 0.08)
+      g.gain.setValueAtTime(gain * volume, t + i * 0.08)
       g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.12)
       o.connect(g).connect(audio.destination)
       o.start(t + i * 0.08)

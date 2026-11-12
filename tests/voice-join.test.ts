@@ -173,6 +173,19 @@ describe('acknowledged voice join', () => {
     expect(b.v.mute.value.muted).toBe(true)
   })
 
+  it('stays hidden while LiveKit connects and shows once connected', async () => {
+    const b = await browser('late')
+    let release!: () => void
+    media.connect = () => new Promise<void>(r => (release = r))
+    const joining = b.v.join('c1')
+    await flush()
+    expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(false)
+    release()
+    await joining
+    expect(b.send.mock.calls.some(([m]) => m.type === 'voice:ready')).toBe(true)
+    expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(true)
+  })
+
   it('mutes the published mic before the processor loads when joining muted', async () => {
     const b = await browser('early')
     b.v.toggleMic()

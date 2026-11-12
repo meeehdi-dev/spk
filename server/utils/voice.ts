@@ -29,12 +29,16 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
             .get()
         : undefined
     if (!ch) return
-    const { replacedSid } = joinVoice(userId, ch.id, sid, owner)
+    const { replacedSid, replacedVisible } = joinVoice(userId, ch.id, sid, owner, m.ready === true)
     // Every tab of the account hears this; the one holding another sid leaves.
     if (replacedSid) sendToUser(userId, { type: 'voice:kicked', sid })
-    broadcast(presenceFrame(updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened, watching: m.watching }), userId))
+    const p = updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened, watching: m.watching })
+    if (p || replacedVisible) broadcast(presenceFrame(p, userId)) // hidden new session: only retract the old one
     const peer = owner as Peer | undefined
     peer?.send(JSON.stringify({ type: 'voice:joined', sid, channelId: ch.id, nonce: typeof m.nonce === 'string' ? m.nonce : undefined }))
+  } else if (m.type === 'voice:ready') {
+    const p = readyVoice(userId, sid)
+    if (p) broadcast(presenceFrame(p, userId))
   } else if (m.type === 'voice:state') {
     const p = updateVoice(userId, sid, m)
     if (p) broadcast(presenceFrame(p, userId))
@@ -43,7 +47,7 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
     if (!audience || typeof m.soundId !== 'string' || !getSound(useDb(), m.soundId) || !allowSound(userId)) return
     for (const id of audience) sendToUser(id, { type: 'voice:sound', userId, soundId: m.soundId })
   } else if (m.type === 'voice:leave') {
-    if (leaveVoice(userId, sid)) broadcast(presenceFrame(null, userId))
+    if (leaveVoice(userId, sid)?.ready) broadcast(presenceFrame(null, userId))
   }
 }
 

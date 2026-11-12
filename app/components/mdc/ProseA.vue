@@ -5,6 +5,7 @@ const el = ref<HTMLElement>()
 const text = () => el.value?.textContent ?? ''
 const gif = computed(() => !props.plain && !!href.value && isImageUrl(href.value))
 const failed = ref(false)
+const isGif = computed(() => gif.value && /\.gif$/i.test(new URL(href.value!).pathname))
 onMounted(() => {
   if (!href.value) return
   if (gif.value) {
@@ -33,9 +34,10 @@ onMounted(() => {
 <template>
   <ChatInternalLink v-if="href && isInternalLink(href)" :href="href" />
   <a v-else-if="href && gif && !failed" ref="el" :href="href" target="_blank" rel="noopener noreferrer" class="block w-fit">
-    <img
+    <ChatStillImage
       :src="href"
       alt="Image"
+      :gif="isGif"
       loading="lazy"
       referrerpolicy="no-referrer"
       class="max-h-[300px] max-w-[min(100%,400px)] rounded-md border border-default"

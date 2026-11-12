@@ -126,6 +126,14 @@ const soundRows = [
       { name: 'Screen share stop', up: false },
     ],
   },
+  {
+    kind: 'watch',
+    label: 'Someone watches your screen',
+    tests: [
+      { name: 'Watch start', up: true },
+      { name: 'Watch stop', up: false },
+    ],
+  },
 ] as const
 </script>
 

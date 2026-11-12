@@ -96,6 +96,14 @@ watch(mentionRequest, r => {
 
 let lastTyping = 0
 function onUpdate(v: string) {
+  // Check the editor text: the markdown serializer trims the trailing space.
+  const editor = editorRef.value?.editor
+  if (editor?.getText() === '/gif ') {
+    editor.commands.clearContent()
+    model.value = ''
+    gifOpen.value = true
+    return
+  }
   model.value = v
   if (v && Date.now() - lastTyping > 3000) {
     lastTyping = Date.now()
@@ -149,8 +157,8 @@ defineExpose({
       </UTooltip>
     </div>
     <div
-      class="rounded-md border border-accented bg-default focus-within:border-primary/40"
-      :class="dragging ? 'border-primary bg-primary/5' : ''"
+      class="rounded-lg bg-elevated/50 ring-1 ring-transparent focus-within:ring-primary/40"
+      :class="dragging ? 'bg-primary/5 ring-primary' : ''"
       @paste.capture="onPaste"
     >
       <ChatUploadQueue v-if="uploads.items.value.length || gif" :uploads="uploads.items.value" :gif="gif" @cancel="uploads.cancel" @remove-gif="gif = null" />
@@ -172,7 +180,7 @@ defineExpose({
           <UEditorEmojiMenu v-if="emojiItems.length" :editor="editor" :items="emojiItems" />
         </template>
       </UEditor>
-      <div class="flex items-center gap-0.5 border-t border-default px-1.5 py-1">
+      <div class="flex items-center gap-0.5 border-t border-default/50 px-1.5 py-1">
         <UTooltip v-for="t in tools" :key="t.label" :text="t.label" :kbds="t.keys as never">
           <UButton
             :icon="t.icon"
@@ -195,7 +203,7 @@ defineExpose({
         <UTooltip :text="`Attach files (up to ${MAX_FILES}, 25 MB each)`">
           <UButton icon="i-lucide-paperclip" color="neutral" variant="ghost" aria-label="Attach files" @click="fileInput?.click()" />
         </UTooltip>
-        <UPopover v-model:open="gifOpen" :content="{ side: 'top', align: 'start' }">
+        <UPopover v-model:open="gifOpen" :content="{ side: 'top', align: 'start', onCloseAutoFocus: (e: Event) => e.preventDefault() }">
           <UTooltip text="GIFs">
             <UButton icon="i-lucide-image-play" color="neutral" variant="ghost" aria-label="Open GIF menu" />
           </UTooltip>
@@ -205,6 +213,7 @@ defineExpose({
                 (url: string) => {
                   gifOpen = false
                   gif = url
+                  editorRef?.editor?.commands.focus('end')
                 }
               "
             />

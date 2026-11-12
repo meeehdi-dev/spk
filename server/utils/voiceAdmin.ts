@@ -18,8 +18,7 @@ async function livekit(fn: (c: RoomServiceClient) => Promise<unknown>) {
 export function disconnectVoice(userId: string, reason: string) {
   const s = sessionOf(userId)
   if (!s) return false
-  leaveVoice(userId, s.sid)
-  broadcast({ type: 'voice:presence', channelId: null, userId })
+  if (leaveVoice(userId, s.sid)?.ready) broadcast({ type: 'voice:presence', channelId: null, userId })
   sendToUser(userId, { type: 'voice:disconnect', sid: s.sid, reason })
   void livekit(c => c.removeParticipant(s.channelId, userId))
   return true

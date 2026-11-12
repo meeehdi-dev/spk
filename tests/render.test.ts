@@ -26,6 +26,14 @@ describe('chat markdown rendering', () => {
     expect(t).toContain('strong')
     expect(JSON.stringify(body)).toContain('"uid":"u1"')
   })
+  it('hard breaks and newlines render as one <br> with no extra newline text', async () => {
+    for (const md of ['a  \nb', 'a\nb']) {
+      const body = await parse(md)
+      expect(tags(body)).toEqual(['p', 'br'])
+      expect(text(body)).toBe('ab')
+    }
+    expect(tags(await parse('a\n\nb'))).toEqual(['p', 'p'])
+  })
   it('raw HTML is shown as text, never as elements', async () => {
     const body = await parse('<script>alert(1)</script> <img src=x onerror=alert(1)>\n\n<div onclick=1>hi</div>')
     expect(tags(body).filter(t => !['p', 'br'].includes(t))).toEqual([])

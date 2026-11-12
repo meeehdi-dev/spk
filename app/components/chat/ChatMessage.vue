@@ -87,12 +87,20 @@ const root = ref<HTMLElement>()
 const plain = () => root.value?.querySelector<HTMLElement>('[data-body]')?.innerText ?? props.message.body
 
 const messageItems = () => [
-  { label: 'Reply', icon: 'i-lucide-reply', onSelect: () => actions.reply(props.message.id) },
+  {
+    label: 'Reply',
+    icon: 'i-lucide-reply',
+    onSelect: () => {
+      skipRefocus = true
+      actions.reply(props.message.id)
+    },
+  },
   {
     label: 'React',
     icon: 'i-lucide-smile-plus',
     onSelect: () => {
-      picker.value = true
+      skipRefocus = true
+      openPickerAfterClose = true
     },
   },
   { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('quote', selectionText() || props.message.body) },
@@ -127,10 +135,16 @@ const messageItems = () => [
 ]
 // The closing menu would hand focus back to the message and steal it from the editor.
 let skipRefocus = false
+// Opening the picker while the menu is still closing makes the popover dismiss itself, so wait for the close.
+let openPickerAfterClose = false
 const menuContent = {
   onCloseAutoFocus: (e: Event) => {
     if (skipRefocus) e.preventDefault()
     skipRefocus = false
+    if (openPickerAfterClose) {
+      openPickerAfterClose = false
+      setTimeout(() => (picker.value = true))
+    }
   },
 }
 const selectionText = () => window.getSelection()?.toString().trim() ?? ''
@@ -291,7 +305,7 @@ function onKey(e: KeyboardEvent) {
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
           <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="ghost" aria-label="Copy message" @click="copy(message.body)" />
         </UTooltip>
-        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start' }">
+        <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start', ...menuContent }">
           <UTooltip text="More">
             <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" aria-label="More actions" />
           </UTooltip>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { dropVoiceOwner, joinVoice, leaveVoice, updateVoice, voiceSnapshot } from '../server/utils/voicePresence'
+import { dropVoiceOwner, joinVoice, leaveVoice, readyVoice, updateVoice, voiceSnapshot } from '../server/utils/voicePresence'
 import { createVoiceToken } from '../server/utils/voiceToken'
 import {
   CAMERA_CAPTURE,
@@ -54,6 +54,28 @@ describe('sensitivity', () => {
 })
 
 describe('voice presence', () => {
+  it('hides a session until ready; state is stored silently; a never-ready leave is not announced', () => {
+    const o = {}
+    joinVoice('h1', 'c1', 's', o, false)
+    expect(voiceSnapshot().some(p => p.userId === 'h1')).toBe(false)
+    expect(updateVoice('h1', 's', { muted: true })).toBeNull()
+    expect(readyVoice('h1', 'other')).toBeNull()
+    expect(readyVoice('h1', 's')).toMatchObject({ userId: 'h1', channelId: 'c1', muted: true })
+    expect(readyVoice('h1', 's')).toBeNull()
+    expect(voiceSnapshot().some(p => p.userId === 'h1')).toBe(true)
+    leaveVoice('h1', 's')
+    joinVoice('h2', 'c1', 's', o, false)
+    expect(leaveVoice('h2', 's')).toMatchObject({ ready: false })
+    joinVoice('h3', 'c1', 's', o, false)
+    expect(dropVoiceOwner(o)).toEqual([])
+  })
+  it('a same-channel takeover of a visible session stays visible; another channel hides', () => {
+    joinVoice('h4', 'c1', 'a', {})
+    expect(joinVoice('h4', 'c1', 'b', {}, false)).toMatchObject({ visible: true, replacedVisible: true })
+    expect(joinVoice('h4', 'c2', 'c', {}, false)).toMatchObject({ visible: false, replacedVisible: true })
+    expect(voiceSnapshot().some(p => p.userId === 'h4')).toBe(false)
+    leaveVoice('h4', 'c')
+  })
   it('replaces the middle member in place and transfers socket ownership', () => {
     const old = {},
       replacement = {},
@@ -78,7 +100,7 @@ describe('voice presence', () => {
     expect(leaveVoice('u1', 's1')).toBeNull()
     expect(voiceSnapshot().filter(p => p.userId === 'u1')).toMatchObject([{ channelId: 'c2' }])
     expect(updateVoice('u1', 's1', { muted: true })).toBeNull()
-    expect(leaveVoice('u1', 's2')).toEqual({ userId: 'u1', channelId: 'c2' })
+    expect(leaveVoice('u1', 's2')).toEqual({ userId: 'u1', channelId: 'c2', ready: true })
   })
   it('reconnect with the same sid keeps flags; speaking clears on mute', () => {
     const a = {}

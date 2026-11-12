@@ -59,7 +59,10 @@ const toggleTheater = (id: string) => {
       </div>
     </div>
 
-    <div class="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-default p-3">
+    <div
+      class="mx-2 mb-2 flex w-fit max-w-[calc(100%_-_1rem)] shrink-0 flex-wrap items-center justify-center gap-2 self-center"
+      :class="here && 'rounded-lg bg-elevated/50 p-2'"
+    >
       <UButton v-if="!here" label="Join voice" icon="i-lucide-phone" :loading="v.connecting.value" @click="v.join(channelId)" />
       <template v-else>
         <VoiceControl kind="mic" labeled />

@@ -62,6 +62,9 @@ const sortable = (el: Ref<HTMLElement | undefined>, type: 'text' | 'voice') =>
   useSortable(el, [] as string[], {
     animation: 150,
     handle: '[data-drag]',
+    // Member rows inside a channel li are HTML5-draggable themselves; keep Sortable off them and don't cancel their native drag.
+    filter: '[data-member]',
+    preventOnFilter: false,
     delay: 200,
     delayOnTouchOnly: true,
     watchElement: true,
@@ -75,6 +78,25 @@ const sortable = (el: Ref<HTMLElement | undefined>, type: 'text' | 'voice') =>
   })
 sortable(textList, 'text')
 sortable(voiceList, 'voice')
+// Admins drag a person onto another voice channel (native DnD, separate from the channel reorder above).
+const dragged = ref<{ id: string; from: string }>()
+const dropTarget = ref<string>()
+const onMemberDragStart = (event: DragEvent, id: string, from: string) => {
+  if (!admin.isAdmin.value) {
+    event.preventDefault()
+    return
+  }
+  const row = event.currentTarget as HTMLElement
+  const rect = row.getBoundingClientRect()
+  event.dataTransfer?.setDragImage(row, event.clientX - rect.left, event.clientY - rect.top)
+  dragged.value = { id, from }
+}
+const canDrop = (channelId: string) => admin.isAdmin.value && !!dragged.value && dragged.value.from !== channelId
+const onDrop = (channelId: string) => {
+  const d = dragged.value
+  dropTarget.value = dragged.value = undefined
+  if (admin.isAdmin.value && d && d.from !== channelId) void admin.move(d.id, channelId)
+}
 </script>
 
 <template>
@@ -197,8 +219,18 @@ sortable(voiceList, 'voice')
           />
         </div>
         <ul ref="voiceList" class="py-1 compact:py-0">
-          <li v-for="c in voiceChannels" :key="c.id" :data-drag="admin.isAdmin.value || undefined">
-            <div class="group/row flex items-center rounded-md" :class="route.params.channelId === c.id ? 'bg-primary/10' : 'hover:bg-elevated'">
+          <li
+            v-for="c in voiceChannels"
+            :key="c.id"
+            :data-drag="admin.isAdmin.value || undefined"
+            @dragover="canDrop(c.id) && ($event.preventDefault(), (dropTarget = c.id))"
+            @dragleave="dropTarget === c.id && !($event.currentTarget as HTMLElement).contains($event.relatedTarget as Node) && (dropTarget = undefined)"
+            @drop.prevent="onDrop(c.id)"
+          >
+            <div
+              class="group/row flex items-center rounded-md"
+              :class="dropTarget === c.id ? 'bg-amber-500/10' : route.params.channelId === c.id ? 'bg-primary/10' : 'hover:bg-elevated'"
+            >
               <UContextMenu :items="channelMenu(c) as never" class="min-w-0 flex-1">
                 <UButton
                   :to="`/c/${c.id}`"
@@ -226,7 +258,13 @@ sortable(voiceList, 'voice')
             </div>
             <ul class="ml-6">
               <UserContext v-for="m in voiceMembers(c.id)" :key="m.userId" :user-id="m.userId">
-                <li class="flex items-center gap-2 py-0.5 text-sm text-muted">
+                <li
+                  class="flex items-center gap-2 py-0.5 text-sm text-muted"
+                  data-member
+                  :draggable="admin.isAdmin.value"
+                  @dragstart="onMemberDragStart($event, m.userId, c.id)"
+                  @dragend="dragged = dropTarget = undefined"
+                >
                   <UAvatar
                     :src="avatarSrc(byId.get(m.userId))"
                     :alt="nameOf(m.userId)"
@@ -245,7 +283,15 @@ sortable(voiceList, 'voice')
                       @click="voice.watchStream(c.id, m.userId)"
                     />
                   </UTooltip>
-                  <UIcon v-if="m.cam" name="i-lucide-video" class="size-3.5 shrink-0 text-primary" :class="m.screen ? '' : 'ml-auto'" aria-label="Camera on" />
+                  <UTooltip v-if="m.cam" :text="`Watch ${nameOf(m.userId)}'s camera`" :class="m.screen ? '' : 'ml-auto'">
+                    <UButton
+                      icon="i-lucide-video"
+                      color="primary"
+                      variant="ghost"
+                      :aria-label="`Watch ${nameOf(m.userId)}'s camera`"
+                      @click="voice.watchStream(c.id, m.userId)"
+                    />
+                  </UTooltip>
                   <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
                   <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
                 </li>

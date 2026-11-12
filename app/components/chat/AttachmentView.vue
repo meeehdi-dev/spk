@@ -100,9 +100,10 @@ onMounted(() => {
         :aria-label="`Open ${file.filename}`"
         @click="revealed ? emit('open', file) : (revealed = true)"
       >
-        <img
+        <ChatStillImage
           :src="src"
           :alt="file.filename"
+          :gif="file.mime === 'image/gif'"
           loading="lazy"
           class="max-h-[350px] max-w-full object-contain transition"
           :class="[revealed ? '' : 'blur-2xl', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-elevated']"

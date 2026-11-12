@@ -365,6 +365,7 @@ export function useVoice() {
       processor = nextProcessor
       rebuild()
       channelId.value = id
+      socket.send({ type: 'voice:ready', sid }) // LiveKit is connected: show us to everyone
       lastSent = 0
       applyMute() // the mic is published first so unmuting works; a remembered mute applies now
       startPing(r)
@@ -889,6 +890,7 @@ export function useVoiceLive() {
         muted: v.mute.value.muted,
         deafened: v.mute.value.deafened,
         watching: v.watching.value,
+        ready: true, // already connected: don't blink
       })
   })
   socket.on(m => {
@@ -916,6 +918,13 @@ export function useVoiceLive() {
       if (mine && m.channelId === mine && prev?.channelId === mine) {
         for (const k of ['cam', 'screen'] as const) {
           if (!!prev[k] !== !!m[k]) playVoiceSound(k === 'cam' ? 'camera' : 'screen', !!m[k])
+        }
+        // Someone else starts or stops watching your screen share.
+        const myId = v.me.value?.id
+        if (myId && m.userId !== myId && v.screenOn.value) {
+          const was = prev.watching.includes(myId),
+            now = !!m.watching?.includes(myId)
+          if (was !== now) playVoiceSound('watch', now)
         }
       }
     } else if (m.type === 'voice:sound') {
