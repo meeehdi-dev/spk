@@ -32,14 +32,23 @@ provide(
 
 // Reactions, reply preview, delete confirmation.
 const picker = ref(false)
-// The hover toolbar anchors the picker and the More menu; it stays shown while either is open.
+const pickerPoint = shallowRef<{ x: number; y: number }>()
+const pickerReference = computed(() => {
+  const point = pickerPoint.value
+  return point ? { getBoundingClientRect: () => new DOMRect(point.x, point.y, 0, 0) } : undefined
+})
+function setPickerOpen(open: boolean) {
+  picker.value = open
+  if (!open) pickerPoint.value = undefined
+}
+// Keep the hover toolbar shown while the picker or the More menu is open.
 const moreOpen = ref(false)
 const whoOpen = ref<string | null>(null)
 const confirmDelete = ref(false)
 const mineOf = (r: ReactionDto) => !!me.value && r.userIds.includes(me.value.id)
 const react = (emoji: string) => actions.react(props.message.id, emoji, !props.message.reactions.find(r => r.emoji === emoji && mineOf(r)))
 const pick = (emoji: string) => {
-  picker.value = false
+  setPickerOpen(false)
   if (emoji) void react(emoji)
 }
 const whoReaction = computed(() => props.message.reactions.find(r => r.emoji === whoOpen.value))
@@ -107,7 +116,7 @@ useResizeObserver([root, toolbar, () => props.scroller, () => (toolbarVisible.va
 useEventListener(() => (toolbarVisible.value ? props.scroller : undefined), 'scroll', positionToolbar, { passive: true })
 const plain = () => root.value?.querySelector<HTMLElement>('[data-body]')?.innerText ?? props.message.body
 
-const messageItems = () => [
+const messageItems = (point?: { x: number; y: number }) => [
   {
     label: 'Reply',
     icon: 'i-lucide-reply',
@@ -121,6 +130,7 @@ const messageItems = () => [
     icon: 'i-lucide-smile-plus',
     onSelect: () => {
       skipRefocus = true
+      pickerPoint.value = point
       openPickerAfterClose = true
     },
   },
@@ -177,8 +187,11 @@ function onContext(e: MouseEvent) {
     e.stopPropagation()
     return
   } // selected text keeps the browser's menu
+  const point = { x: e.clientX, y: e.clientY }
   const target = root.value ? findCtx(e.target, root.value) : null
-  items.value = target ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never) : messageItems()
+  items.value = target
+    ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems(point) }]] as never)
+    : messageItems(point)
 }
 
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
@@ -305,9 +318,14 @@ function onKey(e: KeyboardEvent) {
             {{ e }}
           </UButton>
         </UTooltip>
-        <UPopover v-model:open="picker" :content="{ side: 'top', align: 'end' }">
+        <UPopover
+          :open="picker"
+          :reference="pickerReference"
+          :content="pickerPoint ? { side: 'bottom', align: 'start', sideOffset: 0 } : { side: 'top', align: 'end' }"
+          @update:open="setPickerOpen"
+        >
           <UTooltip text="Add reaction">
-            <UButton icon="i-lucide-smile-plus" color="neutral" variant="ghost" aria-label="Add reaction" />
+            <UButton icon="i-lucide-smile-plus" color="neutral" variant="ghost" aria-label="Add reaction" @click="pickerPoint = undefined" />
           </UTooltip>
           <template #content>
             <ChatEmojiPicker @pick="pick" />

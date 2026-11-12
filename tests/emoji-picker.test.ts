@@ -100,6 +100,73 @@ describe('emoji reaction picker', () => {
     expect(empty.container.textContent).toContain('No emoji found.')
   })
 
+  it('keeps context-menu coordinates through closing and reopening, and restores the toolbar anchor', () => {
+    vi.useFakeTimers()
+    try {
+      const source = readFileSync('app/components/chat/ChatMessage.vue', 'utf8')
+      const pickerState = source.slice(source.indexOf('const picker ='), source.indexOf('// Keep the hover toolbar'))
+      const menu = source.slice(source.indexOf('const messageItems ='), source.indexOf('const { copy, copied }'))
+      let selectedText = ''
+      let nested = false
+      const state = new Function(
+        'ref',
+        'shallowRef',
+        'computed',
+        'own',
+        'canDelete',
+        'root',
+        'findCtx',
+        'window',
+        `${transpile(pickerState + menu)}; return { picker, pickerPoint, pickerReference, setPickerOpen, messageItems, menuContent, items, onContext }`,
+      )(ref, shallowRef, computed, ref(false), ref(false), ref(document.createElement('div')), () => (nested ? { items: () => [] } : null), {
+        getSelection: () => ({ toString: () => selectedText }),
+      })
+      const open = (items: { label: string; onSelect: () => void }[]) => {
+        items.find(item => item.label === 'React')!.onSelect()
+        expect(state.picker.value).toBe(false)
+        const close = new Event('closeAutoFocus', { cancelable: true })
+        state.menuContent.onCloseAutoFocus(close)
+        expect(close.defaultPrevented).toBe(true)
+        expect(state.picker.value).toBe(false)
+        vi.runAllTimers()
+        expect(state.picker.value).toBe(true)
+      }
+      state.onContext(new MouseEvent('contextmenu', { clientX: 120, clientY: 240 }))
+      open(state.items.value)
+      expect(state.pickerReference.value.getBoundingClientRect().toJSON()).toMatchObject({ x: 120, y: 240, width: 0, height: 0 })
+      document.dispatchEvent(new MouseEvent('pointermove', { clientX: 800, clientY: 600 }))
+      expect(state.pickerReference.value.getBoundingClientRect().x).toBe(120)
+      state.setPickerOpen(false)
+      expect(state.pickerReference.value).toBeUndefined()
+      expect(state.pickerPoint.value).toBeUndefined()
+
+      nested = true
+      state.onContext(new MouseEvent('contextmenu', { clientX: 0, clientY: 320 }))
+      open(state.items.value[1][0].children)
+      expect(state.pickerReference.value.getBoundingClientRect().toJSON()).toMatchObject({ x: 0, y: 320 })
+      state.setPickerOpen(false)
+
+      // More uses the same items factory without a context-menu point.
+      open(state.messageItems())
+      expect(state.pickerReference.value).toBeUndefined()
+      state.setPickerOpen(false)
+      state.setPickerOpen(true)
+      expect(state.pickerReference.value).toBeUndefined()
+      state.setPickerOpen(false)
+
+      selectedText = 'keep native selection menu'
+      const previousItems = state.items.value
+      const event = new MouseEvent('contextmenu', { clientX: 500, clientY: 500 })
+      const stop = vi.spyOn(event, 'stopPropagation')
+      state.onContext(event)
+      expect(stop).toHaveBeenCalledOnce()
+      expect(state.items.value).toBe(previousItems)
+      expect(state.pickerReference.value).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('defers menu-triggered opening until close autofocus, suppresses stolen focus, and closes on pick', () => {
     vi.useFakeTimers()
     try {
@@ -112,8 +179,12 @@ describe('emoji reaction picker', () => {
         'own',
         'canDelete',
         'react',
+        'pickerPoint',
+        'setPickerOpen',
         `${transpile(`${menu}\n${source.slice(source.indexOf('const pick ='), source.indexOf('const whoReaction ='))}`)}; return { messageItems, menuContent, pick }`,
-      )(picker, ref(false), ref(false), react)
+      )(picker, ref(false), ref(false), react, shallowRef(), (open: boolean) => {
+        picker.value = open
+      })
       handlers
         .messageItems()
         .find((item: { label: string }) => item.label === 'React')
