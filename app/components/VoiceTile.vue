@@ -142,7 +142,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         />
       </span>
 
-      <div class="absolute top-8 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
+      <div class="absolute right-2 bottom-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
         <UTooltip v-if="!tile.local && tile.watching" text="Stop watching" :kbds="['W']"
           ><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" aria-label="Stop watching" @click="watchToggle"
         /></UTooltip>
@@ -152,6 +152,23 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <UTooltip text="Fullscreen" :kbds="['F']"
           ><UButton icon="i-lucide-maximize" color="neutral" variant="solid" aria-label="Fullscreen" @click="fullscreen()"
         /></UTooltip>
+
+        <!-- Screen audio volume: same setting as the menus. Only on a watched screen share that has audio. -->
+        <UPopover v-if="!tile.local && tile.watching && tile.screenAudio">
+          <UButton icon="i-lucide-volume-2" color="neutral" variant="solid" aria-label="Screen share volume" />
+          <template #content>
+            <div class="w-48 p-3">
+              <USlider
+                :model-value="vol.screen"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                aria-label="Screen share volume"
+                @update:model-value="v.setVolume(tile.userId, { screen: $event as number })"
+              />
+            </div>
+          </template>
+        </UPopover>
       </div>
 
       <UAvatarGroup v-if="watchers.length" :max="5" size="xs" class="absolute bottom-2 left-2">
@@ -165,29 +182,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
           <UIcon :name="soundIcon" class="size-16 text-primary" />
         </div>
       </Transition>
-
-      <!-- Screen audio volume: same setting as the menus. Only on a watched screen share that has audio. -->
-      <UPopover v-if="!tile.local && tile.watching && tile.screenAudio">
-        <UButton
-          icon="i-lucide-volume-2"
-          color="neutral"
-          variant="solid"
-          aria-label="Screen share volume"
-          class="absolute right-2 bottom-2 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100"
-        />
-        <template #content>
-          <div class="w-48 p-3">
-            <USlider
-              :model-value="vol.screen"
-              :min="0"
-              :max="1"
-              :step="0.05"
-              aria-label="Screen share volume"
-              @update:model-value="v.setVolume(tile.userId, { screen: $event as number })"
-            />
-          </div>
-        </template>
-      </UPopover>
     </div>
   </UContextMenu>
 </template>
