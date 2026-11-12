@@ -42,24 +42,28 @@ export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math
 /** Screen share audio is never processed: no browser suppression/echo/gain and no DeepFilterNet (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
 export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
 
-/** Screen share presets by quality setting (PLAN §8). Eco (default): 5 fps up to 1440p tuned for sharp text. Smooth: 60 fps up to 1080p. Single layer, never simulcast; VP9 with a VP8 backup. `resolution` is the ceiling (sent as `max` constraints), bitrate is an upper limit. */
-export const SCREEN_SHARE_PRESETS = {
-  eco: {
-    resolution: { width: 2560, height: 1440, frameRate: 5 },
+export const SCREEN_HEIGHTS = [720, 1080, 1440] as const
+export const SCREEN_FPS = [5, 30, 60] as const
+/** Max capture height (16:9 ceiling) and frame rate chosen in the screen share dialog. */
+export interface ScreenQuality {
+  height: (typeof SCREEN_HEIGHTS)[number]
+  fps: (typeof SCREEN_FPS)[number]
+}
+export const DEFAULT_SCREEN_QUALITY: ScreenQuality = { height: 1080, fps: 30 }
+export const isScreenQuality = (q: unknown): q is ScreenQuality =>
+  !!q && typeof q === 'object' && SCREEN_HEIGHTS.includes((q as ScreenQuality).height) && SCREEN_FPS.includes((q as ScreenQuality).fps)
+
+/** Capture constraints and publish options for a quality choice (PLAN §8). 5 fps is tuned for sharp text, 30/60 for motion. Single layer, never simulcast, never upscaled (`max`); VP9 with a VP8 backup. Bitrate scales with pixels × fps^0.674, anchored at 1440p5 ≈ 5 Mbps and 1080p60 ≈ 15 Mbps. */
+export function screenShareOptions({ height, fps }: ScreenQuality) {
+  const width = Math.round((height * 16) / 9)
+  return {
+    resolution: { width, height, frameRate: fps },
     codec: 'vp9',
-    contentHint: 'detail',
-    degradationPreference: 'maintain-resolution',
-    maxBitrate: 5_000_000,
-  },
-  smooth: {
-    resolution: { width: 1920, height: 1080, frameRate: 60 },
-    codec: 'vp9',
-    contentHint: 'motion',
-    degradationPreference: 'maintain-framerate',
-    maxBitrate: 15_000_000,
-  },
-} as const
-export type ScreenQuality = keyof typeof SCREEN_SHARE_PRESETS
+    contentHint: fps === 5 ? 'detail' : 'motion',
+    degradationPreference: fps === 5 ? 'maintain-resolution' : 'maintain-framerate',
+    maxBitrate: Math.round((width * height * 0.458 * fps ** 0.674) / 100_000) * 100_000,
+  } as const
+}
 
 /** Room-wide publish/capture defaults: one layer per track, 1080p30 camera at 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
 export const VOICE_PUBLISH_DEFAULTS = {

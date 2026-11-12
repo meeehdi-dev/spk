@@ -48,7 +48,7 @@ watchDebounced(q, () => load(), { debounce: 350 })
           <img :src="g.preview" :alt="g.title" loading="lazy" class="w-full object-cover" />
         </button>
       </div>
-      <UButton v-if="hasNext" label="Load more" size="xs" color="neutral" variant="soft" block class="mt-1" :loading="loading" @click="load(true)" />
+      <UButton v-if="hasNext" label="Load more" color="neutral" variant="soft" block class="mt-1" :loading="loading" @click="load(true)" />
     </div>
     <p class="text-center text-[10px] text-dimmed">Powered by KLIPY</p>
   </div>

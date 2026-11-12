@@ -38,6 +38,8 @@ watchEffect(onCleanup => {
   }
 })
 
+const watchers = computed(() => (props.tile.screenLive ? watchersOf(props.tile.userId) : []))
+const soundIcon = computed(() => v.playing.value[props.tile.userId])
 const vol = computed(() => userVolume(v.volumes.value, props.tile.userId))
 const watchToggle = () => v.watch(props.tile.userId, !props.tile.watching)
 const items = computed(() =>
@@ -120,9 +122,9 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <UAvatar :src="avatarSrc(byId.get(tile.userId))" :alt="nameOf(tile.userId)" size="3xl" />
         <template v-if="tile.local && tile.screenLive">
           <p class="text-sm">You're sharing your screen</p>
-          <UButton label="Stop" icon="i-lucide-monitor-off" color="error" size="xs" @click="v.stopScreen()" />
+          <UButton label="Stop" icon="i-lucide-monitor-off" color="error" @click="v.stopScreen()" />
         </template>
-        <UButton v-else-if="!tile.local && live && !tile.watching" label="Watch" icon="i-lucide-eye" size="xs" @click="watchToggle" />
+        <UButton v-else-if="!tile.local && live && !tile.watching" label="Watch" icon="i-lucide-eye" @click="watchToggle" />
       </div>
 
       <span class="absolute top-2 left-2 flex max-w-[70%] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
@@ -132,15 +134,27 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
       <div class="absolute top-2 right-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
         <UTooltip v-if="!tile.local && tile.watching" text="Stop watching" :kbds="['W']"
-          ><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" size="xs" aria-label="Stop watching" @click="watchToggle"
+          ><UButton icon="i-lucide-eye-off" color="neutral" variant="solid" aria-label="Stop watching" @click="watchToggle"
         /></UTooltip>
         <UTooltip :text="theater ? 'Exit theater mode' : 'Theater mode'" :kbds="['T']"
-          ><UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" size="xs" aria-label="Theater mode" @click="emit('theater')"
+          ><UButton icon="i-lucide-rectangle-horizontal" color="neutral" variant="solid" aria-label="Theater mode" @click="emit('theater')"
         /></UTooltip>
         <UTooltip text="Fullscreen" :kbds="['F']"
-          ><UButton icon="i-lucide-maximize" color="neutral" variant="solid" size="xs" aria-label="Fullscreen" @click="fullscreen()"
+          ><UButton icon="i-lucide-maximize" color="neutral" variant="solid" aria-label="Fullscreen" @click="fullscreen()"
         /></UTooltip>
       </div>
+
+      <UAvatarGroup v-if="watchers.length" :max="5" size="xs" class="absolute bottom-2 left-2">
+        <UTooltip v-for="id in watchers" :key="id" :text="nameOf(id)">
+          <UAvatar :src="avatarSrc(byId.get(id))" :alt="nameOf(id)" />
+        </UTooltip>
+      </UAvatarGroup>
+
+      <Transition leave-active-class="transition-opacity duration-300 motion-reduce:transition-none" leave-to-class="opacity-0">
+        <div v-if="soundIcon" class="pointer-events-none absolute inset-0 flex items-center justify-center bg-default/50">
+          <UIcon :name="soundIcon" class="size-16 text-primary" />
+        </div>
+      </Transition>
 
       <!-- Screen audio volume: same setting as the menus. Only on a watched screen share that has audio. -->
       <UPopover v-if="!tile.local && tile.watching && tile.screenAudio">
@@ -148,7 +162,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
           icon="i-lucide-volume-2"
           color="neutral"
           variant="solid"
-          size="xs"
           aria-label="Screen share volume"
           class="absolute right-2 bottom-2 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100"
         />

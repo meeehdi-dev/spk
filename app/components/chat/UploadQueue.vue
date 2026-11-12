@@ -10,7 +10,6 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UButton
         class="absolute -top-1.5 -right-1.5 rounded-full"
         icon="i-lucide-x"
-        size="xs"
         color="neutral"
         variant="solid"
         aria-label="Remove GIF"
@@ -29,7 +28,6 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UButton
         class="absolute -top-1.5 -right-1.5 rounded-full"
         icon="i-lucide-x"
-        size="xs"
         color="neutral"
         variant="solid"
         :aria-label="u.state === 'uploading' ? 'Cancel upload' : `Remove ${u.name}`"
@@ -38,7 +36,6 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UButton
         class="absolute -right-1.5 -bottom-1.5 rounded-full"
         icon="i-lucide-eye-off"
-        size="xs"
         :color="u.spoiler ? 'primary' : 'neutral'"
         variant="solid"
         :aria-label="u.spoiler ? 'Remove spoiler' : 'Mark as spoiler'"
@@ -63,7 +60,6 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UTooltip v-if="u.mime.startsWith('image/')" :text="u.spoiler ? 'Remove spoiler' : 'Mark as spoiler'">
         <UButton
           icon="i-lucide-eye-off"
-          size="xs"
           :color="u.spoiler ? 'primary' : 'neutral'"
           :variant="u.spoiler ? 'soft' : 'ghost'"
           :aria-label="u.spoiler ? 'Remove spoiler' : 'Mark as spoiler'"
@@ -74,7 +70,6 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UTooltip :text="u.state === 'uploading' ? 'Cancel upload' : 'Remove'">
         <UButton
           icon="i-lucide-x"
-          size="xs"
           color="neutral"
           variant="ghost"
           :aria-label="u.state === 'uploading' ? 'Cancel upload' : 'Remove file'"

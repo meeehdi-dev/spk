@@ -9,22 +9,31 @@ useDraftsLive()
 useIncomingNotifications()
 useVoiceLive()
 usePresenceLive()
+usePushSync()
 useAdminLive()
 const voice = useVoice()
 const current = computed(() => channels.value.find(c => c.id === route.params.channelId))
 const isVoice = computed(() => current.value?.type === 'voice')
 const title = computed(() => (route.path.startsWith('/c/') ? label(current.value).replace(/^#/, '') : undefined))
-watch(
-  () => route.fullPath,
-  () => {
-    open.value = false
-  },
-)
+// The drawer would cover the Settings modal.
+const settingsTab = useSettingsModal()
+watch(settingsTab, t => {
+  if (t) open.value = false
+})
 const search = useSearch()
 const isLarge = useMediaQuery('(min-width: 1024px)')
-// Desktop sidebar: hidden completely, remembered in a cookie so SSR renders it right. While it (or the drawer) is out of sight and you're in voice, the controls show as the bottom bar.
-const sidebarHidden = useCookie<boolean>('spk-sidebar-hidden', { default: () => false, maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
-const bottomVoice = computed(() => (voice.channelId.value || voice.connecting.value) && (isLarge.value ? sidebarHidden.value : !open.value))
+// Desktop sidebar: UDashboardSidebar persists its width and collapsed state in this cookie (storage key + id), so SSR renders it right. While it (or the drawer) is out of sight and you're in voice, the controls show as the bottom bar.
+const sidebarCookie = useCookie<{ collapsed?: boolean } | null>('dashboard-sidebar-main', { default: () => null })
+const sidebarHidden = ref(sidebarCookie.value?.collapsed ?? false)
+const toggleSidebar = () => {
+  sidebarHidden.value = !sidebarHidden.value
+}
+const bottomVoice = computed(
+  () =>
+    (voice.channelId.value || voice.connecting.value) &&
+    (isLarge.value ? sidebarHidden.value : !open.value) &&
+    route.params.channelId !== voice.channelId.value,
+)
 const panel = ref<{ onKey: (e: KeyboardEvent) => void }>()
 const searchFocus = () => {
   if (!search.open) search.show(inChat.value ? 'channel' : 'everything')
@@ -65,9 +74,7 @@ defineShortcuts({
   meta_alt_shift_o: { usingInput: true, handler: () => voice.toggleEcho() },
   meta_alt_shift_g: { usingInput: true, handler: () => voice.toggleAgc() },
   // Outside text fields only: ⌘/Ctrl B is Bold in the composer and inline editor. ⌘/Ctrl F stays the browser's find.
-  meta_b: () => {
-    sidebarHidden.value = !sidebarHidden.value
-  },
+  meta_b: toggleSidebar,
   '/': () => searchInput()?.focus(),
   meta_shift_f: { usingInput: true, handler: () => search.show('everything') },
 })
@@ -81,22 +88,31 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="flex h-dvh bg-default text-default">
+  <UDashboardGroup unit="px" :storage-options="{ maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' }" class="bg-default text-default">
     <NicknameModal v-if="me && !me.displayName" />
     <QuickSwitcher v-model:open="switcher" />
     <ShortcutsOverlay />
     <SettingsModal />
     <VoiceDialogs />
+    <ScreenShareDialog />
     <AdminDialogs />
-    <aside v-if="!sidebarHidden" class="hidden w-64 shrink-0 border-r border-default lg:flex">
+    <UDashboardSidebar
+      id="main"
+      v-model:open="open"
+      v-model:collapsed="sidebarHidden"
+      resizable
+      collapsible
+      :min-size="224"
+      :max-size="480"
+      :default-size="288"
+      :menu="{ description: 'Channels and direct messages' }"
+      :ui="{
+        root: 'min-w-0 data-[collapsed=true]:invisible data-[collapsed=true]:border-0',
+        body: 'gap-0 p-0 sm:p-0',
+      }"
+    >
       <AppSidebar class="w-full" />
-    </aside>
-
-    <USlideover v-model:open="open" side="left" title="Navigation" description="Channels and direct messages">
-      <template #body>
-        <AppSidebar />
-      </template>
-    </USlideover>
+    </UDashboardSidebar>
 
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-3">
@@ -108,7 +124,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
             variant="ghost"
             :aria-label="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'"
             :aria-expanded="!sidebarHidden"
-            @click="sidebarHidden = !sidebarHidden"
+            @click="toggleSidebar"
           />
         </UTooltip>
         <UIcon
@@ -135,7 +151,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
             icon="i-lucide-search"
             placeholder="Search"
             aria-label="Search messages"
-            size="sm"
             class="w-56 max-lg:hidden xl:w-72"
             @focus="searchFocus"
             @input="searchFocus"
@@ -170,5 +185,5 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <SearchPanel />
       </template>
     </USlideover>
-  </div>
+  </UDashboardGroup>
 </template>

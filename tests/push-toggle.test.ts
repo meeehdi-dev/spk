@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it, vi } from 'vitest'
-import { createApp, defineComponent, h, nextTick, ref } from 'vue'
+import { createApp, defineComponent, h, nextTick, ref, watch } from 'vue'
 import { parse } from 'vue/compiler-sfc'
 
 const { descriptor } = parse(readFileSync('app/components/settings/Notifications.vue', 'utf8'))
@@ -35,7 +35,7 @@ describe('push toggle', () => {
         disablePush,
         permission: ref('granted'),
         busy: ref(false),
-        s: ref({ dms: true, pings: true, dnd: false, sound: true, volume: 0.5 }),
+        s: ref({ dms: true, pings: true, sound: true, volume: 0.5 }),
         playBlip: vi.fn(),
       }),
     })
@@ -65,5 +65,30 @@ describe('push toggle', () => {
     } finally {
       app.unmount()
     }
+  })
+})
+
+describe('push prefs sync', () => {
+  it('re-sends prefs to the server when the status becomes busy, without Settings mounted', async () => {
+    vi.useFakeTimers()
+    const status = ref('online')
+    const fetchMock = vi.fn(async () => {})
+    vi.stubGlobal('useNotifySettings', () => ref({ dms: true, pings: true, muted: [] }))
+    vi.stubGlobal('useMyStatus', () => status)
+    vi.stubGlobal('watchDebounced', watch)
+    vi.stubGlobal('$fetch', fetchMock)
+    vi.stubGlobal('PushManager', {})
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { ready: Promise.resolve({ pushManager: { getSubscription: async () => ({ endpoint: 'e' }) } }) },
+    })
+    const { usePushSync } = await import('../app/composables/usePush')
+    createApp({ setup: () => (usePushSync(), () => null) }).mount(document.createElement('div'))
+    status.value = 'busy'
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(fetchMock).toHaveBeenCalledWith('/api/push', { method: 'PUT', body: { endpoint: 'e', prefs: expect.objectContaining({ dnd: true }) } })
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 })

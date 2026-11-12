@@ -1,8 +1,9 @@
+import { MANUAL_STATUSES, type ManualStatus } from '../../shared/utils/presence'
 import { accessibleChannel, channelMemberIds, ChatError, createMessage } from '../db/messages'
 import { markRead, readState } from '../db/reads'
 
 import { createLimiter } from './limiter'
-import { onlineUserIds, sendToUser, setPeerIdle, broadcast } from './peers'
+import { onlineUserIds, sendToUser, setManualStatus, setPeerIdle, broadcast } from './peers'
 import { queuePreviews } from './previews'
 import { sendPushes } from './push'
 import { handleVoiceFrame } from './voice'
@@ -23,6 +24,7 @@ export function fanOut(channelId: string, userId: string, data: unknown, include
 export function handleClientFrame(userId: string, raw: string, socket?: unknown) {
   let m: {
     type?: string
+    status?: unknown
     sid?: string
     channelId?: string
     body?: string
@@ -38,6 +40,11 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
   if (!m || typeof m !== 'object') return
   if ((m.type === 'presence:idle' || m.type === 'presence:active') && socket) {
     const status = setPeerIdle(userId, socket as never, m.type === 'presence:idle')
+    if (status) broadcast({ type: 'presence:update', userId, status })
+    return
+  }
+  if (m.type === 'presence:set' && MANUAL_STATUSES.includes(m.status as ManualStatus)) {
+    const status = setManualStatus(userId, m.status as ManualStatus)
     if (status) broadcast({ type: 'presence:update', userId, status })
     return
   }

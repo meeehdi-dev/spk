@@ -113,22 +113,23 @@ describe('screen share audio', () => {
 })
 
 describe('screen share and per-user volume', () => {
-  it('has the Eco and Smooth screen share presets', async () => {
-    const { SCREEN_SHARE_PRESETS } = await import('../shared/utils/voice')
-    expect(SCREEN_SHARE_PRESETS.eco).toMatchObject({
+  it('derives screen share encoding from resolution and fps', async () => {
+    const { screenShareOptions, isScreenQuality } = await import('../shared/utils/voice')
+    expect(screenShareOptions({ height: 1440, fps: 5 })).toMatchObject({
       contentHint: 'detail',
       degradationPreference: 'maintain-resolution',
       codec: 'vp9',
       maxBitrate: 5_000_000,
       resolution: { width: 2560, height: 1440, frameRate: 5 },
     })
-    expect(SCREEN_SHARE_PRESETS.smooth).toMatchObject({
+    expect(screenShareOptions({ height: 1080, fps: 60 })).toMatchObject({
       contentHint: 'motion',
       degradationPreference: 'maintain-framerate',
-      codec: 'vp9',
       maxBitrate: 15_000_000,
       resolution: { width: 1920, height: 1080, frameRate: 60 },
     })
+    expect(screenShareOptions({ height: 720, fps: 30 }).maxBitrate).toBeLessThan(screenShareOptions({ height: 1080, fps: 30 }).maxBitrate)
+    expect([isScreenQuality('eco'), isScreenQuality({ height: 1080, fps: 30 }), isScreenQuality({ height: 900, fps: 30 })]).toEqual([false, true, false])
   })
   it('publishes single-layer, high-bitrate camera, mic and screen audio', () => {
     expect(VOICE_PUBLISH_DEFAULTS).toMatchObject({
@@ -160,5 +161,23 @@ describe('voice cam/screen flags', () => {
     updateVoice('u5', 's', { screen: false })
     expect(voiceSnapshot().find(p => p.userId === 'u5')).toMatchObject({ cam: true, screen: false })
     leaveVoice('u5', 's')
+  })
+})
+
+describe('voice watching', () => {
+  it('validates the array, caps it and resets on a new session', () => {
+    joinVoice('u6', 'c1', 's', {})
+    updateVoice('u6', 's', { watching: ['a', 1, 'b'] })
+    expect(voiceSnapshot().find(p => p.userId === 'u6')?.watching).toEqual(['a', 'b'])
+    updateVoice('u6', 's', { watching: Array.from({ length: 200 }, (_, i) => String(i)) })
+    expect(voiceSnapshot().find(p => p.userId === 'u6')?.watching).toHaveLength(50)
+    updateVoice('u6', 's', { watching: ['x'.repeat(65), 'ok'] })
+    expect(voiceSnapshot().find(p => p.userId === 'u6')?.watching).toEqual(['ok'])
+    updateVoice('u6', 's', { watching: Array.from({ length: 200 }, (_, i) => String(i)) })
+    updateVoice('u6', 's', { watching: 'nope' })
+    expect(voiceSnapshot().find(p => p.userId === 'u6')?.watching).toHaveLength(50)
+    joinVoice('u6', 'c1', 's2', {})
+    expect(voiceSnapshot().find(p => p.userId === 'u6')?.watching).toEqual([])
+    leaveVoice('u6', 's2')
   })
 })

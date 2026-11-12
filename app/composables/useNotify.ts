@@ -1,13 +1,13 @@
 import { extractMentionIds } from '#shared/utils/markdown'
 import { allowedBy, notificationBody, type NotifyPrefs } from '#shared/utils/notifyText'
 
-export interface NotifySettings extends Required<NotifyPrefs> {
+export interface NotifySettings extends Required<Omit<NotifyPrefs, 'dnd'>> {
   sound: boolean
   volume: number
 }
 
 export const useNotifySettings = () =>
-  useLocalStorage<NotifySettings>('spk:notify', { dms: true, pings: true, dnd: false, sound: true, volume: 0.5, muted: [] }, { mergeDefaults: true })
+  useLocalStorage<NotifySettings>('spk:notify', { dms: true, pings: true, sound: true, volume: 0.5, muted: [] }, { mergeDefaults: true })
 
 /** Per-channel mute (stored in the notification settings, so Web Push honours it too). */
 export function useMute() {
@@ -94,6 +94,7 @@ export function useIncomingNotifications() {
   const { data: channels } = useChannels()
   const { nameOf } = useUsers()
   const settings = useNotifySettings()
+  const myStatus = useMyStatus()
   const notify = useNotify()
   const route = useRoute()
   const bc = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('spk-notify')
@@ -122,7 +123,7 @@ export function useIncomingNotifications() {
     if (!ch) return
     const isDm = ch.type === 'dm'
     const pinged = extractMentionIds(msg.body).includes(me.value.id) || msg.replyTo?.userId === me.value.id
-    if ((!isDm && !pinged) || !allowedBy(settings.value, ch.id, isDm)) return
+    if ((!isDm && !pinged) || !allowedBy({ ...settings.value, dnd: myStatus.value === 'busy' }, ch.id, isDm)) return
     if (!(await iAmTheOne(msg.id))) return
     const focused = document.hasFocus()
     if (focused && route.params.channelId === ch.id) return

@@ -28,11 +28,29 @@ interface Node {
   [k: string]: unknown
 }
 
+// One emoji: pictograph (+ variation selector, skin tone, ZWJ parts), regional-indicator flag, or keycap.
+const EMOJI = String.raw`(?:\p{RI}\p{RI}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*)*)`
+const EMOJI_SPLIT_RE = new RegExp(`(${EMOJI})`, 'gu')
+const EMOJI_ONLY_RE = new RegExp(`^(?:${EMOJI}\\s*){1,6}$`, 'u')
+
+/** 1–6 emoji and whitespace, nothing else: rendered large. */
+export const isEmojiOnly = (body: string) => EMOJI_ONLY_RE.test(body.trim())
+
 const BLOCK_PARENTS = new Set(['root', 'blockquote', 'listItem'])
 
 function splitText(value: string): Node[] {
   const out: Node[] = []
-  const push = (v: string) => v && out.push({ type: 'text', value: v })
+  const push = (v: string) => {
+    for (const [i, part] of v.split(EMOJI_SPLIT_RE).entries()) {
+      if (!part) continue
+      // hChildren keeps the walker from splitting the emoji text again.
+      out.push(
+        i % 2
+          ? { type: 'spkEmoji', data: { hName: 'span', hProperties: { className: ['emoji'] }, hChildren: [{ type: 'text', value: part }] } }
+          : { type: 'text', value: part },
+      )
+    }
+  }
   for (const [i, line] of value.split('\n').entries()) {
     if (i > 0) out.push({ type: 'break' })
     let last = 0

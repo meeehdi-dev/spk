@@ -1,4 +1,4 @@
-import type { SavedDevice, ScreenQuality } from '#shared/utils/voice'
+import { DEFAULT_SCREEN_QUALITY, isScreenQuality, type SavedDevice, type ScreenQuality } from '#shared/utils/voice'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen'
@@ -32,7 +32,7 @@ export const useVoiceSettings = () =>
       sensitivity: 50,
       outputVolume: 1,
       screenAudio: true,
-      screenQuality: 'eco',
+      screenQuality: DEFAULT_SCREEN_QUALITY,
       soundboard: { on: true, volume: 0.7 },
       sounds: {
         join: { on: true, volume: 0.5 },
@@ -43,7 +43,15 @@ export const useVoiceSettings = () =>
         screen: { on: true, volume: 0.5 },
       },
     },
-    { mergeDefaults: (stored, defaults) => ({ ...defaults, ...stored, sounds: { ...defaults.sounds, ...stored.sounds } }) },
+    {
+      // An old 'eco' | 'smooth' string is replaced by the default.
+      mergeDefaults: (stored, defaults) => ({
+        ...defaults,
+        ...stored,
+        screenQuality: isScreenQuality(stored.screenQuality) ? stored.screenQuality : defaults.screenQuality,
+        sounds: { ...defaults.sounds, ...stored.sounds },
+      }),
+    },
   )
 
 let audio: AudioContext | undefined

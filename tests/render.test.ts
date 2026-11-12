@@ -3,7 +3,7 @@ import type { MDCElement, MDCNode, MDCRoot } from '@nuxtjs/mdc'
 import { createParseProcessor } from '@nuxtjs/mdc/runtime'
 import { describe, expect, it } from 'vitest'
 
-import { remarkSpk } from '../shared/utils/markdown'
+import { isEmojiOnly, remarkSpk } from '../shared/utils/markdown'
 
 async function parse(md: string) {
   const p = await createParseProcessor({ remark: { plugins: { 'remark-mdc': false as never, spk: { instance: remarkSpk } } }, highlight: false, toc: false })
@@ -48,5 +48,14 @@ describe('chat markdown rendering', () => {
     expect(t).toContain('ul')
     expect(t).toContain('blockquote')
     expect(t).not.toContain('h1')
+  })
+  it('wraps emoji in a span, leaving other text alone', async () => {
+    const body = await parse('hi 👍🏽 and 🇫🇷 ok 12')
+    expect(JSON.stringify(body).match(/"emoji"/g)).toHaveLength(2)
+    expect(text(body)).toBe('hi 👍🏽 and 🇫🇷 ok 12')
+  })
+  it('isEmojiOnly: 1–6 emoji with whitespace only', () => {
+    for (const ok of ['😀', ' 😀 😀\n👍🏽 ', '👨‍👩‍👧🇫🇷1️⃣❤️']) expect(isEmojiOnly(ok)).toBe(true)
+    for (const no of ['', 'a😀', '😀 1', '😀😀😀😀😀😀😀', '12', '**😀**']) expect(isEmojiOnly(no)).toBe(false)
   })
 })

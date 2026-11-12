@@ -132,6 +132,7 @@ beforeEach(() => {
   vi.stubGlobal('useLocalStorage', (_: string, value: unknown) => ref(value))
   vi.stubGlobal('useVoiceSettings', () => ref({ noise: 'standard', sensitivity: 50, outputVolume: 1 }))
   vi.stubGlobal('useToast', () => ({ add: toast }))
+  vi.stubGlobal('useSounds', () => ({ data: ref([]) }))
   vi.stubGlobal('playVoiceSound', sound)
   vi.stubGlobal('navigateTo', vi.fn())
   vi.stubGlobal('onMounted', vi.fn())
@@ -163,6 +164,31 @@ afterEach(async () => {
 })
 
 describe('acknowledged voice join', () => {
+  it('keeps mute across leave and applies it on join', async () => {
+    const b = await browser('mute')
+    b.v.toggleMic()
+    await b.v.join('c1')
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'mute')).toMatchObject({ muted: true })
+    await b.v.leave()
+    expect(b.v.mute.value.muted).toBe(true)
+  })
+
+  it('mutes the published mic before the processor loads when joining muted', async () => {
+    const b = await browser('early')
+    b.v.toggleMic()
+    const order: string[] = []
+    const track = {
+      mute: vi.fn(async () => void order.push('mute')),
+      unmute: vi.fn(async () => {}),
+      setProcessor: vi.fn(async () => void order.push('processor')),
+    }
+    media.connect = async () => {
+      media.rooms[0]!.localParticipant.getTrackPublication = (() => ({ audioTrack: track })) as never
+    }
+    await b.v.join('c1')
+    expect(order.slice(0, 2)).toEqual(['mute', 'processor'])
+  })
+
   it('replaces the middle browser before connecting, without observer sounds or reordering', async () => {
     const observer = await browser('first')
     await observer.v.join('c1')

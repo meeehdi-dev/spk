@@ -55,8 +55,8 @@ const extensions = [
     </UEditor>
     <div class="flex items-center gap-2 border-t border-default px-2 py-1 text-xs text-muted">
       <span>Esc to cancel · Enter to save</span>
-      <UButton class="ml-auto" label="Cancel" size="xs" color="neutral" variant="ghost" @click="emit('cancel')" />
-      <UButton label="Save" icon="i-lucide-check" size="xs" @click="save" />
+      <UButton class="ml-auto" label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
+      <UButton label="Save" icon="i-lucide-check" @click="save" />
     </div>
   </div>
 </template>

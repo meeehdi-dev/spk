@@ -22,13 +22,13 @@ import {
   CAMERA_CAPTURE,
   SCREEN_AUDIO_CAPTURE,
   SCREEN_AUDIO_PUBLISH,
-  SCREEN_SHARE_PRESETS,
   VOICE_PUBLISH_DEFAULTS,
   sensitivityToDb,
   toggleDeafen,
   toggleMute,
   userVolume,
   type SavedDevice,
+  screenShareOptions,
   type ScreenQuality,
   type UserVolume,
 } from '#shared/utils/voice'
@@ -40,6 +40,7 @@ export interface VoiceMember {
   speaking: boolean
   cam: boolean
   screen: boolean
+  watching: string[]
 }
 
 // One voice session per tab. `sid` tells the server (and our other tabs) which tab owns the account's session.
@@ -64,9 +65,18 @@ export interface VoiceTile {
 }
 const tiles = shallowRef<VoiceTile[]>([])
 const watching = ref<string[]>([])
+/** The tile shown large; shared voice state so it survives navigating away from the channel. */
+const theater = ref<string | null>(null)
+/** Sound icon per user while their soundboard sound plays. */
+const playing = ref<Record<string, string>>({})
+const playingOff = new Map<string, ReturnType<typeof setTimeout>>()
+/** Round-trip time to the LiveKit server in ms, null while unknown. */
+const ping = ref<number | null>(null)
+let pingTimer: ReturnType<typeof setInterval> | undefined
 const camOn = ref(false)
 const screenOn = ref(false)
 const screenBusy = ref(false)
+const screenDialog = ref(false)
 let screenEpoch = 0
 type ScreenSession = { video: LocalVideoTrack; audio?: LocalAudioTrack; publication?: LocalVideoTrack }
 let screenSession: ScreenSession | undefined
@@ -136,6 +146,7 @@ export function useVoice() {
       speaking: speaking && !mute.value.muted,
       cam: camOn.value,
       screen: screenOn.value,
+      watching: watching.value,
     })
   }
 
@@ -174,9 +185,13 @@ export function useVoice() {
     if (!room) {
       tiles.value = []
       camOn.value = screenOn.value = false
+      theater.value = null
       return
     }
-    watching.value = watching.value.filter(id => room!.remoteParticipants.has(id))
+    const stillThere = watching.value.filter(id => room!.remoteParticipants.has(id))
+    const watchingChanged = stillThere.length !== watching.value.length
+    watching.value = stillThere
+    if (theater.value && theater.value !== room.localParticipant.identity && !room.remoteParticipants.has(theater.value)) theater.value = null
     syncSubs()
     const make = (p: Participant): VoiceTile => {
       const cam = p.getTrackPublication('camera' as Track.Source),
@@ -203,7 +218,7 @@ export function useVoice() {
     const changed = cam !== camOn.value || screen !== screenOn.value
     camOn.value = cam
     screenOn.value = screen
-    if (changed) pushState()
+    if (changed || watchingChanged) pushState()
     applyOutput()
   }
   function applyMute() {
@@ -329,7 +344,7 @@ export function useVoice() {
         })
         const timeout = setTimeout(() => finish(new Error('Voice join timed out')), 5000)
         signal.addEventListener('abort', aborted, { once: true })
-        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: false, deafened: false })
+        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: mute.value.muted, deafened: mute.value.deafened, watching: [] })
         if (!claimed) finish(new Error('Voice socket is not connected'))
       })
       signal.throwIfAborted()
@@ -338,6 +353,8 @@ export function useVoice() {
       await r.startAudio().catch(() => {})
       signal.throwIfAborted()
       await r.localParticipant.setMicrophoneEnabled(true, captureOptions(mic.deviceId))
+      signal.throwIfAborted()
+      if (mute.value.muted) await r.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack?.mute() // don't let live audio out while the processor loads
       signal.throwIfAborted()
       const { MicProcessor } = await import('~/utils/voice-processor') // browser-only: needs AudioWorkletNode
       signal.throwIfAborted()
@@ -348,8 +365,9 @@ export function useVoice() {
       processor = nextProcessor
       rebuild()
       channelId.value = id
-      mute.value = initialMute()
       lastSent = 0
+      applyMute() // the mic is published first so unmuting works; a remembered mute applies now
+      startPing(r)
       playVoiceSound('join')
     } catch (e) {
       if (claimed) socket.send({ type: 'voice:leave', sid })
@@ -372,6 +390,22 @@ export function useVoice() {
       connecting.value = false
       settled()
     }
+  }
+
+  function startPing(r: Room) {
+    stopPing()
+    const read = () => {
+      // shortcut: `engine.client.rtt` is LiveKit-internal; switch to a public API when one exists.
+      const rtt = (r as unknown as { engine?: { client?: { rtt?: number } } }).engine?.client?.rtt
+      ping.value = rtt ? Math.round(rtt) : null
+    }
+    read()
+    pingTimer = setInterval(read, 2000)
+  }
+  function stopPing() {
+    clearInterval(pingTimer)
+    pingTimer = undefined
+    ping.value = null
   }
 
   function clearSpeaking() {
@@ -406,9 +440,10 @@ export function useVoice() {
     room = undefined
     clearSpeaking()
     watching.value = []
+    theater.value = null
+    stopPing()
     const was = channelId.value
     channelId.value = null
-    mute.value = initialMute()
     if (was) socket.send({ type: 'voice:leave', sid })
     await r?.disconnect()
     processor = undefined
@@ -419,15 +454,13 @@ export function useVoice() {
 
   // Sounds are for your own mute and deafen only; the rising variant plays when you unmute / undeafen.
   const toggleMic = () => {
-    if (!channelId.value) return
     mute.value = toggleMute(mute.value)
-    applyMute()
+    if (channelId.value) applyMute()
     playVoiceSound('mute', !mute.value.muted)
   }
   const toggleHeadphones = () => {
-    if (!channelId.value) return
     mute.value = toggleDeafen(mute.value)
-    applyMute()
+    if (channelId.value) applyMute()
     playVoiceSound('deafen', !mute.value.deafened)
   }
 
@@ -468,13 +501,13 @@ export function useVoice() {
     rebuild()
   }
   const screenConstraints = (quality: ScreenQuality): MediaTrackConstraints => {
-    const { width, height, frameRate } = SCREEN_SHARE_PRESETS[quality].resolution
+    const { width, height, frameRate } = screenShareOptions(quality).resolution
     return { width: { max: width }, height: { max: height }, frameRate: { ideal: frameRate, max: frameRate } }
   }
   const screenCapture = (quality: ScreenQuality, audio: boolean): ScreenShareCaptureOptions => ({
     audio: audio ? SCREEN_AUDIO_CAPTURE : false,
     resolution: { width: 0, height: 0 },
-    contentHint: SCREEN_SHARE_PRESETS[quality].contentHint,
+    contentHint: screenShareOptions(quality).contentHint,
     // `max` never upscales the surface; LiveKit's type only declares displaySurface.
     video: { displaySurface: 'monitor', ...screenConstraints(quality) } as { displaySurface: 'monitor' },
     selfBrowserSurface: 'exclude',
@@ -482,7 +515,7 @@ export function useVoice() {
     surfaceSwitching: 'include',
   })
   const screenPublish = (quality: ScreenQuality): TrackPublishOptions => {
-    const p = SCREEN_SHARE_PRESETS[quality]
+    const p = screenShareOptions(quality)
     return {
       ...SCREEN_AUDIO_PUBLISH,
       simulcast: false,
@@ -528,7 +561,7 @@ export function useVoice() {
     s.publication = video
     await r.localParticipant.publishTrack(video, screenPublish(quality))
     // LiveKit can override the hint while configuring VP9; keep the selected preset.
-    video.mediaStreamTrack.contentHint = s.video.mediaStreamTrack.contentHint = SCREEN_SHARE_PRESETS[quality].contentHint
+    video.mediaStreamTrack.contentHint = s.video.mediaStreamTrack.contentHint = screenShareOptions(quality).contentHint
   }
   /** Must run directly from a click: no await before createScreenTracks opens the picker. */
   async function startScreen() {
@@ -696,11 +729,19 @@ export function useVoice() {
   const toggleScreen = () => {
     if (!channelId.value) return
     if (screenOn.value || screenBusy.value) void stopScreen()
-    else void startScreen()
+    else screenDialog.value = true
   }
   const watch = (id: string, on: boolean) => {
     watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id)
+    if (on) theater.value = id
     rebuild()
+    pushState()
+  }
+  /** Opens the channel, joins it if needed, and puts that person's stream in theater mode. */
+  async function watchStream(id: string, userId: string) {
+    await navigateTo(`/c/${id}`)
+    if (channelId.value !== id) await join(id)
+    if (channelId.value === id) watch(userId, true)
   }
   const setVolume = (id: string, patch: Partial<UserVolume>) => {
     volumes.value = { ...volumes.value, [id]: { ...volumes.value[id], ...patch } }
@@ -753,9 +794,14 @@ export function useVoice() {
       return [...tiles.value.filter(t => t.local), ...Object.keys(presence.value).flatMap(id => (remote.has(id) ? [remote.get(id)!] : []))]
     }),
     watching,
+    theater,
+    playing,
+    ping,
+    watchStream,
     camOn,
     screenOn,
     screenBusy,
+    screenDialog,
     setScreenQuality,
     setScreenAudio,
     volumeFor,
@@ -784,6 +830,31 @@ export function useVoice() {
   }
 }
 
+/** Who in the same voice channel is watching this user's stream. */
+export const watchersOf = (userId: string) => {
+  const ch = presence.value[userId]?.channelId
+  return Object.entries(presence.value)
+    .filter(([id, m]) => id !== userId && m.channelId === ch && m.watching.includes(userId))
+    .map(([id]) => id)
+}
+
+/** Shows a sound's icon for its duration (2–10 s), whatever your own audio settings. */
+function showSound(userId: string, icon: string, durationMs: number) {
+  clearTimeout(playingOff.get(userId))
+  playing.value = { ...playing.value, [userId]: icon }
+  playingOff.set(
+    userId,
+    setTimeout(
+      () => {
+        playingOff.delete(userId)
+        const { [userId]: _gone, ...rest } = playing.value
+        playing.value = rest
+      },
+      Math.min(10_000, Math.max(2000, durationMs)),
+    ),
+  )
+}
+
 /** The voice channel a user is in right now (null = not in voice). */
 export const voiceChannelOf = (userId: string) => presence.value[userId]?.channelId ?? null
 
@@ -798,6 +869,7 @@ export function useVoiceLive() {
   if (!import.meta.client) return
   const v = useVoice()
   const socket = useSocket()
+  const { data: sounds } = useSounds()
   const load = () =>
     $fetch<Array<{ userId: string } & VoiceMember>>('/api/voice')
       .then(r => {
@@ -808,13 +880,30 @@ export function useVoiceLive() {
   socket.onOpen(() => {
     void load()
     // The server drops our session when the socket closes; take it back after a reconnect.
-    if (v.channelId.value) socket.send({ type: 'voice:join', channelId: v.channelId.value, sid, muted: v.mute.value.muted, deafened: v.mute.value.deafened })
+    if (v.channelId.value)
+      socket.send({
+        type: 'voice:join',
+        channelId: v.channelId.value,
+        sid,
+        muted: v.mute.value.muted,
+        deafened: v.mute.value.deafened,
+        watching: v.watching.value,
+      })
   })
   socket.on(m => {
     if (m.type === 'voice:presence') {
       const prev = presence.value[m.userId]
       const next = { ...presence.value }
-      if (m.channelId) next[m.userId] = { channelId: m.channelId, muted: m.muted, deafened: m.deafened, speaking: m.speaking, cam: !!m.cam, screen: !!m.screen }
+      if (m.channelId)
+        next[m.userId] = {
+          channelId: m.channelId,
+          muted: m.muted,
+          deafened: m.deafened,
+          speaking: m.speaking,
+          cam: !!m.cam,
+          screen: !!m.screen,
+          watching: m.watching ?? [],
+        }
       else Reflect.deleteProperty(next, m.userId)
       presence.value = next
       const mine = v.channelId.value
@@ -829,6 +918,8 @@ export function useVoiceLive() {
         }
       }
     } else if (m.type === 'voice:sound') {
+      const sound = sounds.value.find(x => x.id === m.soundId)
+      if (sound) showSound(m.userId, `i-lucide-${sound.icon}`, sound.durationMs)
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)
     } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
       void v.leave(false, m.reason)

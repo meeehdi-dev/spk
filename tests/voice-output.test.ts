@@ -97,6 +97,7 @@ beforeEach(() => {
   vi.stubGlobal('useVoiceSettings', () => settings)
   vi.stubGlobal('useToast', () => ({ add: toast }))
   vi.stubGlobal('useMe', () => ({ data: ref({ id: 'local' }) }))
+  vi.stubGlobal('useSounds', () => ({ data: ref([]) }))
   vi.stubGlobal('playVoiceSound', vi.fn())
   vi.stubGlobal('onMounted', vi.fn())
   vi.stubGlobal('useEventListener', (_target: unknown, event: string, fn: () => Promise<void>) => {

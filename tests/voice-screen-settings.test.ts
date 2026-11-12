@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue'
 import { parse } from 'vue/compiler-sfc'
 
-import { SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, SCREEN_SHARE_PRESETS } from '../shared/utils/voice'
+import { SCREEN_AUDIO_CAPTURE, SCREEN_AUDIO_PUBLISH, screenShareOptions } from '../shared/utils/voice'
 
 const { media, MockRoom } = vi.hoisted(() => {
   class MockRoom {
@@ -157,6 +157,8 @@ function deferred<T>() {
   return { promise, resolve }
 }
 const toast = vi.fn()
+const ECO = { height: 1440, fps: 5 } as const,
+  SMOOTH = { height: 1080, fps: 60 } as const
 let settings: Ref<Partial<VoiceSettings>>
 let v: ReturnType<typeof import('../app/composables/useVoice').useVoice>
 let p: ReturnType<typeof participant>
@@ -170,7 +172,7 @@ beforeEach(async () => {
   media.rooms = []
   media.sdk = false
   toast.mockClear()
-  settings = ref({ screenQuality: 'eco', screenAudio: false, noise: 'enhanced', echo: true, agc: true, sensitivity: 50, outputVolume: 1 })
+  settings = ref({ screenQuality: ECO, screenAudio: false, noise: 'enhanced', echo: true, agc: true, sensitivity: 50, outputVolume: 1 })
   vi.stubGlobal('ref', ref)
   vi.stubGlobal('shallowRef', shallowRef)
   vi.stubGlobal('computed', computed)
@@ -226,7 +228,7 @@ async function share(audio = false) {
 
 describe('live screen settings', () => {
   it('only saves inactive preferences and starts once with their capture/publish options', async () => {
-    await v.setScreenQuality('smooth')
+    await v.setScreenQuality(SMOOTH)
     await v.setScreenAudio(true)
     expect(p.createScreenTracks).not.toHaveBeenCalled()
     const video = track('video'),
@@ -252,10 +254,10 @@ describe('live screen settings', () => {
       cam = track('video', 'camera')
     p.trackPublications.set('microphone', { track: mic })
     p.trackPublications.set('camera', { track: cam })
-    for (const quality of ['smooth', 'eco'] as const) {
+    for (const quality of [SMOOTH, ECO]) {
       await v.setScreenQuality(quality)
-      const preset = SCREEN_SHARE_PRESETS[quality]
-      expect(settings.value.screenQuality).toBe(quality)
+      const preset = screenShareOptions(quality)
+      expect(settings.value.screenQuality).toEqual(quality)
       expect(video.mediaStreamTrack.getSettings()).toEqual({ width: 1280, height: 720 })
       expect(video.mediaStreamTrack.applyConstraints).toHaveBeenLastCalledWith({
         width: { max: preset.resolution.width },
@@ -318,8 +320,8 @@ describe('live screen settings', () => {
   it('restores the previous quality/publication after failure, without claiming success', async () => {
     const { video } = await share()
     p.publishTrack.mockRejectedValueOnce(new Error('publish failed'))
-    await v.setScreenQuality('smooth')
-    expect(settings.value.screenQuality).toBe('eco')
+    await v.setScreenQuality(SMOOTH)
+    expect(settings.value.screenQuality).toEqual(ECO)
     expect(p.publishTrack).toHaveBeenCalledTimes(2)
     expect(p.getTrackPublication('screen_share')?.track?.mediaStreamTrack).toBe(video.mediaStreamTrack.clone.mock.results.at(-1)!.value)
     expect(video.mediaStreamTrack.contentHint).toBe('detail')
@@ -330,7 +332,7 @@ describe('live screen settings', () => {
   it('stops capture and reports the actual stopped state when restoration also fails', async () => {
     const { video } = await share()
     p.publishTrack.mockRejectedValue(new Error('offline'))
-    await v.setScreenQuality('smooth')
+    await v.setScreenQuality(SMOOTH)
     expect(video.stop).toHaveBeenCalled()
     expect(v.screenOn.value).toBe(false)
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not restore screen sharing' }))
@@ -343,10 +345,10 @@ describe('live screen settings', () => {
       await wait.promise
       throw new Error('late failure')
     })
-    const update = v.setScreenQuality('smooth')
+    const update = v.setScreenQuality(SMOOTH)
     await flush()
     expect(v.screenOn.value).toBe(true) // the Stop action remains available in the publication gap
-    await v.setScreenQuality('eco')
+    await v.setScreenQuality(ECO)
     await v.setScreenAudio(true)
     await v.stopScreen()
     wait.resolve(undefined)
@@ -355,7 +357,7 @@ describe('live screen settings', () => {
     expect(p.createScreenTracks).not.toHaveBeenCalled()
     expect(video.stop).toHaveBeenCalled()
     expect(v.screenOn.value).toBe(false)
-    expect(settings.value.screenQuality).toBe('eco')
+    expect(settings.value.screenQuality).toEqual(ECO)
   })
 
   it('mutes/resumes only an existing screen audio track without a picker', async () => {
@@ -652,7 +654,7 @@ describe('live screen settings', () => {
     })
     const { video } = await share()
     const first = allocated.slice()
-    await v.setScreenQuality('smooth')
+    await v.setScreenQuality(SMOOTH)
     expect(toast.mock.calls).toEqual([])
     expect(first.every(t => t.readyState === 'ended')).toBe(true)
     expect(video.mediaStreamTrack.readyState).toBe('live')
@@ -730,7 +732,9 @@ describe('screen controls', () => {
     const watchToggle = vi.fn()
     const app = createApp({
       template: descriptor.template!.content.replace('items as never', 'items').replace('$event as number', '$event'),
-      components: Object.fromEntries(['UContextMenu', 'UAvatar', 'UBadge', 'UTooltip', 'UPopover'].map(n => [n, slot]).concat([['UButton', button]])),
+      components: Object.fromEntries(
+        ['UContextMenu', 'UAvatar', 'UBadge', 'UTooltip', 'UPopover', 'UAvatarGroup', 'UIcon', 'Transition'].map(n => [n, slot]).concat([['UButton', button]]),
+      ),
       setup: () => ({
         tile: { userId: 'remote', local: false, watching: true },
         live: false,
@@ -745,6 +749,8 @@ describe('screen controls', () => {
         watchToggle,
         fullscreen: vi.fn(),
         theater: false,
+        watchers: [],
+        soundIcon: undefined,
       }),
     })
     const container = document.createElement('div')
@@ -759,67 +765,73 @@ describe('screen controls', () => {
     }
   })
 
-  it.each([true, false])('wires live actions and pending state in panel=%s', async panel => {
-    const { descriptor } = parse(readFileSync('app/components/VoiceBar.vue', 'utf8'))
+  it('opens the screen dialog from the screen control chevron', async () => {
+    const { descriptor } = parse(readFileSync('app/components/VoiceControl.vue', 'utf8'))
     // Template TS casts are erased by Nuxt's SFC compiler; this small template-only fixture uses Vue's runtime compiler.
-    const template = descriptor
-      .template!.content.replace(/\$event as 'eco' \| 'smooth'/g, '$event')
-      .replace(/\$event as (string|number)/g, '$event')
-      .replace(/ as const/g, '')
+    const template = descriptor.template!.content.replace(/\$event as (string|number)/g, '$event').replace(/ as const/g, '')
     const slot = defineComponent({
       setup:
         (_, { slots }) =>
         () =>
           h('div', [slots.default?.(), slots.content?.()]),
     })
-    const input = defineComponent({
-      props: ['modelValue', 'disabled', 'legend', 'label'],
-      emits: ['update:modelValue'],
+    const button = defineComponent({
       setup:
-        (props, { emit }) =>
+        (_, { attrs }) =>
         () =>
-          h(
-            'button',
-            { disabled: props.disabled, onClick: () => emit('update:modelValue', props.legend === 'Quality' ? 'smooth' : true) },
-            props.legend || props.label,
-          ),
+          h('button', attrs),
     })
-    const setScreenQuality = vi.fn(),
-      setScreenAudio = vi.fn()
-    const controls = { ...v, setScreenQuality, setScreenAudio }
     const app = createApp({
       template,
       components: {
-        ...Object.fromEntries(
-          ['UIcon', 'NuxtLink', 'UFieldGroup', 'UTooltip', 'UButton', 'UPopover', 'UFormField', 'USelect', 'UKbd', 'USlider', 'SoundboardPopover'].map(n => [
-            n,
-            slot,
-          ]),
-        ),
-        URadioGroup: input,
-        USwitch: input,
+        ...Object.fromEntries(['UFieldGroup', 'UTooltip', 'UPopover', 'UFormField', 'USelect', 'UKbd', 'USlider', 'USwitch'].map(n => [n, slot])),
+        UButton: button,
       },
-      setup: () => ({ panel, v: controls, name: 'Voice', current: () => 'default', deviceItems: () => [], pick: () => () => {}, noiseItems: [] }),
+      setup: () => ({
+        kind: 'screen',
+        labeled: false,
+        v,
+        c: {
+          tip: 'Share screen',
+          kbd: 'S',
+          icon: 'i-lucide-screen-share',
+          on: false,
+          color: 'primary',
+          disabled: false,
+          text: 'Share screen',
+          options: 'Screen share options',
+          click: () => v.toggleScreen(),
+        },
+        chevron: { icon: 'i-lucide-chevron-up', color: 'neutral', variant: 'ghost', class: 'w-5 px-0' },
+        current: () => 'default',
+        deviceItems: () => [],
+        pick: () => () => {},
+        noiseItems: [],
+      }),
     })
     const container = document.createElement('div')
     app.mount(container)
     try {
-      const find = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!
-      find('Quality').click()
-      find('Share audio').click()
+      expect(v.screenDialog.value).toBe(false)
+      container.querySelector<HTMLButtonElement>('[aria-label="Screen share options"]')!.click()
       await nextTick()
-      expect(setScreenQuality).toHaveBeenCalledWith('smooth')
-      expect(setScreenAudio).toHaveBeenCalledWith(true)
-      expect(settings.value.screenQuality).toBe('eco')
-      expect(settings.value.screenAudio).toBe(false)
-      controls.screenBusy.value = true
-      await nextTick()
-      expect(find('Quality').disabled).toBe(true)
-      expect(find('Share audio').disabled).toBe(true)
-      expect(container.textContent).not.toContain('next time')
+      expect(v.screenDialog.value).toBe(true)
+      expect(settings.value.screenQuality).toEqual(ECO)
     } finally {
-      controls.screenBusy.value = false
+      v.screenDialog.value = false
       app.unmount()
     }
+  })
+
+  it('toggleScreen opens the dialog when idle and stops when sharing', async () => {
+    v.toggleScreen()
+    expect(v.screenDialog.value).toBe(true)
+    expect(p.createScreenTracks).not.toHaveBeenCalled()
+    v.screenDialog.value = false
+    const { video } = await share()
+    v.toggleScreen()
+    await flush()
+    expect(v.screenDialog.value).toBe(false)
+    expect(video.stop).toHaveBeenCalled()
   })
 })

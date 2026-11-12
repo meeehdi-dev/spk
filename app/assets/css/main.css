@@ -50,13 +50,39 @@
   color: var(--shiki-dark);
 }
 
-/* Compact density: one root switch. Spacing is 3px and text sizes stay whole pixels. */
-html[data-density='compact'] {
-  --spacing: 0.1875rem;
-  --text-xs: 0.6875rem;
-  --text-xs--line-height: 1rem;
-  --text-sm: 0.8125rem;
-  --text-sm--line-height: 1.125rem;
-  --text-base: 0.875rem;
-  --text-base--line-height: 1.25rem;
+/* Editor code blocks: current language in the top-right corner. */
+pre[data-language] {
+  position: relative;
+}
+pre[data-language]::after {
+  content: attr(data-language);
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--ui-text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Compact density: `compact:` utilities tighten paddings and margins only; text and control sizes never change. */
+@custom-variant compact (html[data-density='compact'] &);
+
+/* Tailwind v4 dropped the pointer cursor on buttons; every clickable control gets it back. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem']:not([data-disabled]),
+  [role='menuitemcheckbox']:not([data-disabled]),
+  [role='menuitemradio']:not([data-disabled]),
+  [role='option']:not([data-disabled]),
+  [role='tab']:not([data-disabled]),
+  [role='switch']:not([data-disabled]),
+  [role='radio']:not([data-disabled]),
+  [role='checkbox']:not([data-disabled]),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
 }

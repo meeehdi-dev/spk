@@ -21,7 +21,6 @@ onMounted(() => {
       :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
       color="neutral"
       variant="ghost"
-      size="xs"
       aria-label="Copy quote"
       class="absolute end-0 top-0 opacity-0 group-hover/q:opacity-100 focus-visible:opacity-100"
       @click="copy(text())"

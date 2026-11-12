@@ -2,6 +2,8 @@ import type { MentionOptions } from '@tiptap/extension-mention'
 
 import { Extension, Mark, markInputRule, mergeAttributes } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
+import { Plugin } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const MENTION_TOKEN = /^<@([\w-]+)>/
 
@@ -71,7 +73,8 @@ export const chatKeys = (o: { onEnter: () => void; onEscape?: () => boolean; onA
     addKeyboardShortcuts() {
       return {
         Enter: ({ editor }) => {
-          if (editor.isActive('codeBlock')) return false
+          // Code blocks and list items keep Enter for themselves (new line / next item, an empty item leaves the list).
+          if (editor.isActive('codeBlock') || editor.isActive('listItem')) return false
           // ```lang + Enter on the last line (after a Shift+Enter break too) makes a code block instead of sending.
           const { $from, empty } = editor.state.selection
           if (!empty || $from.parent.type.name !== 'paragraph') return (o.onEnter(), true)
@@ -103,6 +106,27 @@ export const chatKeys = (o: { onEnter: () => void; onEscape?: () => boolean; onA
     },
   })
 
+/** Shows the code block's language (or "plain text") as `data-language` on its `<pre>`; CSS draws it in the corner. */
+const CodeLanguageLabel = Extension.create({
+  name: 'codeLanguageLabel',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          decorations: ({ doc }) => {
+            const decos: Decoration[] = []
+            doc.descendants((node, pos) => {
+              if (node.type.name === 'codeBlock')
+                decos.push(Decoration.node(pos, pos + node.nodeSize, { 'data-language': node.attrs.language || 'plain text' }))
+            })
+            return DecorationSet.create(doc, decos)
+          },
+        },
+      }),
+    ]
+  },
+})
+
 /** Mention node (labels follow current nicknames) + spoiler mark. */
 export const chatMarkExtensions = (getLabel: (id: string) => string | undefined) => [
   SpkMention.configure({
@@ -116,4 +140,5 @@ export const chatMarkExtensions = (getLabel: (id: string) => string | undefined)
     ],
   } as never),
   Spoiler,
+  CodeLanguageLabel,
 ]

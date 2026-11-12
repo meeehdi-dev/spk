@@ -95,7 +95,7 @@ const fmt = (d: number) => new Date(d).toLocaleString()
               >{{ r.note || 'No note' }}
               <span class="text-xs text-muted">· expires {{ fmt(r.expiresAt) }}<template v-if="r.usedBy"> · used by {{ r.usedBy.name }}</template></span>
             </span>
-            <UButton v-if="r.status === 'active'" label="Revoke" icon="i-lucide-ban" color="error" variant="ghost" size="sm" @click="revoke(r.id)" />
+            <UButton v-if="r.status === 'active'" label="Revoke" icon="i-lucide-ban" color="error" variant="ghost" @click="revoke(r.id)" />
           </li>
         </UContextMenu>
       </ul>

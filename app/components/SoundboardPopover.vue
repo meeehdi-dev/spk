@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineProps<{ labeled?: boolean }>()
 const v = useVoice()
 const { data: sounds, refresh } = useSounds()
 const { cooling, press } = useSoundboard()
@@ -10,7 +11,14 @@ const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().inclu
 <template>
   <UPopover :content="{ align: 'end', side: 'top' }" @update:open="$event && refresh()">
     <UTooltip text="Soundboard">
-      <UButton icon="i-lucide-audio-lines" color="neutral" variant="ghost" :disabled="!v.channelId.value" aria-label="Soundboard" />
+      <UButton
+        icon="i-lucide-megaphone"
+        color="neutral"
+        variant="ghost"
+        :disabled="!v.channelId.value"
+        aria-label="Soundboard"
+        :label="labeled ? 'Soundboard' : undefined"
+      />
     </UTooltip>
     <template #content>
       <div class="flex w-80 flex-col gap-3 p-3 text-sm">

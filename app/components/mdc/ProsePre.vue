@@ -79,7 +79,6 @@ onMounted(() => {
         :items="langs"
         searchable
         search-input-placeholder="Search language"
-        size="xs"
         variant="ghost"
         color="neutral"
         class="w-40"
@@ -93,16 +92,8 @@ onMounted(() => {
         </template>
       </USelectMenu>
       <span class="ml-1">{{ lines }} {{ lines === 1 ? 'line' : 'lines' }}</span>
-      <UButton v-if="huge && !forced" label="Highlight" icon="i-lucide-sparkles" size="xs" color="neutral" variant="ghost" @click="forced = true" />
-      <UButton
-        class="ml-auto"
-        :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-        size="xs"
-        color="neutral"
-        variant="ghost"
-        aria-label="Copy code"
-        @click="copy(code)"
-      />
+      <UButton v-if="huge && !forced" label="Highlight" icon="i-lucide-sparkles" color="neutral" variant="ghost" @click="forced = true" />
+      <UButton class="ml-auto" :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="ghost" aria-label="Copy code" @click="copy(code)" />
     </div>
     <!-- eslint-disable vue/no-v-html -- HTML comes from Shiki or the escaped plainHtml fallback. -->
     <div class="code-body" :class="wrap ? 'code-wrap' : 'overflow-x-auto'" v-html="html" />

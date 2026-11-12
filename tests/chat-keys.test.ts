@@ -75,3 +75,41 @@ describe('chatKeys Enter on a fence line', () => {
     expect(run('hello').onEnter).toHaveBeenCalled()
   })
 })
+
+describe('chatKeys Enter in lists', () => {
+  const setup = (content: string) => {
+    const onEnter = vi.fn()
+    const editor = new Editor({ extensions: [Markdown, StarterKit, chatKeys({ onEnter })], content, contentType: 'markdown' })
+    editor.commands.focus('end')
+    const enter = () => editor.view.someProp('handleKeyDown', f => f(editor.view, new KeyboardEvent('keydown', { key: 'Enter' })))
+    return { onEnter, editor, enter }
+  }
+  it('continues a non-empty item without sending, and round-trips', () => {
+    const { onEnter, editor, enter } = setup('- a')
+    expect(enter()).toBe(true) // handled by the list keymap
+    editor.commands.insertContent('b')
+    expect(onEnter).not.toHaveBeenCalled()
+    expect(editor.getMarkdown().trim()).toBe('- a\n- b')
+    editor.destroy()
+  })
+  it('leaves the list on an empty item', () => {
+    const { onEnter, editor, enter } = setup('- a')
+    enter()
+    enter()
+    expect(onEnter).not.toHaveBeenCalled()
+    expect(editor.isActive('bulletList')).toBe(false)
+    editor.destroy()
+  })
+  it('turns "- " into a bullet item, and still sends outside lists', () => {
+    const { onEnter, editor, enter } = setup('')
+    const { view } = editor
+    view.dispatch(view.state.tr.insertText('-'))
+    view.someProp('handleTextInput', f => f(view, view.state.selection.from, view.state.selection.to, ' ', () => view.state.tr))
+    expect(editor.isActive('bulletList')).toBe(true)
+    editor.commands.setContent('hi', { contentType: 'markdown' })
+    editor.commands.focus('end')
+    enter()
+    expect(onEnter).toHaveBeenCalled()
+    editor.destroy()
+  })
+})

@@ -140,16 +140,16 @@ defineExpose({
 </script>
 
 <template>
-  <div class="border-t border-default p-3" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
+  <div class="p-3" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
     <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-elevated px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
       <span class="truncate">Replying to <b>{{ replyTo.name }}</b> <span class="text-muted">{{ replyTo.preview }}</span></span>
       <UTooltip text="Cancel reply" :kbds="['escape']">
-        <UButton class="ml-auto" icon="i-lucide-x" size="xs" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
+        <UButton class="ml-auto" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
       </UTooltip>
     </div>
     <div
-      class="rounded-md border border-default bg-default focus-within:border-primary"
+      class="rounded-md border border-accented bg-default focus-within:border-primary/40"
       :class="dragging ? 'border-primary bg-primary/5' : ''"
       @paste.capture="onPaste"
     >
@@ -159,7 +159,7 @@ defineExpose({
         :model-value="model"
         content-type="markdown"
         autofocus="end"
-        :placeholder="`Message ${channelName}`"
+        :placeholder="{ placeholder: `Message ${channelName}`, mode: 'firstLine' }"
         :mention="false"
         :image="false"
         :starter-kit="{ heading: false, horizontalRule: false, underline: false, link: { autolink: false, linkOnPaste: false, openOnClick: false } }"
@@ -176,7 +176,6 @@ defineExpose({
         <UTooltip v-for="t in tools" :key="t.label" :text="t.label" :kbds="t.keys as never">
           <UButton
             :icon="t.icon"
-            size="xs"
             color="neutral"
             :variant="editorRef?.editor?.isActive(t.active) ? 'soft' : 'ghost'"
             :aria-label="t.label"
@@ -194,11 +193,11 @@ defineExpose({
           "
         />
         <UTooltip :text="`Attach files (up to ${MAX_FILES}, 25 MB each)`">
-          <UButton icon="i-lucide-paperclip" size="xs" color="neutral" variant="ghost" aria-label="Attach files" @click="fileInput?.click()" />
+          <UButton icon="i-lucide-paperclip" color="neutral" variant="ghost" aria-label="Attach files" @click="fileInput?.click()" />
         </UTooltip>
         <UPopover v-model:open="gifOpen" :content="{ side: 'top', align: 'start' }">
           <UTooltip text="GIFs">
-            <UButton icon="i-lucide-image-play" size="xs" color="neutral" variant="ghost" aria-label="Open GIF menu" />
+            <UButton icon="i-lucide-image-play" color="neutral" variant="ghost" aria-label="Open GIF menu" />
           </UTooltip>
           <template #content>
             <ChatGifPicker

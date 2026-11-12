@@ -115,31 +115,22 @@ onMounted(() => {
         <UButton
           class="ml-auto"
           :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-          size="xs"
           color="neutral"
           variant="ghost"
           aria-label="Copy file text"
           @click="copy(shown)"
         />
-        <UButton icon="i-lucide-download" size="xs" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" external />
+        <UButton icon="i-lucide-download" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" external />
       </div>
       <!-- eslint-disable vue/no-v-html -- HTML comes from Shiki or the escaped plainHtml fallback. -->
       <div class="code-body overflow-x-auto" v-html="html" />
       <!-- eslint-enable vue/no-v-html -->
       <div v-if="more" class="flex gap-1 border-t border-default p-1">
-        <UButton
-          v-if="visible < lines.length"
-          label="Show 50 more"
-          icon="i-lucide-chevrons-down"
-          size="xs"
-          color="neutral"
-          variant="soft"
-          @click="visible += 50"
-        />
-        <UButton label="Show all" icon="i-lucide-unfold-vertical" size="xs" color="neutral" variant="soft" @click="showAll" />
+        <UButton v-if="visible < lines.length" label="Show 50 more" icon="i-lucide-chevrons-down" color="neutral" variant="soft" @click="visible += 50" />
+        <UButton label="Show all" icon="i-lucide-unfold-vertical" color="neutral" variant="soft" @click="showAll" />
       </div>
       <div v-else-if="visible > 25" class="border-t border-default p-1">
-        <UButton label="Collapse" icon="i-lucide-chevrons-up" size="xs" color="neutral" variant="soft" @click="visible = 25" />
+        <UButton label="Collapse" icon="i-lucide-chevrons-up" color="neutral" variant="soft" @click="visible = 25" />
       </div>
     </div>
     <a

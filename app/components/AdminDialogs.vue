@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { presenceOf } from '~/composables/usePresence'
+import { presenceLabel, presenceOf } from '~/composables/usePresence'
 
 const admin = useAdmin()
 const { byId, nameOf } = useUsers()
@@ -125,9 +125,10 @@ const title = computed(
             <UBadge :label="profile.role" :color="profile.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" />
             <UBadge v-if="profile.banned" label="banned" color="error" variant="subtle" />
             <span class="flex items-center gap-1 text-xs text-muted"
-              ><span class="size-2 rounded-full" :class="{ online: 'bg-success', idle: 'bg-warning', offline: 'bg-neutral-400' }[presenceOf(profile.id)]" />{{
-                { online: 'Online', idle: 'Idle', offline: 'Offline' }[presenceOf(profile.id)]
-              }}</span
+              ><span
+                class="size-2 rounded-full"
+                :class="{ online: 'bg-success', idle: 'bg-warning', busy: 'bg-error', offline: 'bg-neutral-400' }[presenceOf(profile.id)]"
+              />{{ presenceLabel(presenceOf(profile.id)) }}</span
             >
           </div>
           <span v-if="email" class="truncate text-xs text-muted">{{ email }}</span>
@@ -135,7 +136,6 @@ const title = computed(
             v-if="me?.id !== profile.id"
             label="Send DM"
             icon="i-lucide-message-circle"
-            size="sm"
             class="mt-1 w-fit"
             @click="
               open = false;

@@ -248,7 +248,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
             <span class="min-w-0 flex-1 truncate">{{ s.name }} <span class="text-xs text-muted">· {{ secs(s.durationMs) }}</span></span>
             <UDropdownMenu :items="menu(s)">
-              <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" size="sm" :aria-label="`Actions for ${s.name}`" />
+              <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" :aria-label="`Actions for ${s.name}`" />
             </UDropdownMenu>
           </li>
         </UContextMenu>

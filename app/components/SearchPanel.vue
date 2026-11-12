@@ -147,7 +147,7 @@ watch(
       </UTooltip>
     </div>
     <div class="border-b border-default p-2">
-      <USelect v-model="search.scope" :items="scopes" size="sm" class="w-full" aria-label="Search scope" />
+      <USelect v-model="search.scope" :items="scopes" class="w-full" aria-label="Search scope" />
     </div>
     <ul v-if="suggestions.length" class="border-b border-default p-1" role="listbox" aria-label="Suggestions">
       <li v-for="(s, i) in suggestions" :key="s">

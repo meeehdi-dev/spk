@@ -1,7 +1,13 @@
-import type { Presence } from '#shared/utils/presence'
+import type { ManualStatus, Presence } from '#shared/utils/presence'
 
 const status = ref<Record<string, Presence>>({})
-const COLOR = { online: 'success', idle: 'warning', offline: 'neutral' } as const
+const COLOR = { online: 'success', idle: 'warning', busy: 'error', offline: 'neutral' } as const
+const LABEL = { online: 'Online', idle: 'Away', busy: 'Busy', offline: 'Offline' } as const
+
+export const presenceLabel = (p: Presence) => LABEL[p]
+
+/** This browser's chosen status, re-sent to the server on every socket open. */
+export const useMyStatus = () => useLocalStorage<ManualStatus>('spk:status', 'online')
 
 export const presenceOf = (id: string): Presence => status.value[id] ?? 'offline'
 /** `chip` prop for a UAvatar: the presence dot. */
@@ -24,12 +30,16 @@ export function usePresenceLive() {
     else next[m.userId] = m.status
     status.value = next
   })
+  const myStatus = useMyStatus()
+  const sendStatus = () => socket.send({ type: 'presence:set', status: myStatus.value })
+  watch(myStatus, sendStatus)
   const { idle } = useIdle(10 * 60_000)
   const visibility = useDocumentVisibility()
   const away = computed(() => idle.value || visibility.value === 'hidden')
   const report = () => socket.send({ type: away.value ? 'presence:idle' : 'presence:active' })
   socket.onOpen(() => {
     void load()
+    sendStatus()
     report()
   })
   watch(away, report)

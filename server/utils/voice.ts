@@ -11,7 +11,7 @@ import { createLimiter } from './limiter'
 const allowSound = createLimiter(1, SOUND_COOLDOWN_MS) // one soundboard sound per user per 3 s
 
 const presenceFrame = (
-  p: { userId: string; channelId: string; muted: boolean; deafened: boolean; speaking: boolean; cam: boolean; screen: boolean } | null,
+  p: { userId: string; channelId: string; muted: boolean; deafened: boolean; speaking: boolean; cam: boolean; screen: boolean; watching: string[] } | null,
   userId: string,
 ) => ({ type: 'voice:presence', ...(p ?? { channelId: null, userId }) })
 
@@ -32,7 +32,7 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
     const { replacedSid } = joinVoice(userId, ch.id, sid, owner)
     // Every tab of the account hears this; the one holding another sid leaves.
     if (replacedSid) sendToUser(userId, { type: 'voice:kicked', sid })
-    broadcast(presenceFrame(updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened }), userId))
+    broadcast(presenceFrame(updateVoice(userId, sid, { muted: !!m.muted, deafened: !!m.deafened, watching: m.watching }), userId))
     const peer = owner as Peer | undefined
     peer?.send(JSON.stringify({ type: 'voice:joined', sid, channelId: ch.id, nonce: typeof m.nonce === 'string' ? m.nonce : undefined }))
   } else if (m.type === 'voice:state') {

@@ -330,10 +330,7 @@ socket.onOpen(() => {
           <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
           <template v-else>
             <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
-              <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-5" />
-              <div class="font-bold text-default">
-                {{ channel?.type === 'dm' ? `This is the start of your conversation with ${label(channel).slice(1)}` : `Welcome to ${label(channel)}` }}
-              </div>
+              <div v-if="channel?.type === 'dm'" class="font-bold text-default">This is the start of your conversation with {{ label(channel).slice(1) }}</div>
               <div v-if="!messages.length">No messages yet. Say something!</div>
             </div>
             <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
@@ -363,7 +360,7 @@ socket.onOpen(() => {
         </div>
       </div>
       <div v-if="hasMoreAfter" class="flex justify-center py-1">
-        <UButton label="Jump to present" icon="i-lucide-chevrons-down" size="xs" @click="toPresent" />
+        <UButton label="Jump to present" icon="i-lucide-chevrons-down" @click="toPresent" />
       </div>
       <div class="h-5 px-4 text-xs text-muted" aria-live="polite">
         {{ typingText }}

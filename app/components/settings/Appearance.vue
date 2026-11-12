@@ -2,8 +2,8 @@
 const density = useCookie<'comfortable' | 'compact'>('spk-density', { default: () => 'comfortable', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
 const colorMode = useColorMode()
 const densities = [
-  { value: 'comfortable', label: 'Comfortable', description: 'The default spacing and text size.' },
-  { value: 'compact', label: 'Compact', description: 'Tighter spacing and slightly smaller text, to fit more on screen.' },
+  { value: 'comfortable', label: 'Comfortable', description: 'The default spacing.' },
+  { value: 'compact', label: 'Compact', description: 'Tighter message, sidebar and voice panel spacing, to fit more on screen.' },
 ]
 const themes = [
   { value: 'system', label: 'System' },

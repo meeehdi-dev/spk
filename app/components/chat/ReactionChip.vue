@@ -21,10 +21,10 @@ onMounted(() => {
     :title="names"
     :aria-pressed="mine"
     :aria-label="`${reaction.emoji} ${reaction.userIds.length}, ${mine ? 'remove your reaction' : 'react'}`"
-    class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition hover:bg-elevated"
-    :class="mine ? 'border-primary bg-primary/10' : 'border-default'"
+    class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition hover:bg-elevated"
+    :class="mine ? 'border-primary/40 bg-primary/10' : 'border-default/60'"
     @click="emit('toggle')"
   >
-    <span>{{ reaction.emoji }}</span><span>{{ reaction.userIds.length }}</span>
+    <span class="text-base leading-none">{{ reaction.emoji }}</span><span>{{ reaction.userIds.length }}</span>
   </button>
 </template>

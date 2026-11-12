@@ -42,7 +42,6 @@ onMounted(() => {
       <UButton
         class="absolute top-1 right-1 hidden group-focus-within/card:flex group-hover/card:flex"
         icon="i-lucide-x"
-        size="xs"
         color="neutral"
         variant="soft"
         aria-label="Remove preview"

@@ -1,5 +1,7 @@
 import type { Peer } from 'crossws'
 
+import { MANUAL_STATUSES, type ManualStatus } from '../../shared/utils/presence'
+
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
 const heard = new WeakMap<Peer, number>() // last time each peer sent anything
@@ -19,6 +21,8 @@ export default defineWebSocketHandler({
         return new Response('Not signed in', { status: 401 })
       }
       request.context.userId = s.user.id
+      const status = new URL(request.url).searchParams.get('status') as ManualStatus
+      if (MANUAL_STATUSES.includes(status)) request.context.status = status
     } catch (e) {
       logFailure({ method: 'GET', url: request.url, status: 500, message: `WebSocket upgrade: ${(e as Error).message}`, error: e })
       return new Response('Server error', { status: 500 })
@@ -37,7 +41,7 @@ export default defineWebSocketHandler({
   open(peer) {
     const userId = peer.context.userId as string
     userOf.set(peer, userId)
-    const p = addPeer(userId, peer)
+    const p = addPeer(userId, peer, peer.context.status as ManualStatus | undefined)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
     heard.set(peer, Date.now())
     timers.set(

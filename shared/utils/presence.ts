@@ -1,11 +1,21 @@
-export type Presence = 'online' | 'idle' | 'offline'
+export type Presence = 'online' | 'idle' | 'busy' | 'offline'
+/** What a user picks: offline = invisible. */
+export const MANUAL_STATUSES = ['online', 'away', 'busy', 'offline'] as const
+export type ManualStatus = (typeof MANUAL_STATUSES)[number]
 
-/** One state per open socket (true = idle). Online if any tab is active, idle if all are idle, offline with no socket. */
-export function reducePresence(idleBySocket: Iterable<boolean>): Presence {
+/**
+ * One state per open socket (true = idle). Online if any tab is active, idle if all are idle, offline with no socket.
+ * A manual status overrides it: offline/busy win, away shows as idle.
+ */
+export function reducePresence(idleBySocket: Iterable<boolean>, manual?: ManualStatus): Presence {
   let any = false
+  let active = false
   for (const idle of idleBySocket) {
-    if (!idle) return 'online'
     any = true
+    if (!idle) active = true
   }
-  return any ? 'idle' : 'offline'
+  if (!any || manual === 'offline') return 'offline'
+  if (manual === 'busy') return 'busy'
+  if (manual === 'away') return 'idle'
+  return active ? 'online' : 'idle'
 }

@@ -5,7 +5,10 @@ export interface VoiceFlags {
   speaking: boolean
   cam: boolean
   screen: boolean
+  /** User ids whose camera / screen this session is watching. */
+  watching: string[]
 }
+export const MAX_WATCHING = 50
 export interface VoicePresence extends VoiceFlags {
   userId: string
   channelId: string
@@ -31,14 +34,16 @@ export function joinVoice(userId: string, channelId: string, sid: string, owner:
     speaking: false,
     cam: old?.sid === sid ? old.cam : false,
     screen: old?.sid === sid ? old.screen : false,
+    watching: [],
   })
   return { presence: pub(sessions.get(userId)!), replacedSid: old && old.sid !== sid ? old.sid : undefined }
 }
 
-export function updateVoice(userId: string, sid: string, f: Partial<VoiceFlags>) {
+export function updateVoice(userId: string, sid: string, f: Partial<Omit<VoiceFlags, 'watching'>> & { watching?: unknown }) {
   const s = sessions.get(userId)
   if (!s || s.sid !== sid) return null
   for (const k of ['muted', 'deafened', 'speaking', 'cam', 'screen'] as const) if (typeof f[k] === 'boolean') s[k] = f[k]
+  if (Array.isArray(f.watching)) s.watching = f.watching.filter((id): id is string => typeof id === 'string' && id.length <= 64).slice(0, MAX_WATCHING)
   if (s.muted) s.speaking = false
   return pub(s)
 }

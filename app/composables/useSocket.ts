@@ -29,7 +29,7 @@ let retry = 0
 const connected = ref(false)
 
 function connect() {
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws`)
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws?status=${localStorage.getItem('spk:status') ?? ''}`) // the server applies it before announcing presence
   ws.onopen = () => {
     retry = 0
     connected.value = true

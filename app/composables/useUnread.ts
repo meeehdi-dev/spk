@@ -57,25 +57,11 @@ export async function openDmWith(userId: string) {
   }
 }
 
-/** DMs the user hid; one comes back when it has activity newer than when it was hidden. */
-export function useHiddenDms() {
-  const hidden = useLocalStorage<Record<string, number>>('spk:hidden-dms', {})
-  return {
-    isHidden: (c: ChannelEntry) => c.id in hidden.value && (c.lastActivityAt ?? 0) <= hidden.value[c.id]!,
-    hide: (c: ChannelEntry) => {
-      hidden.value = { ...hidden.value, [c.id]: c.lastActivityAt ?? Date.now() }
-    },
-  }
-}
-
-/** The channels the sidebar shows, in its order (visible DMs, text channels, voice channels). Shared by the sidebar, Alt ↑/↓ and the quick switcher. */
+/** The channels the sidebar shows, in its order (existing DMs, text channels, voice channels). Shared by the sidebar, Alt ↑/↓ and the quick switcher. */
 export function useNavChannels() {
   const { data: channels } = useChannels()
   const route = useRoute()
-  const { isHidden } = useHiddenDms()
-  const dms = computed(() =>
-    channels.value.filter(c => c.type === 'dm' && (c.lastActivityAt || route.params.channelId === c.id) && (!isHidden(c) || route.params.channelId === c.id)),
-  )
+  const dms = computed(() => channels.value.filter(c => c.type === 'dm' && (c.lastActivityAt || route.params.channelId === c.id)))
   const textChannels = computed(() => channels.value.filter(c => c.type === 'text'))
   const voiceChannels = computed(() => channels.value.filter(c => c.type === 'voice'))
   return { dms, textChannels, voiceChannels, all: computed(() => [...dms.value, ...textChannels.value, ...voiceChannels.value]) }

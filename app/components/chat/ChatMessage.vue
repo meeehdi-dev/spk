@@ -96,7 +96,18 @@ const messageItems = () => [
     },
   },
   { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('quote', selectionText() || props.message.body) },
-  ...(own.value ? [{ label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => emit('editStart', props.message.id) }] : []),
+  ...(own.value
+    ? [
+        {
+          label: 'Edit',
+          icon: 'i-lucide-pencil',
+          onSelect: () => {
+            skipRefocus = true
+            emit('editStart', props.message.id)
+          },
+        },
+      ]
+    : []),
   ...(canDelete.value
     ? [
         {
@@ -114,6 +125,14 @@ const messageItems = () => [
   { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => copyText(link()) },
   { label: 'Mark as unread', icon: 'i-lucide-mail', onSelect: () => emit('markUnread', props.message.id) },
 ]
+// The closing menu would hand focus back to the message and steal it from the editor.
+let skipRefocus = false
+const menuContent = {
+  onCloseAutoFocus: (e: Event) => {
+    if (skipRefocus) e.preventDefault()
+    skipRefocus = false
+  },
+}
 const selectionText = () => window.getSelection()?.toString().trim() ?? ''
 
 // Innermost target's items first, the message's own items in a submenu.
@@ -127,6 +146,16 @@ function onContext(e: MouseEvent) {
   items.value = target ? ([target.items(), [{ label: 'Message', icon: 'i-lucide-message-square', children: messageItems() }]] as never) : messageItems()
 }
 
+// Clicking the focused message again (not an interactive element, not a text selection) blurs it.
+function onClick(e: MouseEvent) {
+  if (!wasFocused || selectionText() || (e.target as HTMLElement).closest('a,button,input,textarea,[contenteditable],[role=button]')) return
+  root.value?.blur()
+}
+let wasFocused = false
+const onPointerDown = () => {
+  wasFocused = document.activeElement === root.value
+}
+
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
 // `R` on the focused message (not while typing in its editor) replies.
 function onKey(e: KeyboardEvent) {
@@ -138,22 +167,24 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <UContextMenu :items="items">
+  <UContextMenu :items="items" :content="menuContent">
     <div
       :id="`msg-${message.id}`"
       ref="root"
       tabindex="0"
-      class="group relative flex gap-3 px-4 py-0.5 outline-none hover:bg-elevated/50 focus-visible:bg-elevated/50"
-      :class="[highlighted ? 'bg-primary/10' : '', grouped ? '' : 'mt-3']"
+      class="group relative flex gap-3 px-4 py-0.5 outline-none hover:bg-elevated/50 focus:bg-elevated/70 compact:py-0"
+      :class="[highlighted ? 'bg-primary/10' : '', grouped ? '' : 'mt-3 compact:mt-1']"
       @contextmenu="onContext"
       @keydown="onKey"
+      @pointerdown="onPointerDown"
+      @click="onClick"
     >
       <div class="relative w-9 shrink-0 text-right">
         <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
           <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
         <UTooltip v-else :text="exactTime(message.createdAt)">
-          <span class="absolute -right-2 hidden text-[9px] leading-6 whitespace-nowrap text-dimmed group-hover:inline">{{ clockTime(message.createdAt) }}</span>
+          <span class="absolute -right-2 hidden text-xs leading-6 whitespace-nowrap text-muted group-hover:inline">{{ clockTime(message.createdAt) }}</span>
         </UTooltip>
       </div>
       <div class="min-w-0 flex-1">
@@ -165,7 +196,7 @@ function onKey(e: KeyboardEvent) {
             <span class="text-xs text-muted">{{ rel }}</span>
           </UTooltip>
           <UTooltip v-if="message.editedAt && !editing" :text="exactTime(message.editedAt)">
-            <span class="text-[10px] text-dimmed">(edited)</span>
+            <span class="text-[10px] text-muted">(edited)</span>
           </UTooltip>
         </div>
         <button
@@ -191,9 +222,14 @@ function onKey(e: KeyboardEvent) {
           "
           @cancel="emit('editEnd')"
         />
-        <div v-else-if="message.body || (grouped && message.editedAt)" :class="grouped && message.editedAt ? 'flex items-end gap-1' : ''">
+        <div v-else-if="message.body || (grouped && message.editedAt)" :class="grouped && message.editedAt ? 'flex items-baseline-last gap-1' : ''">
           <div v-if="message.body" class="relative min-w-0">
-            <div data-body class="chat-body break-words" :class="long && !expandedAll ? 'overflow-hidden' : ''" :style="bodyStyle">
+            <div
+              data-body
+              class="chat-body break-words"
+              :class="[long && !expandedAll ? 'overflow-hidden' : '', isEmojiOnly(message.body) ? 'chat-emoji-only' : '']"
+              :style="bodyStyle"
+            >
               <Suspense>
                 <MDCRenderer v-if="tree" :body="tree" :data="{}" tag="div" />
               </Suspense>
@@ -201,15 +237,15 @@ function onKey(e: KeyboardEvent) {
             <div v-if="long && !expandedAll" class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-default to-transparent" />
           </div>
           <UTooltip v-if="grouped && message.editedAt" :text="exactTime(message.editedAt)">
-            <span class="shrink-0 text-[10px] text-dimmed">(edited)</span>
+            <span class="shrink-0 text-[10px] text-muted">(edited)</span>
           </UTooltip>
         </div>
         <div v-if="long && !editing" class="mt-1 flex gap-1">
           <template v-if="!expandedAll">
-            <UButton label="Show 50 more" icon="i-lucide-chevrons-down" size="xs" color="neutral" variant="soft" @click="visibleLines += 50" />
-            <UButton label="Show all" icon="i-lucide-unfold-vertical" size="xs" color="neutral" variant="soft" @click="visibleLines = Infinity" />
+            <UButton label="Show 50 more" icon="i-lucide-chevrons-down" color="neutral" variant="soft" @click="visibleLines += 50" />
+            <UButton label="Show all" icon="i-lucide-unfold-vertical" color="neutral" variant="soft" @click="visibleLines = Infinity" />
           </template>
-          <UButton v-else label="Collapse" icon="i-lucide-chevrons-up" size="xs" color="neutral" variant="soft" @click="visibleLines = 25" />
+          <UButton v-else label="Collapse" icon="i-lucide-chevrons-up" color="neutral" variant="soft" @click="visibleLines = 25" />
         </div>
         <div v-if="message.attachments.length" class="mt-1 flex flex-col items-start">
           <ChatAttachmentView v-for="f in message.attachments" :key="f.id" :file="f" @open="actions.openImage" />
@@ -233,7 +269,6 @@ function onKey(e: KeyboardEvent) {
       >
         <UTooltip v-for="e in QUICK_REACTIONS" :key="e" :text="`React ${e}`">
           <UButton
-            size="xs"
             color="neutral"
             variant="ghost"
             :aria-label="`React with ${e}`"
@@ -245,31 +280,24 @@ function onKey(e: KeyboardEvent) {
         </UTooltip>
         <UPopover v-model:open="picker" :content="{ side: 'top', align: 'start' }">
           <UTooltip text="Add reaction">
-            <UButton icon="i-lucide-smile-plus" size="xs" color="neutral" variant="ghost" aria-label="Add reaction" />
+            <UButton icon="i-lucide-smile-plus" color="neutral" variant="ghost" aria-label="Add reaction" />
           </UTooltip>
           <template #content>
             <ChatEmojiPicker @pick="pick" />
           </template>
         </UPopover>
         <UTooltip text="Reply" :kbds="['R']">
-          <UButton icon="i-lucide-reply" size="xs" color="neutral" variant="ghost" aria-label="Reply" @click="actions.reply(message.id)" />
+          <UButton icon="i-lucide-reply" color="neutral" variant="ghost" aria-label="Reply" @click="actions.reply(message.id)" />
         </UTooltip>
         <UTooltip v-if="own" text="Edit" :kbds="['arrowup']">
-          <UButton icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Edit message" @click="emit('editStart', message.id)" />
+          <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="Edit message" @click="emit('editStart', message.id)" />
         </UTooltip>
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
-          <UButton
-            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            aria-label="Copy message"
-            @click="copy(message.body)"
-          />
+          <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="ghost" aria-label="Copy message" @click="copy(message.body)" />
         </UTooltip>
         <UDropdownMenu v-model:open="moreOpen" :items="messageItems()" :content="{ align: 'start' }">
           <UTooltip text="More">
-            <UButton icon="i-lucide-ellipsis" size="xs" color="neutral" variant="ghost" aria-label="More actions" />
+            <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" aria-label="More actions" />
           </UTooltip>
         </UDropdownMenu>
       </div>
@@ -301,6 +329,15 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style>
+.chat-body .emoji {
+  font-size: 1.2em;
+  line-height: 1;
+  vertical-align: middle;
+}
+.chat-emoji-only .emoji {
+  font-size: 2.25rem;
+  line-height: 1.2;
+}
 .chat-body p {
   margin: 0;
   white-space: pre-wrap;

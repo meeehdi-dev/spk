@@ -64,7 +64,6 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
       <div class="flex flex-col gap-3">
         <USwitch v-model="s.dms" label="Direct messages" icon="i-lucide-message-circle" />
         <USwitch v-model="s.pings" label="Mentions and replies" icon="i-lucide-at-sign" description="In channels, only when you are mentioned or replied to." />
-        <USwitch v-model="s.dnd" label="Do Not Disturb" icon="i-lucide-moon" description="No notifications and no sound." />
       </div>
     </UCard>
     <UCard>

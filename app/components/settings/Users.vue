@@ -127,7 +127,7 @@ const items = (u: Row) => [
           <UBadge :label="u.role" :color="u.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" />
           <UBadge v-if="u.banned" label="banned" color="error" variant="subtle" />
           <UDropdownMenu :items="items(u) as never">
-            <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" size="sm" :aria-label="`Actions for ${u.displayName || u.email}`" />
+            <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" :aria-label="`Actions for ${u.displayName || u.email}`" />
           </UDropdownMenu>
         </li>
       </ul>
