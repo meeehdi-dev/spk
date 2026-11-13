@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AttachmentDto, HistoryResult, MessageDto } from '../../../server/db/messages'
+import type { SocketFrame } from '../../composables/useSocket'
 
 const props = defineProps<{ channelId: string; messageId?: string }>()
 const { data: channels } = useChannels()
@@ -38,7 +39,18 @@ let pinned = false
 let smoothing = false // a smooth scroll to the end is in flight: resizes retarget it instead of jumping
 let lastTop = 0 // scrollTop at the previous scroll event
 let loadingNewer = false
+let pendingRecovery = false
+const recoveryFailed = ref(false)
+let bufferedEvents: SocketFrame[] | null = null
+let disposed = false
+let recoveryToastId: string | undefined
 let gen = 0 // bumped per load(), so a late page of the previous channel is dropped
+onScopeDispose(() => {
+  disposed = true
+  gen++
+  bufferedEvents = null
+  if (recoveryToastId) toast.remove(recoveryToastId)
+})
 const input = ref<{ focus: () => void; quote: (t: string) => void }>()
 const drafts = useDrafts()
 const draft = computed(() => drafts.get(props.channelId))
@@ -61,8 +73,17 @@ watch(
 const fetchPage = (query: Record<string, string>) => $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
 
 // Opens the latest page (or the linked message). `around` loads the page around the unread divider; `keepDivider` skips the unread lookup.
-async function load(around?: string, keepDivider = false) {
+async function load(around?: string, keepDivider = false, recovery = false) {
   const mine = ++gen
+  const channelId = props.channelId
+  const current = () => !disposed && mine === gen && channelId === props.channelId
+  pendingRecovery = false
+  if (recoveryToastId) toast.remove(recoveryToastId)
+  recoveryToastId = undefined
+  recoveryFailed.value = false
+  bufferedEvents = []
+  loadingMore.value = false
+  loadingNewer = false
   pinned = false
   lastTop = 0
   loading.value = true
@@ -70,8 +91,8 @@ async function load(around?: string, keepDivider = false) {
   unseenBelow.value = false
   messages.value = []
   try {
-    const r = await fetchPage(around ? { around } : props.messageId ? { around: props.messageId } : keepDivider ? {} : { unread: '1' })
-    if (mine !== gen) return
+    const r = await fetchPage(recovery ? {} : around ? { around } : props.messageId ? { around: props.messageId } : keepDivider ? {} : { unread: '1' })
+    if (!current()) return
     if (!around && !keepDivider) {
       dividerId.value = r.firstUnreadId ?? null
       holdRead = false
@@ -79,21 +100,50 @@ async function load(around?: string, keepDivider = false) {
     messages.value = r.messages
     hasMoreBefore.value = r.hasMoreBefore
     hasMoreAfter.value = r.hasMoreAfter
+    const events = bufferedEvents
+    bufferedEvents = null
+    for (const event of events ?? []) applyEvent(event)
   } catch (cause) {
     const e = cause as { statusCode?: number; statusMessage?: string; message?: string; data?: { statusMessage?: string } } | null
-    if (mine !== gen) return
+    if (!current()) return
+    if (recovery) {
+      recoveryFailed.value = true
+      recoveryToastId = `chat-recovery:${channelId}`
+      toast.add({
+        id: recoveryToastId,
+        title: 'Could not recover messages',
+        color: 'error',
+        icon: 'i-lucide-circle-alert',
+        duration: 0,
+        actions: [
+          {
+            label: 'Retry',
+            onClick: () => {
+              if (current()) void load(undefined, true, true)
+            },
+          },
+        ],
+      })
+      return
+    }
+    bufferedEvents = null
     if (e?.statusCode === 404 && props.messageId) {
       toast.add({ title: 'That message no longer exists', color: 'warning', icon: 'i-lucide-info' })
       return navigateTo(`/c/${props.channelId}`, { replace: true })
     }
     denied.value = true
   } finally {
-    if (mine === gen) loading.value = false
+    if (current()) {
+      loading.value = false
+      if (pendingRecovery && (!hasMoreAfter.value || recoveryFailed.value)) void load(undefined, true, true)
+      else pendingRecovery = false
+    }
   }
-  if (mine !== gen) return
+  if (!current()) return
   await nextTick()
+  if (!current()) return
   if (around) document.getElementById('new-messages-divider')?.scrollIntoView({ block: 'start' })
-  else if (props.messageId) jumpTo(props.messageId)
+  else if (!recovery && props.messageId) jumpTo(props.messageId)
   else {
     pinned = true
     scrollToEnd()
@@ -103,7 +153,7 @@ async function load(around?: string, keepDivider = false) {
 
 // Read only while the window is focused and the newest message is loaded.
 function maybeRead() {
-  if (!focused.value || loading.value || denied.value || hasMoreAfter.value || holdRead) return
+  if (!focused.value || loading.value || recoveryFailed.value || pendingRecovery || denied.value || hasMoreAfter.value || holdRead) return
   void markChannelRead(props.channelId)
 }
 watch(focused, maybeRead)
@@ -122,7 +172,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
   holdRead = false
   dividerId.value = null
-  void markChannelRead(props.channelId)
+  if (!loading.value && !recoveryFailed.value && !pendingRecovery) void markChannelRead(props.channelId)
 })
 
 function scrollToEnd(behavior: ScrollBehavior = 'instant') {
@@ -142,38 +192,45 @@ function jumpTo(id: string) {
 
 async function loadOlder() {
   const el = scroller.value
-  if (!el || loading.value || !messages.value.length || !needsOlder(el.scrollTop, hasMoreBefore.value, loadingMore.value)) return
+  if (!el || loading.value || recoveryFailed.value || !messages.value.length || !needsOlder(el.scrollTop, hasMoreBefore.value, loadingMore.value)) return
   loadingMore.value = true
   const mine = gen
+  const channelId = props.channelId
+  const current = () => !disposed && mine === gen && channelId === props.channelId
   const prevHeight = el.scrollHeight
   const prevTop = el.scrollTop
   try {
     const r = await fetchPage({ before: messages.value[0]!.id })
-    if (mine !== gen) return
+    if (!current()) return
     messages.value = [...r.messages, ...messages.value]
     hasMoreBefore.value = r.hasMoreBefore
     await nextTick()
+    if (!current()) return
     el.scrollTop = keepPosition(prevTop, prevHeight, el.scrollHeight) // keep the view where it was
   } catch {
+    if (!current()) return
     toast.add({ title: 'Could not load older messages', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
-    loadingMore.value = false
+    if (current()) loadingMore.value = false
   }
 }
 
 async function loadNewer() {
-  if (!hasMoreAfter.value || loadingNewer) return
+  if (loading.value || recoveryFailed.value || !messages.value.length || !hasMoreAfter.value || loadingNewer) return
   loadingNewer = true
   const mine = gen
+  const channelId = props.channelId
+  const current = () => !disposed && mine === gen && channelId === props.channelId
   try {
     const r = await fetchPage({ after: messages.value.at(-1)!.id })
-    if (mine !== gen) return
+    if (!current()) return
     messages.value = [...messages.value, ...r.messages]
     hasMoreAfter.value = r.hasMoreAfter
   } catch {
+    if (!current()) return
     toast.add({ title: 'Could not load newer messages', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
-    loadingNewer = false
+    if (current()) loadingNewer = false
   }
 }
 
@@ -239,6 +296,16 @@ const typingText = computed(() => {
 })
 
 socket.on(m => {
+  const channelId = 'message' in m ? m.message.channelId : 'channelId' in m ? m.channelId : undefined
+  if (channelId !== props.channelId) return
+  if (bufferedEvents && (m.type.startsWith('message:') || m.type === 'reaction:update')) {
+    bufferedEvents.push(m)
+    return
+  }
+  applyEvent(m)
+})
+
+function applyEvent(m: SocketFrame) {
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
@@ -246,6 +313,7 @@ socket.on(m => {
     const el = scroller.value
     const follow = !el || atBottom(el, 120) || m.message.userId === me.value?.id
     messages.value.push(m.message)
+    messages.value.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     if (follow) {
       pinned = true // keep following while its body, images and previews render
       void nextTick(scrollToEnd)
@@ -265,7 +333,7 @@ socket.on(m => {
   } else if (m.type === 'typing' && m.channelId === props.channelId) {
     typers.set(m.userId, Date.now() + 5000)
   }
-})
+}
 
 function removeMessage(id: string) {
   messages.value = messages.value.filter(x => x.id !== id)
@@ -368,15 +436,11 @@ onMounted(() =>
     { immediate: true },
   ),
 )
-// After a reconnect, pull what we missed while offline.
+// A fresh continuous window avoids deleted cursors and leaves all older messages reachable.
 socket.onOpen(() => {
-  if (!loading.value && !hasMoreAfter.value && messages.value.length)
-    fetchPage({ after: messages.value.at(-1)!.id })
-      .then(r => {
-        const seen = new Set(messages.value.map(x => x.id))
-        messages.value.push(...r.messages.filter(x => !seen.has(x.id)))
-      })
-      .catch(() => {})
+  if (disposed) return
+  if (loading.value) pendingRecovery = true
+  else if (!hasMoreAfter.value || recoveryFailed.value) void load(undefined, true, true)
 })
 </script>
 
