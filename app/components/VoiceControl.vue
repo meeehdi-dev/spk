@@ -168,7 +168,7 @@ const c = computed(() => {
     <UPopover v-else-if="kind === 'camera'" :content="{ align: 'end', side: 'top' }">
       <UButton v-bind="chevron" :aria-label="c.options" />
       <template #content>
-        <div class="w-72 p-3 text-sm">
+        <div class="flex w-72 flex-col gap-3 p-3 text-sm">
           <UFormField label="Camera">
             <USelect
               :model-value="current(v.settings.value.camera, v.devices.value.cams)"
@@ -177,6 +177,7 @@ const c = computed(() => {
               @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
             />
           </UFormField>
+          <VoiceCameraResolution />
         </div>
       </template>
     </UPopover>

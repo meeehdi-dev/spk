@@ -47,3 +47,33 @@ describe('voice settings radio volume', () => {
     expect(readSettings().value.radioVolume).toBe(0.3)
   })
 })
+
+describe('webcam resolution settings', () => {
+  it('defaults new and older settings to Auto', () => {
+    expect(readSettings().value.cameraResolution).toBe('auto')
+    localStorage.setItem('spk:voice', JSON.stringify({ noise: 'off' }))
+    expect(readSettings().value).toMatchObject({ cameraResolution: 'auto', noise: 'off' })
+  })
+
+  it.each(['auto', '360p', '720p', '1080p'])('restores the saved %s choice', cameraResolution => {
+    localStorage.setItem('spk:voice', JSON.stringify({ cameraResolution }))
+    expect(readSettings().value.cameraResolution).toBe(cameraResolution)
+  })
+
+  it.each([null, 1080, '4k', {}, false])('replaces invalid saved resolution %j with Auto', cameraResolution => {
+    localStorage.setItem('spk:voice', JSON.stringify({ cameraResolution }))
+    expect(readSettings().value.cameraResolution).toBe('auto')
+  })
+
+  it('shares changes between settings instances and persists them', async () => {
+    const page = readSettings(),
+      menu = readSettings()
+    page.value.cameraResolution = '720p'
+    await nextTick()
+    await nextTick()
+    expect(menu.value.cameraResolution).toBe('720p')
+    scope.stop()
+    scope = effectScope()
+    expect(readSettings().value.cameraResolution).toBe('720p')
+  })
+})

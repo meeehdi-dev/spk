@@ -19,7 +19,9 @@ import {
   effectiveVolume,
   initialMute,
   matchDevice,
-  CAMERA_CAPTURE,
+  cameraConstraints,
+  isCameraResolution,
+  type CameraResolution,
   SCREEN_AUDIO_CAPTURE,
   SCREEN_AUDIO_PUBLISH,
   VOICE_PUBLISH_DEFAULTS,
@@ -88,6 +90,7 @@ let pendingScreenSession: ScreenSession | undefined
 const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
+let appliedCameraResolution: CameraResolution = 'auto'
 // Speaking turns on at once but off only after this hold, so pauses between words don't flicker the ring.
 export const SPEAKING_HOLD_MS = 500
 const speakingIds = new Set<string>()
@@ -289,7 +292,7 @@ export function useVoice() {
         adaptiveStream: true,
         dynacast: true,
         publishDefaults: VOICE_PUBLISH_DEFAULTS,
-        videoCaptureDefaults: CAMERA_CAPTURE,
+        videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
         audioCaptureDefaults: captureOptions(mic.deviceId),
       })
       r.on(RoomEvent.TrackSubscribed, track => {
@@ -526,12 +529,36 @@ export function useVoice() {
     }
   }
   const fail = (title: string) => (e: unknown) => toast.add({ title, description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+  const cameraOptions = () => ({
+    ...cameraConstraints(settings.value.cameraResolution),
+    deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId,
+  })
+  async function setCameraResolution(resolution: CameraResolution) {
+    if (!isCameraResolution(resolution)) return
+    settings.value.cameraResolution = resolution
+    const track = room?.localParticipant.getTrackPublication('camera' as Track.Source)?.videoTrack
+    if (!track || !camOn.value) return
+    try {
+      await track.restartTrack(cameraOptions())
+      appliedCameraResolution = resolution
+      rebuild()
+    } catch (e) {
+      fail('Could not change camera resolution')(e)
+    }
+  }
   async function toggleCamera() {
     if (!room) return
     const on = !camOn.value
-    await room.localParticipant
-      .setCameraEnabled(on, on ? { deviceId: matchDevice(settings.value.camera, devices.value.cams).deviceId } : undefined)
-      .catch(fail('Could not turn the camera on'))
+    const existing = room.localParticipant.getTrackPublication('camera' as Track.Source)?.videoTrack
+    const resolution = settings.value.cameraResolution
+    try {
+      const publication = await room.localParticipant.setCameraEnabled(on, on ? cameraOptions() : undefined)
+      // LiveKit ignores capture options when unmuting an existing publication.
+      if (on && existing && appliedCameraResolution !== resolution) await publication?.videoTrack?.restartTrack(cameraOptions())
+      if (on) appliedCameraResolution = resolution
+    } catch (e) {
+      fail('Could not change camera state')(e)
+    }
     rebuild()
   }
   const screenConstraints = (quality: ScreenQuality): MediaTrackConstraints => {
@@ -841,6 +868,7 @@ export function useVoice() {
     volumeFor,
     volumes,
     toggleCamera,
+    setCameraResolution,
     startScreen,
     stopScreen,
     toggleScreen,

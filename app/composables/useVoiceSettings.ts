@@ -1,4 +1,4 @@
-import { DEFAULT_SCREEN_QUALITY, isScreenQuality, type SavedDevice, type ScreenQuality } from '#shared/utils/voice'
+import { type CameraResolution, isCameraResolution, DEFAULT_SCREEN_QUALITY, isScreenQuality, type SavedDevice, type ScreenQuality } from '#shared/utils/voice'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen' | 'watch'
@@ -7,6 +7,7 @@ export interface VoiceSettings {
   speaker?: SavedDevice
   screenSpeaker?: SavedDevice
   camera?: SavedDevice
+  cameraResolution: CameraResolution
   noise: NoiseMode
   echo: boolean
   agc: boolean
@@ -27,6 +28,7 @@ export const useVoiceSettings = () =>
   useLocalStorage<VoiceSettings>(
     'spk:voice',
     {
+      cameraResolution: 'auto',
       noise: 'enhanced',
       echo: true,
       agc: true,
@@ -51,6 +53,7 @@ export const useVoiceSettings = () =>
       mergeDefaults: (stored, defaults) => ({
         ...defaults,
         ...stored,
+        cameraResolution: isCameraResolution(stored.cameraResolution) ? stored.cameraResolution : defaults.cameraResolution,
         screenQuality: isScreenQuality(stored.screenQuality) ? stored.screenQuality : defaults.screenQuality,
         sounds: { ...defaults.sounds, ...stored.sounds },
       }),

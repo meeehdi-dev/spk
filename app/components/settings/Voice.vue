@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { matchDevice } from '#shared/utils/voice'
+import { cameraConstraints, matchDevice } from '#shared/utils/voice'
 
 const v = useVoice()
 const s = v.settings
@@ -88,26 +88,30 @@ watch(
 // Camera preview: only while this page is open and you're not already using the camera in a call.
 const camPreview = ref(false)
 const videoEl = ref<HTMLVideoElement>()
-let camStream: MediaStream | undefined
-const stopCam = () => {
-  camStream?.getTracks().forEach(t => t.stop())
-  camStream = undefined
-  if (videoEl.value) videoEl.value.srcObject = null
-}
-watch(camPreview, async on => {
-  stopCam()
-  if (!on) return
+watch([camPreview, () => s.value.cameraResolution, () => s.value.camera?.deviceId, () => v.camOn.value], async ([on, resolution, , inCall], _, onCleanup) => {
+  let cancelled = false
+  let stream: MediaStream | undefined
+  const stop = () => {
+    cancelled = true
+    stream?.getTracks().forEach(t => t.stop())
+    if (videoEl.value && videoEl.value.srcObject === stream) videoEl.value.srcObject = null
+  }
+  onCleanup(stop)
+  if (!on || inCall) return
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: matchDevice(s.value.camera, v.devices.value.cams).deviceId } })
-    if (!camPreview.value) return stopCam()
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { ...cameraConstraints(resolution), deviceId: matchDevice(s.value.camera, v.devices.value.cams).deviceId },
+    })
+    if (cancelled) return stop()
     await nextTick()
-    if (videoEl.value) videoEl.value.srcObject = camStream
+    if (!cancelled && videoEl.value) videoEl.value.srcObject = stream
   } catch {
+    if (cancelled) return
+    stop()
     useToast().add({ title: 'Could not open the camera', color: 'error', icon: 'i-lucide-video-off' })
     camPreview.value = false
   }
 })
-onBeforeUnmount(stopCam)
 
 // Each test entry plays one tune: up = rising (unmute, on, start), otherwise falling.
 const soundRows = [
@@ -217,6 +221,7 @@ const soundRows = [
             @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
           />
         </UFormField>
+        <VoiceCameraResolution />
         <div class="flex flex-col gap-2">
           <UButton
             :icon="camPreview ? 'i-lucide-video-off' : 'i-lucide-video'"

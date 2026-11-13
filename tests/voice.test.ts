@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { dropVoiceOwner, joinVoice, leaveVoice, readyVoice, updateVoice, voiceSnapshot } from '../server/utils/voicePresence'
 import { createVoiceToken } from '../server/utils/voiceToken'
 import {
-  CAMERA_CAPTURE,
+  cameraConstraints,
   SCREEN_AUDIO_PUBLISH,
   VOICE_PUBLISH_DEFAULTS,
   SCREEN_AUDIO_CAPTURE,
@@ -170,7 +170,7 @@ describe('screen share and per-user volume', () => {
       dtx: false,
       red: true,
     })
-    expect(CAMERA_CAPTURE.resolution).toEqual({ width: 1920, height: 1080, frameRate: 30 })
+    expect(cameraConstraints('1080p').height).toEqual({ ideal: 1080, max: 1080 })
     expect(SCREEN_AUDIO_PUBLISH).toMatchObject({ audioPreset: { maxBitrate: 256_000 }, forceStereo: true, dtx: false })
   })
   it('silences on deafen or mute-for-me, else scales by user and output volume', async () => {
