@@ -16,3 +16,5 @@ export interface RadioSummary {
   channelId: string
   station: Pick<RadioStation, 'id' | 'name'> | null
 }
+
+export type RadioFavorite = Omit<RadioStation, 'url'> & { available: boolean | null }

@@ -81,6 +81,16 @@ describe('Radio Browser native fetch API', () => {
     await expect(api.getRadioStation('../other')).rejects.toThrow('identifier')
     expect(request).not.toHaveBeenCalled()
   })
+  it('refreshes saved metadata in one bounded request without exposing stream URLs', async () => {
+    const other = '22222222-2222-4222-8222-222222222222'
+    request.mockResolvedValueOnce(json([entry(), entry({ stationuuid: other }), entry({ codec: 'OGG' })]))
+    expect(await api.getRadioStationSummaries([id.toUpperCase()])).toEqual([{ id, name: 'Station', country: 'FR', codec: 'MP3' }])
+    expect(new URL(request.mock.calls[0]![0] as string).searchParams.get('uuids')).toBe(id)
+    expect(await api.getRadioStationSummaries([])).toEqual([])
+    await expect(api.getRadioStationSummaries(['../bad'])).rejects.toThrow('identifiers')
+    await expect(api.getRadioStationSummaries(Array(51).fill(id))).rejects.toThrow('identifiers')
+    expect(request).toHaveBeenCalledTimes(1)
+  })
   it('looks up a selected UUID and rejects private or mixed DNS answers', async () => {
     dns.ipv4.mockResolvedValue(['8.8.8.8', '10.0.0.1'])
     await expect(api.getRadioStation(id)).rejects.toThrow('public')

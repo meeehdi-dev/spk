@@ -116,3 +116,18 @@ export async function getRadioStation(id: string): Promise<RadioStation> {
 export async function countRadioClick(id: string) {
   if (isStationId(id)) await radioRequest(`/json/url/${id}`).catch(() => {})
 }
+
+/** Refresh saved metadata in one directory request; playback still validates public DNS separately. */
+export async function getRadioStationSummaries(ids: string[]): Promise<Omit<RadioStation, 'url'>[]> {
+  if (!ids.length) return []
+  if (ids.length > 50 || !ids.every(isStationId)) throw new Error('Invalid station identifiers')
+  const requested = new Set(ids.map(id => id.toLowerCase()))
+  const params = new URLSearchParams({ uuids: [...requested].join(',') })
+  const data = await radioRequest(`/json/stations/byuuid?${params}`)
+  if (!Array.isArray(data)) throw new Error('Radio directory returned invalid data')
+  return data
+    .slice(0, 50)
+    .map(stationDto)
+    .filter((station): station is RadioStation => !!station && requested.has(station.id))
+    .map(({ id, name, country, codec }) => ({ id, name, country, codec }))
+}
