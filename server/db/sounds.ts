@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { MAX_SOUND_BYTES, MAX_SOUND_MS } from '../../shared/utils/sounds'
 
 import { ChatError } from './messages'
+import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
 import { sounds } from './schema'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -59,4 +60,10 @@ export function updateSound(db: Db, id: string, input: { name?: unknown; icon?: 
 }
 
 /** Removes the row; returns its R2 key. */
-export const deleteSound = (db: Db, id: string) => db.delete(sounds).where(eq(sounds.id, id)).returning({ key: sounds.r2Key }).get()?.key ?? null
+export function deleteSound(db: Db, id: string, now = Date.now()) {
+  return db.transaction(tx => {
+    const key = tx.delete(sounds).where(eq(sounds.id, id)).returning({ key: sounds.r2Key }).get()?.key ?? null
+    if (key) enqueueObjectDeletion(tx, key, now + UPLOAD_DELETE_GRACE_MS)
+    return key
+  })
+}

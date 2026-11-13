@@ -6,6 +6,7 @@ import { MAX_FILES } from '../../shared/utils/files'
 import { extractUrls } from '../../shared/utils/links'
 import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
 
+import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
 import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePreviews, messages, reactions, user } from './schema'
 
 /** A database or a transaction handle. */
@@ -269,6 +270,7 @@ export function deleteMessage(db: Db, userId: string, isAdmin: boolean, messageI
   if (m.userId !== userId && !isAdmin) throw new ChatError(403, 'You can only delete your own messages')
   return db.transaction(tx => {
     const files = tx.select({ id: attachments.id, key: attachments.r2Key }).from(attachments).where(eq(attachments.messageId, m.id)).all()
+    for (const file of files) enqueueObjectDeletion(tx, file.key, now + UPLOAD_DELETE_GRACE_MS)
     tx.delete(attachments).where(eq(attachments.messageId, m.id)).run()
     tx.delete(reactions).where(eq(reactions.messageId, m.id)).run()
     tx.delete(messageMentions).where(eq(messageMentions.messageId, m.id)).run()

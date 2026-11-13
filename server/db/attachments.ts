@@ -5,6 +5,7 @@ import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import { cleanMime, MAX_FILE_BYTES } from '../../shared/utils/files'
 
 import { ChatError } from './messages'
+import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
 import { attachments } from './schema'
 
 const MAX_PENDING_PER_USER = 30
@@ -48,14 +49,17 @@ export function createPendingAttachment(db: Db, userId: string, input: { filenam
 }
 
 /** Drops one of your own unsent uploads (cancel / removed from the queue). Returns its R2 key. */
-export function cancelPending(db: Db, userId: string, id: string) {
-  return (
-    db
-      .delete(attachments)
-      .where(and(eq(attachments.id, id), eq(attachments.uploaderId, userId), isNull(attachments.messageId)))
-      .returning({ key: attachments.r2Key })
-      .get()?.key ?? null
-  )
+export function cancelPending(db: Db, userId: string, id: string, now = Date.now()) {
+  return db.transaction(tx => {
+    const key =
+      tx
+        .delete(attachments)
+        .where(and(eq(attachments.id, id), eq(attachments.uploaderId, userId), isNull(attachments.messageId)))
+        .returning({ key: attachments.r2Key })
+        .get()?.key ?? null
+    if (key) enqueueObjectDeletion(tx, key, now + UPLOAD_DELETE_GRACE_MS)
+    return key
+  })
 }
 
 /** Deletes R2 objects; one failure doesn't stop the rest. Returns the keys that failed. */

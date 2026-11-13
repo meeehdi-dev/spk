@@ -3,6 +3,7 @@ import type { Db } from './client'
 import { and, asc, eq, sql } from 'drizzle-orm'
 
 import { ChatError } from './messages'
+import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
 import { attachments, channels, messages } from './schema'
 
 type Kind = 'text' | 'voice'
@@ -47,7 +48,7 @@ export function renameChannel(db: Db, id: unknown, name: unknown) {
 }
 
 /** Deletes the channel and (by cascade) its messages. Returns the R2 keys of their files for the caller to remove. */
-export function deleteChannel(db: Db, id: unknown) {
+export function deleteChannel(db: Db, id: unknown, now = Date.now()) {
   const c = manageable(db, id)
   return db.transaction(tx => {
     const keys = tx
@@ -57,6 +58,7 @@ export function deleteChannel(db: Db, id: unknown) {
       .where(eq(messages.channelId, c.id))
       .all()
       .map(r => r.key)
+    for (const key of keys) enqueueObjectDeletion(tx, key, now + UPLOAD_DELETE_GRACE_MS)
     tx.delete(channels).where(eq(channels.id, c.id)).run()
     // The delete trigger also fires for already soft-deleted messages (no longer indexed): rebuild so the index can't drift.
     tx.run(sql`INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')`)
