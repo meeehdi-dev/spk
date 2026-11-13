@@ -9,7 +9,7 @@ spk is a self-hosted chat and voice app built with Nuxt 4, Vue, Nuxt UI, SQLite/
 - `server/db/`: schema, queries, and SQL migrations; `server/utils/` contains server helpers.
 - `server/routes/`, `server/plugins/`, `server/tasks/`: WebSocket handling, startup hooks, and scheduled work.
 - `shared/`: utilities shared by frontend and server.
-- `tests/`: Vitest tests; `public/`: static icons and service worker.
+- `tests/`: Vitest tests in `unit/` and `nuxt/` projects that mirror source paths, plus shared `fixtures/` and `setup/`; `public/`: static icons and service worker.
 - `deploy/livekit/`: voice server deployment configuration. See `README.md` for setup and `PLAN.md` for design context.
 
 ## Build, Test, and Development Commands
@@ -26,7 +26,7 @@ Use Node 26.13.0 and pnpm 12.18.0, pinned in `package.json`. `mise.toml` pins th
 - `pnpm typecheck`: check TypeScript and Vue types.
 - `pnpm knip`: check unused code and dependencies after `pnpm exec nuxt prepare`.
 - `pnpm jscpd`: check source duplication against the 5% ceiling.
-- `pnpm test`: run all Vitest tests.
+- `pnpm test`: run all Vitest tests (`unit` and `nuxt` projects).
 - `pnpm build`: build the production app.
 - `pnpm exec drizzle-kit generate`: generate migrations after editing `server/db/schema.ts`; commit SQL and `meta/` files. Migrations run at startup.
 
@@ -38,7 +38,11 @@ Oxfmt also sorts `package.json` and alphabetizes scripts. It sorts Nuxt UI `:ui`
 
 ## Testing Guidelines
 
-Name tests `tests/<feature>.test.ts`; use Vitest `describe`, `it`, and `expect`. Database tests use in-memory SQLite; browser-dependent tests can use `happy-dom`. Run `pnpm exec nuxt prepare` before testing a fresh checkout. Add focused tests for risky logic, authorization, validation, and regressions. No coverage threshold or E2E suite is configured. Run lint, fmt:check, Knip, jscpd, typecheck, tests, and build before opening a PR.
+Vitest runs two projects. `unit` runs `tests/unit/**` in plain Node. `nuxt` runs `tests/nuxt/**` in the `@nuxt/test-utils` Nuxt environment on happy-dom, with auto-imports, plugins and Nuxt UI. A test's folder picks its project: code that needs a DOM, Vue mounting, composables or auto-imports goes in `nuxt`; everything else, including server handlers and pure `app/utils`, goes in `unit`. Never switch environments with `// @vitest-environment`.
+
+Each test file covers one source file and mirrors its path under its project: `server/db/messages.ts` is tested in `tests/unit/server/db/messages.test.ts`, `app/components/chat/ChatMessage.vue` in `tests/nuxt/app/components/chat/ChatMessage.test.ts`, and `server/api/radio/favorites/[id].put.ts` in `tests/unit/server/api/radio/favorites/[id].put.test.ts`. A large module may become a folder of focused files, such as `tests/nuxt/app/composables/useVoice/join.test.ts`. Import source through `~/`, `~~/` and `#shared/` aliases, not relative paths; only the root config tests (`tests/unit/*.test.ts`) use relative paths, because the Node context has no aliases. There is no `tests/tsconfig.json`: `tests/nuxt` is in the app context automatically, and `nuxt.config.ts` adds the other test folders to the context of the code they cover (`typescript.tsConfig`, `serverTsConfig`, `nodeTsConfig`).
+
+Shared helpers live in `tests/fixtures/`: `db.ts` exports a `test` with a fresh in-memory SQLite `db` fixture plus seeding helpers, `nitro.ts` stubs Nitro auto-imports for handler tests, and `app.ts` mounts components inside `UApp`. `tests/setup/nuxt.ts` unmounts components after each test and keeps the real WebSocket from connecting. In Nuxt tests, prefer `mountSuspended`, `mockNuxtImport` and `registerEndpoint` over global stubs. Run one project with `pnpm exec vitest run --project unit` or `--project nuxt`. Run `pnpm exec nuxt prepare` before testing a fresh checkout. Add focused tests for risky logic, authorization, validation, and regressions. No coverage threshold or E2E suite is configured. Run lint, fmt:check, Knip, jscpd, typecheck, tests, and build before opening a PR.
 
 ## Commit & Pull Request Guidelines
 

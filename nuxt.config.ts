@@ -114,6 +114,15 @@ export default defineNuxtConfig({
       if (alias && !Array.isArray(alias)) Reflect.deleteProperty(alias, 'assets')
     },
   },
+  // Tests outside tests/nuxt type-check in the context of the code they cover (paths are relative to .nuxt/).
+  typescript: {
+    tsConfig: { include: ['../tests/unit/app/**/*', '../tests/fixtures/app.ts', '../tests/setup/**/*'] },
+    serverTsConfig: {
+      include: ['../tests/unit/server/**/*', '../tests/unit/shared/**/*', '../tests/unit/service-worker/**/*', '../tests/fixtures/**/*'],
+      exclude: ['../tests/fixtures/app.ts'],
+    },
+    nodeTsConfig: { include: ['../tests/unit/*.ts'] },
+  },
   eslint: { config: { stylistic: false } },
   icon: { provider: 'server', serverBundle: 'local', clientBundle: { scan: true }, fallbackToApi: false },
 })
