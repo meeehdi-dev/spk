@@ -618,7 +618,6 @@ export function useVoice() {
       await publishScreenVideo(r, captured, quality)
       if (!current()) return
       if (audio) await r.localParticipant.publishTrack(audio, SCREEN_AUDIO_PUBLISH)
-      if (current()) settings.value.screenAudio = !!audio
     } catch (e) {
       if (current()) {
         screenSession = undefined
