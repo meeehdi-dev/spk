@@ -165,14 +165,16 @@ export function useVoice() {
     })
   }
 
-  const outputKind = (source: Track.Source): 'speaker' | 'screenSpeaker' => (source === 'screen_share_audio' ? 'screenSpeaker' : 'speaker')
+  const outputKind = (source: Track.Source): 'speaker' | 'mediaSpeaker' => (source === 'screen_share_audio' ? 'mediaSpeaker' : 'speaker')
   async function routeOutput(track: RemoteAudioTrack, kind = outputKind(track.source)) {
     if (!canPickOutput) return
+    const device = matchDevice(settings.value[kind], devices.value.speakers).deviceId ?? ''
     try {
-      await track.setSinkId(matchDevice(settings.value[kind], devices.value.speakers).deviceId ?? '')
+      await track.setSinkId(device)
     } catch (e) {
       toast.add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
     }
+    if (device !== (matchDevice(settings.value[kind], devices.value.speakers).deviceId ?? '')) await routeOutput(track, kind)
   }
 
   function applyOutput() {
@@ -305,7 +307,7 @@ export function useVoice() {
       r.on(RoomEvent.ActiveDeviceChanged, kind => {
         if (kind === 'audiooutput') {
           void routeOutputs('speaker')
-          void routeOutputs('screenSpeaker')
+          void routeOutputs('mediaSpeaker')
         }
       })
       r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
@@ -507,7 +509,7 @@ export function useVoice() {
     else await track?.restartTrack(options)
     applyOutput()
   }
-  const routeOutputs = (kind: 'speaker' | 'screenSpeaker') =>
+  const routeOutputs = (kind: 'speaker' | 'mediaSpeaker') =>
     Promise.all(
       [...(room?.remoteParticipants.values() ?? [])].flatMap(p =>
         [...p.audioTrackPublications.values()]
@@ -515,8 +517,8 @@ export function useVoice() {
           .map(pub => routeOutput(pub.track as RemoteAudioTrack, kind)),
       ),
     )
-  async function pickDevice(kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', d: SavedDevice) {
-    const output = kind === 'speaker' || kind === 'screenSpeaker'
+  async function pickDevice(kind: 'mic' | 'speaker' | 'mediaSpeaker' | 'camera', d: SavedDevice) {
+    const output = kind === 'speaker' || kind === 'mediaSpeaker'
     const system = d.deviceId === 'default'
     settings.value = { ...settings.value, [kind]: system ? undefined : asSaved(d) }
     try {
@@ -1016,7 +1018,7 @@ export function useVoiceLive() {
     on => (on ? wakeLock.request('screen') : wakeLock.release()).catch(() => {}),
   )
   useEventListener(navigator.mediaDevices, 'devicechange', async () => {
-    const outputs = (['speaker', 'screenSpeaker'] as const).map(kind => ({
+    const outputs = (['speaker', 'mediaSpeaker'] as const).map(kind => ({
       kind,
       active: matchDevice(v.settings.value[kind], devices.value.speakers).deviceId,
     }))
@@ -1024,6 +1026,22 @@ export function useVoiceLive() {
     const defaultLabel = devices.value.mics.find(d => d.deviceId === 'default')?.label
     await v.refreshDevices()
     const r = v.activeRoom()
+    if (v.canPickOutput)
+      for (const { kind, active } of outputs) {
+        if (kind === 'speaker' && !r) continue
+        const saved = v.settings.value[kind]
+        if (!saved) continue
+        const now = matchDevice(saved, devices.value.speakers).deviceId
+        if (active === now) continue
+        await v.routeOutputs(kind)
+        if (!!active === !!now) continue
+        const name = kind === 'speaker' ? 'voice output' : 'media output'
+        useToast().add(
+          now
+            ? { title: `Switched back to ${saved.label}`, description: `Your ${name} is back.`, icon: 'i-lucide-headphones', color: 'info' }
+            : { title: `Your ${name} was unplugged`, description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' },
+        )
+      }
     if (!r) return
     const active = r.getActiveDevice('audioinput')
     const savedMic = v.settings.value.mic?.deviceId === 'default' ? undefined : v.settings.value.mic // Chromium's 'default' entry means follow the OS
@@ -1045,20 +1063,6 @@ export function useVoiceLive() {
     } else if (!savedMic && active === 'default' && defaultLabel && defaultLabel !== devices.value.mics.find(d => d.deviceId === 'default')?.label) {
       await v.applySettings().catch(() => {}) // Chromium keeps the old physical device when the OS default changes
     }
-    if (v.canPickOutput)
-      for (const { kind, active } of outputs) {
-        const saved = v.settings.value[kind]
-        if (!saved) continue
-        const now = matchDevice(saved, devices.value.speakers).deviceId
-        if (!!active === !!now) continue
-        await v.routeOutputs(kind)
-        const name = kind === 'speaker' ? 'voice output' : 'screen-share output'
-        useToast().add(
-          now
-            ? { title: `Switched back to ${saved.label}`, description: `Your ${name} is back.`, icon: 'i-lucide-headphones', color: 'info' }
-            : { title: `Your ${name} was unplugged`, description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' },
-        )
-      }
   })
   onMounted(() => v.refreshDevices())
 }

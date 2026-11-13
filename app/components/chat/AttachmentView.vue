@@ -5,6 +5,8 @@ import { TEXT_PREVIEW_RANGE } from '../../../shared/utils/files'
 
 const props = defineProps<{ file: AttachmentDto }>()
 const emit = defineEmits<{ open: [file: AttachmentDto] }>()
+const media = ref<HTMLMediaElement>()
+useMediaOutput(media)
 const src = computed(() => `/api/attachments/${props.file.id}`)
 const kind = computed(() =>
   props.file.mime.startsWith('image/') ? 'image' : props.file.mime.startsWith('video/') ? 'video' : props.file.mime.startsWith('audio/') ? 'audio' : 'file',
@@ -115,8 +117,8 @@ onMounted(() => {
         </span>
       </button>
     </template>
-    <video v-else-if="kind === 'video'" :src="src" controls preload="metadata" class="max-h-[350px] max-w-full rounded-md border border-default" />
-    <audio v-else-if="kind === 'audio'" :src="src" controls preload="none" class="max-w-full" />
+    <video v-else-if="kind === 'video'" ref="media" :src="src" controls preload="metadata" class="max-h-[350px] max-w-full rounded-md border border-default" />
+    <audio v-else-if="kind === 'audio'" ref="media" :src="src" controls preload="none" class="max-w-full" />
     <USkeleton v-else-if="lang && text === undefined && !failed" class="h-24 w-full max-w-xl" />
     <div v-else-if="lang && text !== undefined" class="overflow-hidden rounded-md border border-default bg-muted text-sm">
       <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">

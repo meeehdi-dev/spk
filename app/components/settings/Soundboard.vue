@@ -17,6 +17,8 @@ onMounted(async () => {
 
 // --- add: choose a file, crop, name, icon, save ---
 const box = ref<HTMLElement>()
+const media = shallowRef<HTMLMediaElement | null>(null)
+useMediaOutput(media)
 const form = reactive({ name: '', icon: 'audio-lines' })
 const decoded = shallowRef<AudioBuffer>()
 const sel = ref({ start: 0, end: 0 })
@@ -26,6 +28,7 @@ let ws: WaveSurfer | undefined
 let region: Region | undefined
 
 function reset() {
+  media.value = null
   ws?.destroy()
   ws = region = undefined
   decoded.value = undefined
@@ -70,6 +73,7 @@ async function load(file: File) {
     progressColor: '#f59e0b',
     plugins: [regions],
   })
+  media.value = ws.getMediaElement()
   ws.on('play', () => {
     playing.value = true
   })

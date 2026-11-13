@@ -1,4 +1,5 @@
 import { MAX_SOUND_MS, SOUND_COOLDOWN_MS } from '#shared/utils/sounds'
+import { getMediaAudio, playMediaAudio } from '~/utils/media-audio'
 
 export interface SoundEntry {
   id: string
@@ -9,17 +10,16 @@ export interface SoundEntry {
 
 export const useSounds = () => useFetch<SoundEntry[]>('/api/sounds', { key: 'sounds', headers: useRequestHeaders(['cookie']), default: () => [] })
 
-let ctx: AudioContext | undefined
 const buffers = new Map<string, Promise<AudioBuffer>>() // decoded once per sound; a failure is dropped so it can be retried
 
 function load(id: string) {
   let p = buffers.get(id)
   if (!p) {
-    ctx ??= new AudioContext()
+    const { context } = getMediaAudio()
     p = $fetch<{ url: string }>(`/api/sounds/${id}/file`)
       .then(r => fetch(r.url))
       .then(r => r.arrayBuffer())
-      .then(b => ctx!.decodeAudioData(b))
+      .then(b => context.decodeAudioData(b))
     p.catch(() => buffers.delete(id))
     buffers.set(id, p)
   }
@@ -33,14 +33,17 @@ export async function playSound(id: string, force = false) {
   const { on, volume } = useVoiceSettings().value.soundboard
   if (!import.meta.client || (!on && !force)) return
   try {
+    const { context: loadingContext } = getMediaAudio()
     const buf = await load(id)
-    await ctx!.resume()
-    const src = ctx!.createBufferSource(),
-      gain = ctx!.createGain()
-    src.buffer = buf
-    gain.gain.value = volume
-    src.connect(gain).connect(ctx!.destination)
-    src.start(0, 0, Math.min(buf.duration, MAX_SOUND_MS / 1000))
+    if (loadingContext.state === 'closed') return
+    await playMediaAudio((context, destination) => {
+      const src = context.createBufferSource(),
+        gain = context.createGain()
+      src.buffer = buf
+      gain.gain.value = volume
+      src.connect(gain).connect(destination)
+      src.start(0, 0, Math.min(buf.duration, MAX_SOUND_MS / 1000))
+    })
   } catch {
     /* autoplay policy or a missing file: stay silent */
   }
@@ -60,7 +63,7 @@ export function useSoundboard() {
       cooling.value = false
     }, SOUND_COOLDOWN_MS)
     socket.send({ type: 'voice:sound', sid: v.sid, soundId: id })
-    void load(id) // warm the cache; the relay frame plays it
+    void load(id).catch(() => {}) // warm the cache; the relay frame plays it
   }
   return { cooling, press }
 }

@@ -10,7 +10,7 @@ const noiseItems = [
   { label: 'Enhanced (DeepFilterNet)', value: 'enhanced' },
 ]
 const deviceItems = (list: MediaDeviceInfo[]) => list.map(d => ({ label: d.label || 'Device', value: d.deviceId }))
-const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+const pick = (kind: 'mic' | 'speaker' | 'mediaSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
   if (id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
@@ -145,7 +145,7 @@ const c = computed(() => {
             v-for="output in v.canPickOutput
               ? ([
                   { kind: 'speaker', label: 'Voice output' },
-                  { kind: 'screenSpeaker', label: 'Screen-share output' },
+                  { kind: 'mediaSpeaker', label: 'Media output' },
                 ] as const)
               : []"
             :key="output.kind"

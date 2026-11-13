@@ -13,7 +13,7 @@ const items = (list: MediaDeviceInfo[]) => [
   ...list.filter(d => d.deviceId !== 'default').map(d => ({ label: d.label || 'Device', value: d.deviceId })),
 ]
 const current = (saved: { deviceId: string; label: string } | undefined, list: MediaDeviceInfo[]) => matchDevice(saved, list).deviceId ?? 'default'
-const pick = (kind: 'mic' | 'speaker' | 'screenSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
+const pick = (kind: 'mic' | 'speaker' | 'mediaSpeaker' | 'camera', list: MediaDeviceInfo[]) => (id: string) => {
   if (id === 'default') return v.pickDevice(kind, { deviceId: 'default', label: 'System default' })
   const d = list.find(x => x.deviceId === id)
   if (d) void v.pickDevice(kind, d)
@@ -200,7 +200,7 @@ const soundRows = [
           v-for="output in v.canPickOutput
             ? ([
                 { kind: 'speaker', label: 'Voice output' },
-                { kind: 'screenSpeaker', label: 'Screen-share output' },
+                { kind: 'mediaSpeaker', label: 'Media output' },
               ] as const)
             : []"
           :key="output.kind"

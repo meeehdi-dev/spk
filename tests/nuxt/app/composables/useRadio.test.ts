@@ -1,3 +1,4 @@
+import type { SavedDevice } from '#shared/utils/voice'
 import type { SocketFrame } from '~/composables/useSocket'
 
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
@@ -16,7 +17,7 @@ const mocks = await vi.hoisted(async () => {
       sid: 's',
       channelId: ref<string | null>(null),
       mute: ref({ deafened: false, muted: false }),
-      settings: ref<{ radioVolume: number; outputVolume: number; speaker?: undefined }>({ radioVolume: 0.5, outputVolume: 1 }),
+      settings: ref<{ radioVolume: number; outputVolume: number; speaker?: SavedDevice; mediaSpeaker?: SavedDevice }>({ radioVolume: 0.5, outputVolume: 1 }),
       devices: ref({ speakers: [] as Array<{ deviceId: string; label: string }> }),
     },
     connected: ref(true),
@@ -61,6 +62,25 @@ beforeEach(async () => {
 })
 
 describe('radio session lifecycle', () => {
+  it('follows media output changes and unplug/replug independently of voice without restarting', () => {
+    const { voice } = mocks
+    voice.devices.value.speakers = [
+      { deviceId: 'media', label: 'Media' },
+      { deviceId: 'voice', label: 'Voice' },
+    ]
+    voice.settings.value.speaker = { deviceId: 'voice', label: 'Voice' }
+    voice.settings.value.mediaSpeaker = { deviceId: 'media', label: 'Media' }
+    receive(frame(1))
+    expect(media.output).toHaveBeenLastCalledWith(0.5, false, 'media')
+    voice.devices.value.speakers = [{ deviceId: 'voice', label: 'Voice' }]
+    expect(media.output).toHaveBeenLastCalledWith(0.5, false, '')
+    voice.devices.value.speakers.push({ deviceId: 'new-media', label: 'Media' })
+    expect(media.output).toHaveBeenLastCalledWith(0.5, false, 'new-media')
+    voice.settings.value.mediaSpeaker = undefined
+    expect(media.output).toHaveBeenLastCalledWith(0.5, false, '')
+    expect(media.start).toHaveBeenCalledTimes(1)
+    expect(voice.settings.value.speaker.deviceId).toBe('voice')
+  })
   it('plays late-join state, ignores older revisions and other sessions, and stops on leave', () => {
     receive(frame(2))
     expect(useRadio().station.value).toEqual(station)

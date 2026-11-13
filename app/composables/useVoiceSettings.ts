@@ -1,11 +1,12 @@
 import { type CameraResolution, isCameraResolution, DEFAULT_SCREEN_QUALITY, isScreenQuality, type SavedDevice, type ScreenQuality } from '#shared/utils/voice'
+import { playMediaAudio } from '~/utils/media-audio'
 
 type NoiseMode = 'off' | 'standard' | 'enhanced'
 export type VoiceSound = 'join' | 'leave' | 'mute' | 'deafen' | 'camera' | 'screen' | 'watch'
 export interface VoiceSettings {
   mic?: SavedDevice
   speaker?: SavedDevice
-  screenSpeaker?: SavedDevice
+  mediaSpeaker?: SavedDevice
   camera?: SavedDevice
   cameraResolution: CameraResolution
   noise: NoiseMode
@@ -60,7 +61,6 @@ export const useVoiceSettings = () =>
     },
   )
 
-let audio: AudioContext | undefined
 // Notes and waveform per sound, synthesized so no files are needed. `up` = joining / unmuting, otherwise leaving / muting.
 // Each kind differs in pitch, length or waveform, and none matches the message blip (660, 880).
 const NOTES: Record<VoiceSound, { up: number[]; down: number[]; type?: OscillatorType }> = {
@@ -77,8 +77,7 @@ const NOTES: Record<VoiceSound, { up: number[]; down: number[]; type?: Oscillato
 export function playVoiceSound(kind: VoiceSound, up = true, force = false) {
   const { on, volume } = useVoiceSettings().value.sounds[kind]
   if ((!on && !force) || !import.meta.client) return
-  try {
-    audio ??= new AudioContext()
+  void playMediaAudio((audio, destination) => {
     const t = audio.currentTime
     const { type = 'sine', ...notes } = NOTES[kind]
     // Harsher waveforms are quieter to stay soft.
@@ -90,11 +89,9 @@ export function playVoiceSound(kind: VoiceSound, up = true, force = false) {
       o.frequency.value = f
       g.gain.setValueAtTime(gain * volume, t + i * 0.08)
       g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.12)
-      o.connect(g).connect(audio.destination)
+      o.connect(g).connect(destination)
       o.start(t + i * 0.08)
       o.stop(t + i * 0.08 + 0.13)
     }
-  } catch {
-    /* autoplay policy: stay silent */
-  }
+  })
 }

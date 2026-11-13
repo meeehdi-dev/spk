@@ -1,5 +1,6 @@
 import { extractMentionIds } from '#shared/utils/markdown'
 import { allowedBy, notificationBody, type NotifyPrefs } from '#shared/utils/notifyText'
+import { playMediaAudio } from '~/utils/media-audio'
 
 export interface NotifySettings extends Required<Omit<NotifyPrefs, 'dnd'>> {
   sound: boolean
@@ -20,11 +21,9 @@ export function useMute() {
   }
 }
 
-let audio: AudioContext | undefined
 /** A short two-note blip, synthesized so no sound file is needed. */
 export function playBlip(volume: number) {
-  try {
-    audio ??= new AudioContext()
+  void playMediaAudio((audio, destination) => {
     const t = audio.currentTime
     for (const [i, f] of [660, 880].entries()) {
       const o = audio.createOscillator(),
@@ -32,13 +31,11 @@ export function playBlip(volume: number) {
       o.frequency.value = f
       g.gain.setValueAtTime(0.3 * volume, t + i * 0.09)
       g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.09 + 0.12)
-      o.connect(g).connect(audio.destination)
+      o.connect(g).connect(destination)
       o.start(t + i * 0.09)
       o.stop(t + i * 0.09 + 0.13)
     }
-  } catch {
-    /* autoplay policy: stay silent */
-  }
+  })
 }
 
 const notificationsSupported = () => import.meta.client && 'Notification' in window

@@ -126,7 +126,7 @@ beforeEach(() => {
   media.connect = undefined
   toast.mockClear()
   available = [device('voice'), device('screen'), device('other')]
-  settings = ref({ speaker: device('voice'), screenSpeaker: device('screen'), noise: 'standard', sensitivity: 50, outputVolume: 0.8 })
+  settings = ref({ speaker: device('voice'), mediaSpeaker: device('screen'), noise: 'standard', sensitivity: 50, outputVolume: 0.8 })
   mocks.useLocalStorage.mockImplementation((_: string, value: unknown) => ref(value))
   mocks.useVoiceSettings.mockImplementation(() => settings)
   mocks.useToast.mockImplementation(() => ({ add: toast }))
@@ -209,8 +209,50 @@ describe('microphone lifecycle', () => {
 })
 
 describe('independent remote audio outputs', () => {
+  it('reroutes screen audio when the media device ID changes but its label still matches', async () => {
+    const r = await setup()
+    const screen = track('screen_share_audio')
+    r.remoteParticipants.set('one', participant('one', [screen]))
+    available = [device('voice'), { ...device('replacement'), label: 'screen' }]
+    await deviceChange()
+    expect(screen.setSinkId).toHaveBeenLastCalledWith('replacement')
+    expect(settings.value.mediaSpeaker!.deviceId).toBe('screen')
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('restores the latest media preference when an older screen-audio switch finishes last', async () => {
+    const r = await setup()
+    const screen = track('screen_share_audio')
+    r.remoteParticipants.set('one', participant('one', [screen]))
+    let finish!: () => void
+    screen.setSinkId.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve
+        }),
+    )
+    const old = voice.pickDevice('mediaSpeaker', device('other'))
+    await voice.pickDevice('mediaSpeaker', device('voice'))
+    finish()
+    await old
+    expect(screen.setSinkId).toHaveBeenLastCalledWith('voice')
+    expect(settings.value.mediaSpeaker!.deviceId).toBe('voice')
+  })
+
+  it('reports media unplug/replug outside calls without reporting the unused voice output', async () => {
+    await setup()
+    await voice.leave(false)
+    available = [device('other')]
+    await deviceChange()
+    expect(toast).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ title: 'Your media output was unplugged' }))
+    expect(settings.value.mediaSpeaker!.deviceId).toBe('screen')
+    available.push(device('screen'))
+    await deviceChange()
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ description: 'Your media output is back.' }))
+  })
+
   it.each([true, false])('defaults screen audio independently for a saved voice preference: %s', async savedVoice => {
-    settings.value.screenSpeaker = undefined
+    settings.value.mediaSpeaker = undefined
     if (!savedVoice) settings.value.speaker = undefined
     const mic = track('microphone'),
       screen = track('screen_share_audio')
@@ -223,7 +265,7 @@ describe('independent remote audio outputs', () => {
     expect(mic.setSinkId).toHaveBeenLastCalledWith(savedVoice ? 'voice' : '')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('')
     expect(settings.value.speaker?.deviceId).toBe(savedVoice ? 'voice' : undefined)
-    expect(settings.value.screenSpeaker).toBeUndefined()
+    expect(settings.value.mediaSpeaker).toBeUndefined()
   })
 
   it('routes subscriptions before room assignment, later subscriptions and rejoins using saved preferences', async () => {
@@ -247,7 +289,7 @@ describe('independent remote audio outputs', () => {
     r.emit('subscribed', later)
     expect(later.setSinkId).toHaveBeenCalledTimes(2)
     await voice.leave(false)
-    settings.value.screenSpeaker = undefined
+    settings.value.mediaSpeaker = undefined
     await voice.join('channel')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('')
     expect(settings.value.speaker!.deviceId).toBe('voice')
@@ -260,16 +302,16 @@ describe('independent remote audio outputs', () => {
       otherScreen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))
     r.remoteParticipants.set('two', participant('two', [otherScreen]))
-    await voice.pickDevice('screenSpeaker', device('other'))
+    await voice.pickDevice('mediaSpeaker', device('other'))
     expect(mic.setSinkId).not.toHaveBeenCalled()
     expect(screen.setSinkId).toHaveBeenLastCalledWith('other')
     expect(otherScreen.setSinkId).toHaveBeenLastCalledWith('other')
     await voice.pickDevice('speaker', device('default'))
     expect(settings.value.speaker).toBeUndefined()
-    expect(settings.value.screenSpeaker!.deviceId).toBe('other')
+    expect(settings.value.mediaSpeaker!.deviceId).toBe('other')
     expect(mic.setSinkId).toHaveBeenLastCalledWith('')
     expect(screen.setSinkId).toHaveBeenCalledTimes(1)
-    await voice.pickDevice('screenSpeaker', device('default'))
+    await voice.pickDevice('mediaSpeaker', device('default'))
     expect(screen.setSinkId).toHaveBeenLastCalledWith('')
     voice.setVolume('one', { mic: 0.5, screen: 0.25 })
     expect(mic.setVolume).toHaveBeenLastCalledWith(0.4)
@@ -289,7 +331,7 @@ describe('independent remote audio outputs', () => {
     const screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [screen]))
     r.emit('subscribed', screen)
-    await voice.pickDevice('screenSpeaker', device('other'))
+    await voice.pickDevice('mediaSpeaker', device('other'))
     expect(voice.canPickOutput).toBe(false)
     expect(screen.setSinkId).not.toHaveBeenCalled()
     expect(document.body.contains(screen.attach())).toBe(true)
@@ -303,7 +345,7 @@ describe('independent remote audio outputs', () => {
     r.emit('subscribed', screen)
     await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not switch device', description: 'Denied' })))
     toast.mockClear()
-    await voice.pickDevice('screenSpeaker', device('other'))
+    await voice.pickDevice('mediaSpeaker', device('other'))
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Denied' }))
   })
 
@@ -343,7 +385,7 @@ describe('independent remote audio outputs', () => {
 
   it('falls back both categories sharing the missing device', async () => {
     const r = await setup()
-    settings.value.screenSpeaker = device('voice')
+    settings.value.mediaSpeaker = device('voice')
     const mic = track('microphone'),
       screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [mic, screen]))

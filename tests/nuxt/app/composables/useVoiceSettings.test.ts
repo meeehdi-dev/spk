@@ -1,11 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick } from 'vue'
 
-import { useVoiceSettings } from '~/composables/useVoiceSettings'
+import { playVoiceSound, useVoiceSettings } from '~/composables/useVoiceSettings'
+
+const media = vi.hoisted(() => {
+  const gain = { gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn() }
+  const oscillator = { frequency: { value: 0 }, connect: () => gain, start: vi.fn(), stop: vi.fn() }
+  const context = { currentTime: 0, createOscillator: () => oscillator, createGain: () => gain }
+  return { gain, context, destination: {} }
+})
+vi.mock('~/utils/media-audio', () => ({
+  playMediaAudio: (play: (context: typeof media.context, destination: object) => void) => play(media.context, media.destination),
+}))
 
 let scope: ReturnType<typeof effectScope>
 
 beforeEach(() => {
+  vi.clearAllMocks()
   localStorage.clear()
   scope = effectScope()
 })
@@ -16,6 +27,35 @@ afterEach(() => {
 })
 
 const readSettings = () => scope.run(() => useVoiceSettings())!
+
+describe('voice action sounds', () => {
+  it('routes notes through media output and preserves the off switch and forced preview', async () => {
+    const settings = readSettings()
+    settings.value.sounds.join = { on: false, volume: 0.5 }
+    await nextTick()
+    scope.run(() => playVoiceSound('join'))
+    expect(media.gain.connect).not.toHaveBeenCalled()
+    scope.run(() => playVoiceSound('join', true, true))
+    expect(media.gain.connect).toHaveBeenCalledTimes(2)
+    expect(media.gain.connect).toHaveBeenCalledWith(media.destination)
+    expect(media.gain.gain.setValueAtTime).toHaveBeenCalledWith(0.15, 0)
+  })
+})
+
+describe('media output preference', () => {
+  it('ignores the old screen output preference', () => {
+    localStorage.setItem('spk:voice', JSON.stringify({ screenSpeaker: { deviceId: 'old', label: 'Old output' } }))
+    expect(readSettings().value.mediaSpeaker).toBeUndefined()
+  })
+
+  it('persists the renamed media output preference', async () => {
+    readSettings().value.mediaSpeaker = { deviceId: 'media', label: 'Media' }
+    await nextTick()
+    scope.stop()
+    scope = effectScope()
+    expect(readSettings().value.mediaSpeaker).toEqual({ deviceId: 'media', label: 'Media' })
+  })
+})
 
 describe('voice settings radio volume', () => {
   it('starts fresh storage at 10%', () => {

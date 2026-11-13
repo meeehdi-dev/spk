@@ -91,14 +91,14 @@ export function useRadioLive() {
         voice.mute.value.deafened,
         voice.settings.value.radioVolume,
         voice.settings.value.outputVolume,
-        voice.settings.value.speaker,
+        voice.settings.value.mediaSpeaker,
         voice.devices.value.speakers,
       ] as const,
     () =>
       player?.output(
         voice.settings.value.radioVolume * voice.settings.value.outputVolume,
         voice.mute.value.deafened,
-        matchDevice(voice.settings.value.speaker, voice.devices.value.speakers).deviceId ?? '',
+        matchDevice(voice.settings.value.mediaSpeaker, voice.devices.value.speakers).deviceId ?? '',
       ),
     { deep: true, immediate: true, flush: 'sync' },
   )
