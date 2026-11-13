@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import ogs from 'open-graph-scraper'
 import sharp from 'sharp'
 
-import { extractUrls, isImageUrl, MAX_PREVIEWS } from '../../shared/utils/links'
+import { previewUrls } from '../../shared/utils/links'
 import { attachPreviews, cachedPreview, savePreview, type ParsedPreview } from '../db/previews'
 import { messages } from '../db/schema'
 
@@ -55,9 +55,7 @@ async function fetchOne(url: string): Promise<ParsedPreview> {
 
 /** Background job after a send or edit: up to 3 links, cached, then a `message:previews` event. Never throws. */
 export function queuePreviews(message: { id: string; channelId: string; userId: string; body: string }) {
-  const urls = extractUrls(message.body, appOrigin())
-    .filter(u => !isImageUrl(u))
-    .slice(0, MAX_PREVIEWS)
+  const urls = previewUrls(message.body, appOrigin())
   if (!urls.length) return
   void (async () => {
     const db = useDb()
