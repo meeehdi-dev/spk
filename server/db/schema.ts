@@ -245,3 +245,17 @@ export const objectDeletions = sqliteTable(
   },
   t => [index('object_deletions_due').on(t.notBefore)],
 )
+
+export const radioFavorites = sqliteTable(
+  'radio_favorites',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    stationId: text('station_id').notNull(),
+    name: text('name').notNull(),
+    country: text('country').notNull(),
+    codec: text('codec').notNull(),
+  },
+  t => [primaryKey({ columns: [t.userId, t.stationId] })],
+)
