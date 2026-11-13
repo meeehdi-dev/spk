@@ -235,3 +235,13 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
   // The browser's notification settings ({dms, pings, dnd, muted[]}), so the server never pushes what the client would hide.
   prefs: text('prefs').notNull().default('{}'),
 })
+
+export const objectDeletions = sqliteTable(
+  'object_deletions',
+  {
+    key: text('key').primaryKey(),
+    createdAt: ts('created_at').notNull().default(now),
+    notBefore: ts('not_before').notNull(),
+  },
+  t => [index('object_deletions_due').on(t.notBefore)],
+)

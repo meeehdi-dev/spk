@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { eq } from 'drizzle-orm'
-
-import { user } from '../../db/schema'
+import { replaceAvatar, retryObjectDeletions } from '../../db/objectDeletions'
 
 export default defineEventHandler(async event => {
   const u = await requireUser(event)
@@ -19,11 +17,9 @@ export default defineEventHandler(async event => {
   }
   const key = `avatars/${u.id}/${randomUUID()}.webp`
   await r2Put(r2, key, out, 'image/webp')
-  // Read the current key right before the update (synchronous, no interleaving), not the session's possibly stale one.
   const db = useDb()
-  const prev = db.select({ k: user.avatarKey }).from(user).where(eq(user.id, u.id)).get()?.k
-  db.update(user).set({ avatarKey: key, updatedAt: new Date() }).where(eq(user.id, u.id)).run()
-  if (prev) await r2Delete(r2, prev).catch(() => {})
+  const prev = replaceAvatar(db, u.id, key)
+  if (prev) await retryObjectDeletions(db, k => r2Delete(r2, k), Date.now(), [prev])
   broadcast({ type: 'users:changed' })
   return { avatarKey: key }
 })
