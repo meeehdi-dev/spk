@@ -105,6 +105,12 @@ ufw allow 443/tcp && ufw allow 7881/tcp && ufw allow 50000:60000/udp && ufw allo
 [{ "AllowedOrigins": ["https://chat.example.com"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
 ```
 
+**Raw avatar retention (required):** in the Cloudflare dashboard, open **R2 object storage**, select the app's bucket, then open **Settings → Object lifecycle rules → Add rule**. Create an enabled rule named `expire-raw-avatars`, set the prefix to exactly `avatars/raw/`, and select object deletion after **1 day**. Preserve any existing rules. Do not use `avatars/` or an empty prefix: completed avatars use `avatars/<user>/<uuid>.webp` and must remain.
+
+This bucket setting is required for both new and existing deployments; deploying the app does not create it. It expires existing and new raw uploads, including uploads abandoned when the browser closes and objects left after a failed delete. Normal processing deletes the raw image immediately. Signed upload URLs last ten minutes; their expiration does not delete uploaded objects. Presign requests are limited to 10 attempts per user per rolling minute; this in-memory limit resets when the app restarts.
+
+Deletion is asynchronous: Cloudflare typically removes objects within 24 hours after their expiration time, and existing objects may take longer when a rule is first applied. See [R2 object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/). After setup, verify the enabled rule and exact prefix. In a disposable bucket, leave a raw upload unprocessed and confirm it is eventually deleted after expiration, while a completed WebP outside the raw prefix remains. Also verify that a normal avatar change succeeds before expiration. Storage stubs cannot verify bucket lifecycle execution.
+
 **First admin:** read the app logs (`docker logs spk`) for the admin invite link.
 
 **Backup (SQLite only):** files live in R2 and everything else is rebuilt from the repo. Don't copy the `.db` file while the app runs (WAL can give a broken copy). Take a consistent snapshot, then back up that file:
