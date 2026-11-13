@@ -231,6 +231,21 @@ async function share(audio = false) {
 }
 
 describe('live screen settings', () => {
+  it.each([true, false])('retains the saved audio choice %s when the browser returns no audio', async audio => {
+    settings.value.screenAudio = audio
+    p.createScreenTracks.mockResolvedValueOnce([track('video')])
+    await v.startScreen()
+
+    expect(settings.value.screenAudio).toBe(audio)
+    expect(v.tiles.value[0]?.screenAudio).toBe(false)
+    await v.stopScreen()
+    p.createScreenTracks.mockResolvedValueOnce([track('video')])
+    await v.startScreen()
+
+    expect(p.createScreenTracks).toHaveBeenLastCalledWith(expect.objectContaining({ audio: audio ? SCREEN_AUDIO_CAPTURE : false }))
+    expect(settings.value.screenAudio).toBe(audio)
+  })
+
   it('only saves inactive preferences and starts once with their capture/publish options', async () => {
     await v.setScreenQuality(SMOOTH)
     await v.setScreenAudio(true)
