@@ -1,7 +1,7 @@
 // URL helpers shared by the server (preview jobs, hydrate) and the client (inline images).
 import { parseInternalLink } from './markdown'
 
-export const MAX_PREVIEWS = 3
+const MAX_PREVIEWS = 3
 
 /** `https://<any host>/….gif|png|jpg|jpeg|webp`: rendered inline, never given a preview card. */
 export function isImageUrl(url: string): boolean {
@@ -45,6 +45,13 @@ export function extractUrls(body: string, origin?: string): string[] {
     }
   }
   return [...out]
+}
+
+/** Links eligible for cards, in message order, with the per-message limit applied. */
+export function previewUrls(body: string, origin: string): string[] {
+  return extractUrls(body, origin)
+    .filter(u => !isImageUrl(u))
+    .slice(0, MAX_PREVIEWS)
 }
 
 /** Message body from the typed text plus an optional staged GIF URL (on its own line after the text). */

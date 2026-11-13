@@ -11,7 +11,7 @@ import { channelMembers, channels, user } from '../server/db/schema'
 import { mapGifs } from '../server/utils/klipy'
 import { parseHtml } from '../server/utils/previews'
 import { isBlockedIp, safeFetch, SsrfError } from '../server/utils/ssrf'
-import { composeBody, extractUrls, isImageUrl } from '../shared/utils/links'
+import { composeBody, extractUrls, isImageUrl, previewUrls } from '../shared/utils/links'
 
 describe('isBlockedIp', () => {
   it.each([
@@ -176,6 +176,17 @@ describe('safeFetch', () => {
 })
 
 describe('links', () => {
+  it('selects normalized, distinct preview links after excluding images and internal links', () => {
+    const body = [
+      'https://static.example/a.gif',
+      'http://localhost:3000/c/abc/m/def',
+      '<https://skip.example/>',
+      'https://a.example https://a.example/',
+      'https://b.example https://c.example https://d.example',
+    ].join(' ')
+    expect(previewUrls(body, 'http://localhost:3000')).toEqual(['https://a.example/', 'https://b.example/', 'https://c.example/'])
+  })
+
   it('extractUrls: distinct http(s) links; skips <url>, code, spoilers and internal links', () => {
     const body = [
       'see https://a.example/x?y=1, and (https://b.example/p_(q)). also https://a.example/x?y=1',
@@ -259,27 +270,27 @@ describe('preview storage', () => {
   const card = { title: 'T', description: 'D', siteName: 'S', imageKey: 'previews/k.webp' }
 
   it('caches by url with a TTL and shows cards on the message in order', () => {
-    const m = createMessage(db, 'a', 't', 'https://x.example https://y.example')
-    savePreview(db, 'https://y.example', card, 1000)
-    savePreview(db, 'https://x.example', { ...card, imageKey: null }, 1000)
-    expect(cachedPreview(db, 'https://x.example', 1000 + 1000)).toBeTruthy()
-    expect(cachedPreview(db, 'https://x.example', 1000 + 8 * 24 * 3600_000)).toBeUndefined()
-    const updated = attachPreviews(db, m.id, ['https://x.example', 'https://y.example'])!
+    const m = createMessage(db, 'a', 't', 'https://x.example https://y.example/')
+    savePreview(db, 'https://y.example/', card, 1000)
+    savePreview(db, 'https://x.example/', { ...card, imageKey: null }, 1000)
+    expect(cachedPreview(db, 'https://x.example/', 1000 + 1000)).toBeTruthy()
+    expect(cachedPreview(db, 'https://x.example/', 1000 + 8 * 24 * 3600_000)).toBeUndefined()
+    const updated = attachPreviews(db, m.id, ['https://x.example/', 'https://y.example/'])!
     expect(updated.previews.map(p => [p.url, p.image])).toEqual([
-      ['https://x.example', false],
-      ['https://y.example', true],
+      ['https://x.example/', false],
+      ['https://y.example/', true],
     ])
     expect(listMessages(db, 't', {}).messages[0]!.previews.length).toBe(2)
-    expect(attachPreviews(db, m.id, ['https://x.example'])).toBeNull() // nothing new
+    expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull() // nothing new
   })
 
   it('only the author or an admin removes a card, and it stays removed', () => {
-    const m = createMessage(db, 'a', 't', 'https://x.example')
-    savePreview(db, 'https://x.example', card)
-    attachPreviews(db, m.id, ['https://x.example'])
-    expect(() => removePreview(db, 'b', false, m.id, 'https://x.example')).toThrow(/author or an admin/)
-    expect(removePreview(db, 'admin', true, m.id, 'https://x.example').previews).toEqual([])
-    expect(attachPreviews(db, m.id, ['https://x.example'])).toBeNull() // a later job can't bring it back
+    const m = createMessage(db, 'a', 't', 'https://x.example/')
+    savePreview(db, 'https://x.example/', card)
+    attachPreviews(db, m.id, ['https://x.example/'])
+    expect(() => removePreview(db, 'b', false, m.id, 'https://x.example/')).toThrow(/author or an admin/)
+    expect(removePreview(db, 'admin', true, m.id, 'https://x.example/').previews).toEqual([])
+    expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull() // a later job can't bring it back
   })
 
   it('editing away a link drops its card; deleting drops them all', () => {
@@ -291,12 +302,55 @@ describe('preview storage', () => {
     expect(attachPreviews(db, m.id, ['https://y.example/'])).toBeNull()
   })
 
+  it.each([
+    'removed',
+    'https://replacement.example/',
+    '<https://x.example/>',
+    '`https://x.example/`',
+    '```\nhttps://x.example/\n```',
+    '||https://x.example/||',
+    'https://a.example/ https://b.example/ https://c.example/ https://x.example/',
+  ])('rejects delayed completion after editing to %s', body => {
+    const m = createMessage(db, 'a', 't', 'https://x.example/')
+    editMessage(db, 'a', m.id, body)
+    savePreview(db, 'https://x.example/', card)
+    expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull()
+    expect(listMessages(db, 't', {}).messages[0]!.previews).toEqual([])
+  })
+
+  it('attaches the replacement link after rejecting the old result', () => {
+    const m = createMessage(db, 'a', 't', 'https://x.example/')
+    editMessage(db, 'a', m.id, 'https://y.example/')
+    savePreview(db, 'https://x.example/', card)
+    expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull()
+    savePreview(db, 'https://y.example/', card)
+    expect(attachPreviews(db, m.id, ['https://y.example/'])!.previews.map(p => p.url)).toEqual(['https://y.example/'])
+  })
+
+  it('keeps eligible delayed links in current body order', () => {
+    const urls = ['https://x.example/', 'https://y.example/', 'https://z.example/']
+    const m = createMessage(db, 'a', 't', urls.join(' '))
+    editMessage(db, 'a', m.id, 'https://z.example/ https://y.example/')
+    for (const url of urls) savePreview(db, url, card)
+    expect(attachPreviews(db, m.id, urls)!.previews.map(p => p.url)).toEqual(['https://z.example/', 'https://y.example/'])
+    expect(listMessages(db, 't', {}).messages[0]!.previews.map(p => p.url)).toEqual(['https://z.example/', 'https://y.example/'])
+  })
+
+  it.each(['deleted', 'suppressed'])('rejects delayed completion when the message is %s', state => {
+    const m = createMessage(db, 'a', 't', 'https://x.example/')
+    if (state === 'deleted') deleteMessage(db, 'a', false, m.id)
+    else removePreview(db, 'a', false, m.id, 'https://x.example/')
+    savePreview(db, 'https://x.example/', card)
+    expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull()
+    expect(previewImageKey(db, 'a', m.id, 'https://x.example/')).toBeNull()
+  })
+
   it('thumbnails are served only to readers of the message', () => {
-    const m = createMessage(db, 'a', 'dm', 'https://x.example')
-    savePreview(db, 'https://x.example', card)
-    attachPreviews(db, m.id, ['https://x.example'])
-    expect(previewImageKey(db, 'b', m.id, 'https://x.example')).toBe('previews/k.webp')
-    expect(previewImageKey(db, 'c', m.id, 'https://x.example')).toBeNull()
+    const m = createMessage(db, 'a', 'dm', 'https://x.example/')
+    savePreview(db, 'https://x.example/', card)
+    attachPreviews(db, m.id, ['https://x.example/'])
+    expect(previewImageKey(db, 'b', m.id, 'https://x.example/')).toBe('previews/k.webp')
+    expect(previewImageKey(db, 'c', m.id, 'https://x.example/')).toBeNull()
     expect(previewImageKey(db, 'b', m.id, 'https://other.example')).toBeNull()
   })
 })

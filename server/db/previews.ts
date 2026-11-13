@@ -2,6 +2,9 @@ import type { Db } from './client'
 
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
+import { previewUrls } from '../../shared/utils/links'
+import { appOrigin } from '../utils/appOrigin'
+
 import { ChatError, accessibleChannel, messageDto } from './messages'
 import { linkPreviews, messagePreviews, messages } from './schema'
 
@@ -29,7 +32,7 @@ export function savePreview(db: Db, url: string, p: ParsedPreview, now = Date.no
 }
 
 /**
- * Shows these cached previews on a message (in order), unless it was deleted meanwhile.
+ * Shows completed cached previews only while they remain eligible in the current message body.
  * Returns the message with its cards, or null when nothing changed.
  */
 export function attachPreviews(db: Db, messageId: string, urls: string[]) {
@@ -39,13 +42,16 @@ export function attachPreviews(db: Db, messageId: string, urls: string[]) {
     .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)))
     .get()
   if (!m || m.suppressPreviews) return null
+  const eligible = previewUrls(m.body, appOrigin())
+  const completed = eligible.filter(url => urls.includes(url))
+  if (!completed.length) return null
   const have = db
     .select({ url: linkPreviews.url })
     .from(linkPreviews)
-    .where(inArray(linkPreviews.url, urls))
+    .where(inArray(linkPreviews.url, completed))
     .all()
     .map(r => r.url)
-  const rows = urls.filter(u => have.includes(u)).map(url => ({ messageId, url, position: urls.indexOf(url) }))
+  const rows = completed.filter(u => have.includes(u)).map(url => ({ messageId, url, position: eligible.indexOf(url) }))
   if (!rows.length) return null
   const r = db.insert(messagePreviews).values(rows).onConflictDoNothing().run()
   return r.changes ? messageDto(db, m) : null
