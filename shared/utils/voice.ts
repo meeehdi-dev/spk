@@ -73,7 +73,7 @@ export function screenShareOptions({ height, fps }: ScreenQuality) {
   } as const
 }
 
-/** Room-wide publish/capture defaults: one layer per track, 1080p30 camera at 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
+/** Room-wide publish/capture defaults: one layer per track, camera up to 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
 export const VOICE_PUBLISH_DEFAULTS = {
   simulcast: false,
   videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 },
@@ -82,7 +82,18 @@ export const VOICE_PUBLISH_DEFAULTS = {
   dtx: false,
   red: true,
 } as const
-export const CAMERA_CAPTURE = { resolution: { width: 1920, height: 1080, frameRate: 30 } } as const
+export const CAMERA_RESOLUTIONS = ['auto', '360p', '720p', '1080p'] as const
+export type CameraResolution = (typeof CAMERA_RESOLUTIONS)[number]
+export const isCameraResolution = (value: unknown): value is CameraResolution => CAMERA_RESOLUTIONS.some(item => item === value)
+
+/** Ideal picks the closest available size; max keeps fixed presets below their ceiling. Auto requests high quality without a size ceiling. */
+export function cameraConstraints(resolution: CameraResolution) {
+  if (!isCameraResolution(resolution) || resolution === 'auto') return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } }
+  const height = Number.parseInt(resolution),
+    width = Math.round((height * 16) / 9)
+  return { width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: 30, max: 30 } }
+}
+
 /** Screen audio: stereo Opus 256 kbps, DTX off. */
 export const SCREEN_AUDIO_PUBLISH = { audioPreset: { maxBitrate: 256_000 }, forceStereo: true, dtx: false } as const
 

@@ -6,16 +6,31 @@ import { createDb } from '../server/db/client'
 import { channels } from '../server/db/schema'
 import { handleVoiceFrame, dropVoiceSocket } from '../server/utils/voice'
 import * as sessions from '../server/utils/voicePresence'
+import { cameraConstraints } from '../shared/utils/voice'
 
 const { media, MockRoom } = vi.hoisted(() => {
   class MockRoom {
     events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
     mic = { stopOnMute: false, setProcessor: vi.fn(async () => {}), mute: vi.fn(async () => {}), unmute: vi.fn(async () => {}), stop: vi.fn() }
+    cameraPublished = false
+    camera = { isMuted: false, restartTrack: vi.fn(async (_options: unknown) => {}) }
+    cameraPublication = {
+      videoTrack: this.camera,
+      track: this.camera,
+      get isMuted() {
+        return this.videoTrack.isMuted
+      },
+    }
     localParticipant = {
       identity: 'local',
       isLocal: true,
-      getTrackPublication: () => undefined,
+      getTrackPublication: (source: string) => (source === 'camera' && this.cameraPublished ? this.cameraPublication : undefined),
+      setCameraEnabled: vi.fn(async (on: boolean, _options?: unknown) => {
+        this.cameraPublished = true
+        this.camera.isMuted = !on
+        return this.cameraPublication
+      }),
       createTracks: vi.fn(async () => [this.mic]),
       publishTrack: vi.fn(async () => {}),
     }
@@ -478,5 +493,55 @@ describe('acknowledged voice join', () => {
     await other.v.leave()
     expect(sound.mock.calls).toEqual([['leave']])
     await observer.v.leave(false)
+  })
+})
+
+describe('webcam resolution during a call', () => {
+  it('uses the saved maximum on start and applies live changes without changing screen quality', async () => {
+    const { v } = await browser('camera-live')
+    await v.setCameraResolution('720p')
+    await v.join('c1')
+    const r = media.rooms.at(-1)!
+    await v.toggleCamera()
+    expect(v.camOn.value).toBe(true)
+    expect(r.localParticipant.setCameraEnabled).toHaveBeenLastCalledWith(true, { ...cameraConstraints('720p'), deviceId: undefined })
+    const screenQuality = v.settings.value.screenQuality
+    await v.setCameraResolution('360p')
+    expect(r.camera.restartTrack).toHaveBeenLastCalledWith({ ...cameraConstraints('360p'), deviceId: undefined })
+    expect(v.settings.value.cameraResolution).toBe('360p')
+    expect(v.settings.value.screenQuality).toBe(screenQuality)
+    expect(v.camOn.value).toBe(true)
+    await v.setCameraResolution('auto')
+    expect(r.camera.restartTrack).toHaveBeenLastCalledWith({ ...cameraConstraints('auto'), deviceId: undefined })
+    await v.leave()
+  })
+
+  it('keeps the camera off when a choice changes and applies it on re-enable', async () => {
+    const { v } = await browser('camera-off')
+    await v.setCameraResolution('720p')
+    await v.join('c1')
+    const r = media.rooms.at(-1)!
+    await v.toggleCamera()
+    await v.toggleCamera()
+    expect(v.camOn.value).toBe(false)
+    await v.setCameraResolution('1080p')
+    expect(r.camera.restartTrack).not.toHaveBeenCalled()
+    expect(v.camOn.value).toBe(false)
+    await v.toggleCamera()
+    expect(r.camera.restartTrack).toHaveBeenLastCalledWith({ ...cameraConstraints('1080p'), deviceId: undefined })
+    expect(v.camOn.value).toBe(true)
+    await v.leave()
+  })
+
+  it('reports capture failure and retains the saved choice for retry', async () => {
+    const { v } = await browser('camera-fail')
+    await v.join('c1')
+    await v.toggleCamera()
+    const r = media.rooms.at(-1)!
+    r.camera.restartTrack.mockRejectedValueOnce(new Error('Camera unavailable'))
+    await v.setCameraResolution('1080p')
+    expect(v.settings.value.cameraResolution).toBe('1080p')
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not change camera resolution', description: 'Camera unavailable' }))
+    await v.leave()
   })
 })
