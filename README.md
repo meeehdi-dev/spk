@@ -156,7 +156,7 @@ Project layout:
 - `server/plugins/`: startup plugins (bootstrap, error log)
 - `server/tasks/`: scheduled tasks
 - `shared/`: code used by both app and server
-- `tests/`: Vitest unit tests
+- `tests/`: Vitest tests; `unit/` runs in Node, `nuxt/` in the Nuxt test environment, both mirroring source paths
 - `deploy/`: LiveKit deployment files
 
 To add a migration, edit `server/db/schema.ts`, then run `pnpm exec drizzle-kit generate` (configured in `drizzle.config.ts`). Commit the generated SQL and `meta/` files; migrations run at startup.

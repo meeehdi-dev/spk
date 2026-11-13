@@ -257,6 +257,13 @@ export default defineConfig({
       },
     },
     {
+      // Vitest fixtures must destructure their first argument, even when they use no other fixture.
+      files: ['tests/**/*.ts'],
+      rules: {
+        'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
+      },
+    },
+    {
       files: ['**/*.vue'],
       rules: {
         'typescript/consistent-type-imports': 'off',
