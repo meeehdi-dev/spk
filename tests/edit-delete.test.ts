@@ -103,6 +103,46 @@ describe('replies', () => {
 })
 
 describe('reactions', () => {
+  describe('at the type limit', () => {
+    const emoji = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚']
+    let messageId: string
+
+    beforeEach(() => {
+      messageId = createMessage(db, 'a', 't', 'x').id
+      for (const e of emoji) setReaction(db, 'a', messageId, e, true)
+    })
+
+    it('allows another user to join an existing type and keeps additions idempotent', () => {
+      const r = setReaction(db, 'b', messageId, '😀', true)
+      expect(r.reactions).toHaveLength(20)
+      expect(r.reactions.find(r => r.emoji === '😀')?.userIds).toEqual(['a', 'b'])
+      expect(setReaction(db, 'b', messageId, '😀', true)).toEqual(r)
+      expect(setReaction(db, 'a', messageId, '😀', true)).toEqual(r)
+      expect(db.select().from(reactions).all()).toHaveLength(21)
+
+      const removed = setReaction(db, 'b', messageId, '😀', false)
+      expect(removed.reactions).toHaveLength(20)
+      expect(removed.reactions.find(r => r.emoji === '😀')?.userIds).toEqual(['a'])
+      expect(setReaction(db, 'b', messageId, '😀', false)).toEqual(removed)
+    })
+
+    it('rejects a new type even if it exists on another message, then frees a slot on removal', () => {
+      const other = createMessage(db, 'a', 't', 'other')
+      const before = setReaction(db, 'a', messageId, '😀', true)
+      setReaction(db, 'a', other.id, '👍', true)
+      for (const userId of ['a', 'b'])
+        expect(() => setReaction(db, userId, messageId, '👍', true)).toThrow(
+          expect.objectContaining({ statusCode: 400, message: 'Too many different reactions on this message' }),
+        )
+      expect(setReaction(db, 'a', messageId, '😀', true)).toEqual(before)
+      expect(db.select().from(reactions).all()).toHaveLength(21)
+      expect(setReaction(db, 'a', messageId, '😀', false).reactions).toHaveLength(19)
+      const added = setReaction(db, 'b', messageId, '👍', true)
+      expect(added.reactions).toHaveLength(20)
+      expect(added.reactions.find(r => r.emoji === '👍')?.userIds).toEqual(['b'])
+    })
+  })
+
   it('toggle per user, group by emoji, reject non-emoji', () => {
     const m = createMessage(db, 'a', 't', 'x')
     setReaction(db, 'a', m.id, '👍', true)

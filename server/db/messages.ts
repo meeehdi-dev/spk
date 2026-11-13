@@ -303,7 +303,11 @@ export function setReaction(db: Db, userId: string, messageId: unknown, emoji: u
         .from(reactions)
         .where(eq(reactions.messageId, m.id))
         .get()?.n ?? 0
-    const exists = db.select().from(reactions).where(mine).get()
+    const exists = db
+      .select()
+      .from(reactions)
+      .where(and(eq(reactions.messageId, m.id), eq(reactions.emoji, emoji)))
+      .get()
     if (!exists && kinds >= MAX_REACTION_KINDS) throw new ChatError(400, 'Too many different reactions on this message')
     db.insert(reactions).values({ messageId: m.id, userId, emoji }).onConflictDoNothing().run()
   } else db.delete(reactions).where(mine).run()
