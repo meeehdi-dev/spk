@@ -5,6 +5,7 @@ import * as webpush from 'web-push'
 import { pushJobs, removePush } from '../db/push'
 
 import { onlineUserIds } from './peers'
+import { isPushEndpoint } from './pushEndpoint'
 
 let ready: boolean | undefined
 
@@ -18,7 +19,11 @@ export function sendPushes(m: MessageDto) {
   if (!ready) return
   const db = useDb()
   for (const j of pushJobs(db, m, onlineUserIds())) {
-    webpush.sendNotification({ endpoint: j.endpoint, keys: j.keys }, JSON.stringify(j.payload), { TTL: 3600 }).catch(e => {
+    if (!isPushEndpoint(j.endpoint)) {
+      removePush(db, j.endpoint)
+      continue
+    }
+    webpush.sendNotification({ endpoint: j.endpoint, keys: j.keys }, JSON.stringify(j.payload), { TTL: 3600, timeout: 5000 }).catch(e => {
       if (e?.statusCode === 404 || e?.statusCode === 410) removePush(db, j.endpoint) // the browser dropped it
       else console.error(`[error] web push failed: ${e?.statusCode ?? ''} ${e?.message ?? e}`)
     })

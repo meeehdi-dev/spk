@@ -51,6 +51,8 @@ Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks scr
 
 The production app supports browser installation and push notifications without offline caching. The service worker is disabled in development; test push with a local production build. Open apps check for new deployments every five minutes and offer a dismissible Refresh notice. Refreshing disconnects voice and loses unsent GIFs, attachments and replies; draft text is saved.
 
+Push subscriptions must use HTTPS on port 443 with no credentials or fragment. Supported destinations are `fcm.googleapis.com` (Chrome), `updates.push.services.mozilla.com` (Firefox), subdomains of `push.apple.com` (Safari), and subdomains of `notify.windows.com` (Microsoft Edge on Windows). Custom push services are not supported. Invalid stored subscriptions are removed before delivery. Delivery uses a five-second socket inactivity timeout; this is not a total request deadline.
+
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.
