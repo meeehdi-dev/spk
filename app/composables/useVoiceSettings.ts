@@ -77,7 +77,10 @@ const NOTES: Record<VoiceSound, { up: number[]; down: number[]; type?: Oscillato
 export function playVoiceSound(kind: VoiceSound, up = true, force = false) {
   const { on, volume } = useVoiceSettings().value.sounds[kind]
   if ((!on && !force) || !import.meta.client) return
+  const status = useMyStatus()
+  if (!force && status.value === 'busy') return
   void playMediaAudio((audio, destination) => {
+    if (!force && status.value === 'busy') return
     const t = audio.currentTime
     const { type = 'sine', ...notes } = NOTES[kind]
     // Harsher waveforms are quieter to stay soft.

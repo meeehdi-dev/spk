@@ -17,6 +17,12 @@ describe('notificationBody', () => {
 })
 
 describe('allowedBy', () => {
+  it('blocks DMs and mentions while Busy regardless of enabled preferences', () => {
+    expect(allowedBy({ dnd: true, dms: true, pings: true }, 'd', true)).toBe(false)
+    expect(allowedBy({ dnd: true, dms: true, pings: true }, 't', false)).toBe(false)
+    expect(allowedBy({ dnd: false, dms: true, pings: true }, 'd', true)).toBe(true)
+  })
+
   it('applies muted channels, the DM switch, and the pings switch', () => {
     expect(allowedBy({ muted: ['t'] }, 't', false)).toBe(false)
     expect(allowedBy({ dms: false }, 'd', true)).toBe(false)

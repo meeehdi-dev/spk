@@ -1,16 +1,21 @@
+import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick } from 'vue'
 
 import { playVoiceSound, useVoiceSettings } from '~/composables/useVoiceSettings'
 
+const status = vi.hoisted(() => ({ value: 'online' }))
+mockNuxtImport('useMyStatus', () => () => status)
+
 const media = vi.hoisted(() => {
   const gain = { gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn() }
   const oscillator = { frequency: { value: 0 }, connect: () => gain, start: vi.fn(), stop: vi.fn() }
   const context = { currentTime: 0, createOscillator: () => oscillator, createGain: () => gain }
-  return { gain, context, destination: {} }
+  const play = vi.fn((callback: (audio: typeof context, destination: object) => void) => callback(context, {}))
+  return { gain, context, destination: {}, play }
 })
 vi.mock('~/utils/media-audio', () => ({
-  playMediaAudio: (play: (context: typeof media.context, destination: object) => void) => play(media.context, media.destination),
+  playMediaAudio: media.play,
 }))
 
 let scope: ReturnType<typeof effectScope>
@@ -18,6 +23,8 @@ let scope: ReturnType<typeof effectScope>
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
+  status.value = 'online'
+  media.play.mockImplementation(callback => callback(media.context, media.destination))
   scope = effectScope()
 })
 
@@ -29,6 +36,26 @@ afterEach(() => {
 const readSettings = () => scope.run(() => useVoiceSettings())!
 
 describe('voice action sounds', () => {
+  it('silences automatic voice sounds while Busy, preserves previews, and resumes when online', () => {
+    status.value = 'busy'
+    const kinds = ['join', 'leave', 'mute', 'deafen', 'camera', 'screen', 'watch'] as const
+    for (const kind of kinds) scope.run(() => playVoiceSound(kind))
+    expect(media.play).not.toHaveBeenCalled()
+    scope.run(() => playVoiceSound('join', true, true))
+    expect(media.play).toHaveBeenCalledOnce()
+    status.value = 'online'
+    for (const kind of kinds) scope.run(() => playVoiceSound(kind))
+    expect(media.play).toHaveBeenCalledTimes(kinds.length + 1)
+  })
+
+  it('rechecks Busy after audio routing finishes', () => {
+    media.play.mockImplementationOnce(() => {})
+    scope.run(() => playVoiceSound('join'))
+    status.value = 'busy'
+    media.play.mock.calls[0]![0](media.context, media.destination)
+    expect(media.gain.connect).not.toHaveBeenCalled()
+  })
+
   it('routes notes through media output and preserves the off switch and forced preview', async () => {
     const settings = readSettings()
     settings.value.sounds.join = { on: false, volume: 0.5 }

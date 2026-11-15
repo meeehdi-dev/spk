@@ -22,8 +22,11 @@ export function useMute() {
 }
 
 /** A short two-note blip, synthesized so no sound file is needed. */
-export function playBlip(volume: number) {
+export function playBlip(volume: number, force = false) {
+  const status = useMyStatus()
+  if (!force && status.value === 'busy') return
   void playMediaAudio((audio, destination) => {
+    if (!force && status.value === 'busy') return
     const t = audio.currentTime
     for (const [i, f] of [660, 880].entries()) {
       const o = audio.createOscillator(),
@@ -58,11 +61,13 @@ export function useNotificationPermission() {
 function useNotify() {
   const toast = useToast()
   const s = useNotifySettings()
+  const status = useMyStatus()
   return {
     toast: (o: { title: string; description?: string; icon?: string; color?: 'error' | 'success' | 'info' | 'warning' | 'neutral' }) =>
       toast.add({ icon: 'i-lucide-info', ...o }),
     /** `focusedHere`: this window is focused (toast, no system notification). */
     message(o: { title: string; body: string; target: string; tag: string; focused: boolean }) {
+      if (status.value === 'busy') return
       if (s.value.sound) playBlip(s.value.volume)
       if (o.focused) {
         toast.add({

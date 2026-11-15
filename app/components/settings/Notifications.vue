@@ -75,7 +75,7 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
         <UFormField label="Volume">
           <div class="flex items-center gap-3">
             <USlider v-model="s.volume" :min="0" :max="1" :step="0.01" :disabled="!s.sound" class="max-w-xs" />
-            <UButton icon="i-lucide-play" color="neutral" variant="ghost" aria-label="Test sound" @click="playBlip(s.volume)" />
+            <UButton icon="i-lucide-play" color="neutral" variant="ghost" aria-label="Test sound" @click="playBlip(s.volume, true)" />
           </div>
         </UFormField>
       </div>
