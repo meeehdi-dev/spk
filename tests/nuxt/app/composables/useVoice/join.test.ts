@@ -432,6 +432,9 @@ describe('acknowledged voice join', () => {
       dropVoiceSocket(old.owner)
       observerRoom.remoteParticipants.delete('middle')
       observerRoom.emit('ParticipantDisconnected')
+      await flush()
+      expect(observer.v.tiles.value.map(t => t.userId)).toEqual(['first', 'middle', 'last'])
+      expect(observer.v.tiles.value[1]).toMatchObject({ local: false, camLive: false, screenLive: false })
       observerRoom.remoteParticipants.set('middle', participant('middle'))
       observerRoom.emit('ParticipantConnected')
     }
@@ -657,6 +660,35 @@ describe('voice reconnection', () => {
     b.opened()
     await vi.waitFor(() => expect(sessions.voiceSnapshot().find(p => p.userId === 'redeploy')).toMatchObject({ cam: true, speaking: true }))
     expect(b.v.activeRoom()).toBe(r)
+    await b.v.leave(false)
+  })
+
+  it('keeps an avatar tile while LiveKit removes participants during a full reconnect', async () => {
+    const b = await browser('recovery')
+    await b.v.join('c1')
+    const r = media.rooms.at(-1)!
+    const participant = {
+      identity: 'remote',
+      isLocal: false,
+      getTrackPublication: () => undefined,
+      trackPublications: new Map(),
+      audioTrackPublications: new Map(),
+    }
+    b.receive({ type: 'voice:presence', userId: 'remote', channelId: 'c1' })
+    r.remoteParticipants.set('remote', participant)
+    r.emit('ParticipantConnected')
+    r.remoteParticipants.delete('remote')
+    r.emit('ParticipantDisconnected')
+    r.state = 'reconnecting'
+    r.emit('Reconnecting')
+    await flush()
+    expect(b.v.tiles.value.find(t => t.userId === 'remote')).toMatchObject({ camLive: false, screenLive: false })
+    r.remoteParticipants.set('remote', participant)
+    r.state = 'connected'
+    r.emit('Reconnected')
+    expect(b.v.tiles.value.filter(t => t.userId === 'remote')).toHaveLength(1)
+    b.receive({ type: 'voice:presence', userId: 'remote', channelId: null })
+    expect(b.v.tiles.value.find(t => t.userId === 'remote')).toBeUndefined()
     await b.v.leave(false)
   })
 

@@ -1008,7 +1008,16 @@ export function useVoice() {
     settings,
     tiles: computed(() => {
       const remote = new Map(tiles.value.filter(t => !t.local).map(t => [t.userId, t]))
-      return [...tiles.value.filter(t => t.local), ...Object.keys(presence.value).flatMap(id => (remote.has(id) ? [remote.get(id)!] : []))]
+      return [
+        ...tiles.value.filter(t => t.local),
+        ...Object.entries(presence.value).flatMap(([id, member]) => {
+          const tile = remote.get(id)
+          if (tile) return [tile]
+          // Presence survives browser handoffs and media reconnects; keep the avatar until tracks return.
+          if (!channelId.value || member.channelId !== channelId.value || id === me.value?.id) return []
+          return [{ userId: id, local: false, speaking: false, camLive: false, screenLive: false, screenAudio: false, watching: watching.value.includes(id) }]
+        }),
+      ]
     }),
     watching,
     theater,
