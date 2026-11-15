@@ -7,10 +7,18 @@ const emit = defineEmits<{ quote: [text: string]; markUnread: [id: string]; edit
 
 const { byId, nameOf } = useUsers()
 const { data: me } = useMe()
+const { data: channels } = useChannels()
 const { quickReactions } = useRecentReactions()
 const actions = inject(chatActionsKey)!
 const author = computed(() => byId.value.get(props.message.userId))
 const own = computed(() => me.value?.id === props.message.userId)
+const pinged = computed(
+  () =>
+    !!me.value &&
+    !own.value &&
+    channels.value.some(c => c.id === props.message.channelId && c.type === 'text') &&
+    (props.message.replyTo?.userId === me.value.id || extractMentionIds(props.message.body).includes(me.value.id)),
+)
 const canDelete = computed(() => own.value || me.value?.role === 'admin')
 
 provide(
@@ -210,8 +218,11 @@ function onKey(e: KeyboardEvent) {
       :id="`msg-${message.id}`"
       ref="root"
       tabindex="0"
-      class="group relative flex gap-3 px-4 py-0.5 outline-none hover:bg-elevated/50 focus-visible:bg-elevated/70 compact:py-0"
-      :class="[highlighted ? 'bg-primary/10' : '', grouped ? '' : 'mt-3 compact:mt-1']"
+      class="group relative flex gap-3 px-4 py-0.5 outline-none compact:py-0"
+      :class="[
+        highlighted || pinged ? 'bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15' : 'hover:bg-elevated/50 focus-visible:bg-elevated/70',
+        grouped ? '' : 'mt-3 compact:mt-1',
+      ]"
       @contextmenu="onContext"
       @keydown="onKey"
     >

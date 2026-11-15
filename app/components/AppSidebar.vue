@@ -121,7 +121,10 @@ const onDrop = (channelId: string) => {
                 :variant="p.dm && route.params.channelId === p.dm.id ? 'soft' : 'ghost'"
                 block
                 class="justify-start compact:py-1"
-                :class="[p.dm && unreadOf(p.dm.id).unread ? 'font-bold text-highlighted' : '', p.dm && isMuted(p.dm.id) ? 'opacity-50' : '']"
+                :class="[
+                  p.dm && unreadOf(p.dm.id).unread ? 'bg-primary/10 font-bold text-highlighted hover:bg-primary/15' : '',
+                  p.dm && isMuted(p.dm.id) ? 'opacity-50' : '',
+                ]"
                 @click="openDm(p)"
               >
                 <template #leading>
@@ -177,7 +180,11 @@ const onDrop = (channelId: string) => {
                 :variant="route.params.channelId === c.id ? 'soft' : 'ghost'"
                 block
                 class="justify-start compact:py-1"
-                :class="[unreadOf(c.id).unread ? 'font-bold text-highlighted' : '', isMuted(c.id) ? 'opacity-50' : '']"
+                :class="[
+                  unreadOf(c.id).unread ? 'font-bold text-highlighted' : '',
+                  unreadOf(c.id).mentions ? 'bg-primary/10 hover:bg-primary/15' : '',
+                  isMuted(c.id) ? 'opacity-50' : '',
+                ]"
               >
                 <template #trailing>
                   <UBadge

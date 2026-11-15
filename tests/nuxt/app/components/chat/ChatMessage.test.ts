@@ -3,7 +3,7 @@ import type { MessageDto } from '~~/server/db/messages'
 import { mockNuxtImport, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { nextTick, reactive } from 'vue'
 
 import ChatMessage from '~/components/chat/ChatMessage.vue'
 import EmojiPicker from '~/components/chat/EmojiPicker.vue'
@@ -87,6 +87,34 @@ function stubResizeObserver() {
   }
   return { observers, notify }
 }
+
+describe('message highlights', () => {
+  it('highlights mentions and replies to me, but not code, other users or my own messages', async () => {
+    const props = reactive({ message, grouped: false, highlighted: false })
+    const wrapper = await mountInApp(ChatMessage, props, { global: { provide: { [chatActionsKey as symbol]: actions } } })
+    const state = wrapper.findComponent(ChatMessage).vm as unknown as State
+    await vi.waitFor(() => expect(useNuxtData<{ id: string }>('me').data.value?.id).toBe('a'))
+    const update = async (changes: Partial<MessageDto>, highlighted = false) => {
+      props.message = { ...message, userId: 'b', ...changes }
+      props.highlighted = highlighted
+      await nextTick()
+    }
+    await vi.waitFor(() => expect(useNuxtData('channels').data.value).toEqual([{ id: 'c', type: 'text', name: 'general' }]))
+    await update({ body: 'hello <@a>' })
+    expect(state.root.classList).toContain('bg-primary/10')
+    expect(state.root.classList).toContain('hover:bg-primary/15')
+    await update({ replyTo: { id: 'original', userId: 'a', preview: 'hello', deleted: false } })
+    expect(state.root.classList).toContain('bg-primary/10')
+    await update({ body: '`<@a>` and <@someone-else>' })
+    expect(state.root.classList).not.toContain('bg-primary/10')
+    await update({ userId: 'a', body: '<@a>' })
+    expect(state.root.classList).not.toContain('bg-primary/10')
+    await update({}, true)
+    expect(state.root.classList).toContain('bg-primary/10')
+    await update({})
+    expect(state.root.classList).not.toContain('bg-primary/10')
+  })
+})
 
 describe('message toolbar positioning', () => {
   it('follows an earlier sibling growing using only the content resize signal while a menu keeps the toolbar visible', async () => {

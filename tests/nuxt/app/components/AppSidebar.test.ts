@@ -15,12 +15,15 @@ beforeAll(() => {
   registerEndpoint('/api/channels', () => [
     { id: 'source', type: 'voice', name: 'Source' },
     { id: 'target', type: 'voice', name: 'Target' },
+    { id: 'general', type: 'text', name: 'General' },
+    { id: 'dm', type: 'dm', otherUserId: 'user', lastActivityAt: 1 },
   ])
   registerEndpoint('/api/admin/voice/move', { method: 'POST', handler: async event => move(await readBody(event)) ?? {} })
 })
 beforeEach(() => {
   clearNuxtData()
   move.mockReset()
+  useUnread().counts.value = {}
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -42,6 +45,31 @@ async function mountSidebar(admin: boolean) {
   }
   return { row, avatar: row.firstElementChild!, source: channel('Source'), target: channel('Target'), fire }
 }
+
+it('highlights unread DM rows and channel pings, keeps badges on the right, and clears on read', async () => {
+  const unread = useUnread()
+  unread.set('dm', { unread: 3, mentions: 0 })
+  unread.set('general', { unread: 4, mentions: 1 })
+  const wrapper = await mountInApp(AppSidebar)
+  await vi.waitFor(() => expect(wrapper.find('a[href="/c/general"]').exists()).toBe(true))
+  const dm = () => wrapper.findAll('button').find(b => b.findAll('[data-slot="label"]').some(label => label.text() === 'User'))!
+  const channel = () => wrapper.find('a[href="/c/general"]')
+  await vi.waitFor(() => expect(dm()).toBeDefined())
+  expect(dm().classes()).toContain('bg-primary/10')
+  expect(dm().find('[aria-label="Unread messages"]').text()).toBe('3')
+  expect(dm().find('[aria-label="Unread messages"]').classes()).toContain('ml-auto')
+  expect(channel().classes()).toContain('bg-primary/10')
+  expect(channel().find('[aria-label="Mentions"]').text()).toBe('1')
+  expect(channel().find('[aria-label="Mentions"]').classes()).toContain('ml-auto')
+
+  unread.set('general', { unread: 3, mentions: 0 })
+  unread.set('dm', { unread: 0, mentions: 0 })
+  await nextTick()
+  expect(channel().classes()).not.toContain('bg-primary/10')
+  expect(channel().classes()).toContain('font-bold')
+  expect(dm().classes()).not.toContain('bg-primary/10')
+  expect(dm().find('[aria-label="Unread messages"]').exists()).toBe(false)
+})
 
 describe('voice member dragging', () => {
   it('rejects non-admin child-avatar drags without arming a target or moving', async () => {
