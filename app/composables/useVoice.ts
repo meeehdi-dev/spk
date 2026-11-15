@@ -54,6 +54,8 @@ const channelId = ref<string | null>(null)
 const connecting = ref(false)
 const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalReconnecting'>('disconnected')
 const audioBlocked = ref(false)
+const microphone = ref<'idle' | 'starting' | 'ready' | 'unavailable'>('idle')
+let pendingMicrophone: AbortController | undefined
 const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
 const presence = ref<Record<string, VoiceMember>>({})
@@ -162,7 +164,7 @@ export function useVoice() {
     socket.send({
       type: 'voice:state',
       sid,
-      muted: mute.value.muted,
+      muted: mute.value.muted || microphone.value !== 'ready',
       deafened: mute.value.deafened,
       speaking: speakingIds.has(me.value?.id ?? '') && !mute.value.muted,
       cam: camOn.value,
@@ -292,6 +294,64 @@ export function useVoice() {
     window.location.reload()
   }
 
+  async function enableMicrophone(permission?: Promise<undefined | Error>, r = room, connected?: Promise<void>) {
+    if (!r || pendingMicrophone || microphone.value === 'ready') return
+    const attempt = new AbortController()
+    pendingMicrophone = attempt
+    const { signal } = attempt
+    microphone.value = 'starting'
+    let track: LocalAudioTrack | undefined
+    const stop = () => track?.stop()
+    signal.addEventListener('abort', stop, { once: true })
+    try {
+      const [error, { MicProcessor }] = await Promise.all([
+        permission ??
+          allowMicrophone().then(
+            () => undefined,
+            () => new Error('Microphone access was denied'),
+          ),
+        import('~/utils/voice-processor'),
+      ])
+      signal.throwIfAborted()
+      if (error) throw error
+      const mic = matchDevice(settings.value.mic, devices.value.mics)
+      if (mic.deviceId) await r.switchActiveDevice('audioinput', mic.deviceId, false)
+      signal.throwIfAborted()
+      const tracks = await r.localParticipant.createTracks({ audio: captureOptions(mic.deviceId) })
+      track = tracks[0] as LocalAudioTrack
+      signal.throwIfAborted()
+      const nextProcessor = new MicProcessor(processing())
+      try {
+        await track.setProcessor(nextProcessor)
+      } catch (e) {
+        await nextProcessor.destroy()
+        throw e
+      }
+      signal.throwIfAborted()
+      track.stopOnMute = true
+      await connected // Prepare during connection, but never publish before the session is established.
+      signal.throwIfAborted()
+      if (mute.value.muted) await track.mute()
+      signal.throwIfAborted()
+      await r.localParticipant.publishTrack(track)
+      signal.throwIfAborted()
+      processor = nextProcessor
+      microphone.value = 'ready'
+      applyMute()
+    } catch (e) {
+      track?.stop() // Capture can finish after leaving; unpublished tracks need explicit cleanup.
+      await connected?.catch(() => {})
+      if (!signal.aborted && room === r) {
+        microphone.value = 'unavailable'
+        pushState()
+        toast.add({ title: 'Microphone unavailable. You can still listen.', description: (e as Error).message, color: 'warning', icon: 'i-lucide-mic-off' })
+      }
+    } finally {
+      signal.removeEventListener('abort', stop)
+      if (pendingMicrophone === attempt) pendingMicrophone = undefined
+    }
+  }
+
   async function join(id: string) {
     if (channelId.value === id || connecting.value) return
     connecting.value = true
@@ -306,7 +366,6 @@ export function useVoice() {
     })
     const signal = attempt.signal
     let r: Room | undefined
-    let localMic: LocalAudioTrack | undefined
     let claimed = false
     const stopSocketWatch = watchSocket(
       socket.connected,
@@ -317,21 +376,19 @@ export function useVoice() {
     )
     const cancel = () => {
       if (claimed) socket.send({ type: 'voice:leave', sid })
-      localMic?.stop()
       void r?.disconnect()
     }
     signal.addEventListener('abort', cancel, { once: true })
     try {
-      // Permission first: it unlocks device labels, which the saved-device matching needs.
-      try {
-        await allowMicrophone()
-      } catch {
-        throw new Error('Microphone access was denied')
-      }
-      signal.throwIfAborted()
-      const mic = matchDevice(settings.value.mic, devices.value.mics)
-      const { token, url } = await $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
-      const { Room, RoomEvent, Track, DisconnectReason } = await import('livekit-client')
+      // Permission must not block listening. Keep its error handled until microphone setup can use it.
+      const permission = allowMicrophone().then(
+        () => undefined,
+        () => new Error('Microphone access was denied'),
+      )
+      const [{ token, url }, { Room, RoomEvent, Track, DisconnectReason }] = await Promise.all([
+        $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id }, signal }),
+        import('livekit-client'),
+      ])
       signal.throwIfAborted()
       r = new Room({
         adaptiveStream: true,
@@ -339,7 +396,7 @@ export function useVoice() {
         disconnectOnPageLeave: false, // beforeunload can be cancelled; pagehide handles departure.
         publishDefaults: VOICE_PUBLISH_DEFAULTS,
         videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
-        audioCaptureDefaults: captureOptions(mic.deviceId),
+        audioCaptureDefaults: captureOptions(),
       })
       r.on(RoomEvent.TrackSubscribed, track => {
         if (signal.aborted || (room !== r && pendingJoin !== attempt) || track.kind !== Track.Kind.Audio) return
@@ -464,52 +521,32 @@ export function useVoice() {
         })
         const timeout = setTimeout(() => finish(new Error('Voice join timed out')), 5000)
         signal.addEventListener('abort', aborted, { once: true })
-        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: mute.value.muted, deafened: mute.value.deafened, watching: [] })
+        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: true, deafened: mute.value.deafened, watching: [] })
         if (!claimed) finish(new Error('Voice socket is not connected'))
       })
       signal.throwIfAborted()
-      await r.connect(url, token, { autoSubscribe: false })
-      signal.throwIfAborted()
-      // Autoplay can require a fresh user gesture; expose Enable audio after joining.
-      let playbackFailed = false
-      await r.startAudio().catch(() => {
-        playbackFailed = true
-      })
-      signal.throwIfAborted()
-      const { MicProcessor } = await import('~/utils/voice-processor') // browser-only: needs AudioWorkletNode
-      signal.throwIfAborted()
-      const tracks = await r.localParticipant.createTracks({ audio: captureOptions(mic.deviceId) })
-      localMic = tracks[0] as LocalAudioTrack
-      signal.throwIfAborted()
-      const nextProcessor = new MicProcessor(processing())
-      try {
-        await localMic.setProcessor(nextProcessor)
-      } catch (e) {
-        await nextProcessor.destroy()
-        throw e
-      }
-      signal.throwIfAborted()
-      localMic.stopOnMute = true
-      if (mute.value.muted) await localMic.mute() // release capture before publishing a remembered mute
-      signal.throwIfAborted()
-      await r.localParticipant.publishTrack(localMic)
+      const connected = r.connect(url, token, { autoSubscribe: false })
+      void enableMicrophone(permission, r, connected)
+      await connected
       signal.throwIfAborted()
       room = r
       connection.value = 'connected'
-      audioBlocked.value = playbackFailed || !r.canPlaybackAudio
-      processor = nextProcessor
-      rebuild()
+      audioBlocked.value = !r.canPlaybackAudio
       channelId.value = id
-      socket.send({ type: 'voice:ready', sid }) // LiveKit is connected: show us to everyone
+      rebuild()
+      socket.send({ type: 'voice:ready', sid }) // Listening is ready; the microphone can follow later.
       lastSent = 0
-      applyMute() // the mic is published first so unmuting works; a remembered mute applies now
+      pushState()
       startPing(r)
       playVoiceSound('join')
+      void enableAudio()
     } catch (e) {
+      pendingMicrophone?.abort()
+      pendingMicrophone = undefined
+      microphone.value = 'idle'
       if (claimed) socket.send({ type: 'voice:leave', sid })
       pendingJoin = undefined
       clearSpeaking()
-      localMic?.stop() // disconnect cannot stop a track that has not been published yet
       await r?.disconnect()
       if (!signal.aborted || signal.reason?.name !== 'AbortError') {
         toast.add({
@@ -567,6 +604,9 @@ export function useVoice() {
     retryChannelId.value = null
     connection.value = 'disconnected'
     audioBlocked.value = false
+    pendingMicrophone?.abort()
+    pendingMicrophone = undefined
+    microphone.value = 'idle'
     const pending = pendingJoin
     pending?.abort()
     const r = room
@@ -983,15 +1023,19 @@ export function useVoice() {
     connecting,
     connection,
     audioBlocked,
+    microphone,
     retryChannelId,
     connectionLabel: computed(() => {
       if (connecting.value) return 'Connecting…'
       if (connection.value === 'reconnecting') return 'Voice reconnecting…'
       if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
       if (audioBlocked.value) return 'Audio playback blocked'
+      if (microphone.value === 'starting') return 'Connected · Setting up microphone…'
+      if (microphone.value === 'unavailable') return 'Connected · Microphone unavailable'
       return connection.value === 'connected' ? 'Connected' : 'Not connected'
     }),
     enableAudio,
+    enableMicrophone: () => enableMicrophone(),
     reconnect,
     syncState: () => {
       lastSent = 0
@@ -1105,7 +1149,11 @@ export function useVoiceLive() {
         presence.value = Object.fromEntries(r.map(({ userId, ...m }) => [userId, m]))
       })
       .catch(() => {})
-  onMounted(load)
+  onMounted(() => {
+    // Warm browser code only; permission and capture still require joining.
+    void Promise.all([import('livekit-client'), import('~/utils/voice-processor')]).catch(() => {})
+    void load()
+  })
   onMounted(() => {
     let intent: { userId: string; channelId: string; mute: typeof mute.value } | null
     try {
@@ -1146,7 +1194,7 @@ export function useVoiceLive() {
         type: 'voice:join',
         channelId: v.channelId.value,
         sid,
-        muted: v.mute.value.muted,
+        muted: v.mute.value.muted || v.microphone.value !== 'ready',
         deafened: v.mute.value.deafened,
         watching: v.watching.value,
         ready: v.connection.value === 'connected' || v.connection.value === 'signalReconnecting',

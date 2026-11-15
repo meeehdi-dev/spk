@@ -19,6 +19,7 @@ const message = computed(() => {
   if (v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
   else if (v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
   if (v.audioBlocked.value) parts.push('Audio playback is blocked. Enable audio to hear the call.')
+  if (v.channelId.value && v.microphone.value === 'unavailable') parts.push('Your microphone is unavailable. You can still listen.')
   if (v.retryChannelId.value) parts.push('Voice disconnected. Rejoin when you are ready.')
   return parts.join(' ')
 })
@@ -29,6 +30,7 @@ const message = computed(() => {
     <UAlert v-if="message" :title="message" icon="i-lucide-wifi-off" color="warning" variant="soft" class="rounded-none">
       <template #actions>
         <UButton v-if="v.audioBlocked.value" label="Enable audio" icon="i-lucide-volume-2" @click="v.enableAudio()" />
+        <UButton v-if="v.channelId.value && v.microphone.value === 'unavailable'" label="Enable microphone" icon="i-lucide-mic" @click="v.enableMicrophone()" />
         <UButton
           v-if="v.retryChannelId.value"
           label="Rejoin voice"

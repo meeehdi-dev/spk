@@ -91,7 +91,11 @@ const { media, MockRoom } = vi.hoisted(() => {
   const media = { rooms: [] as MockRoom[], connect: undefined as undefined | (() => Promise<void>) }
   return { media, MockRoom }
 })
-vi.mock('~/utils/voice-processor', () => ({ MicProcessor: vi.fn() }))
+vi.mock('~/utils/voice-processor', () => ({
+  MicProcessor: class {
+    destroy = vi.fn(async () => {})
+  },
+}))
 vi.mock('livekit-client', () => ({
   Track: { Kind: { Audio: 'audio' } },
   RoomEvent: Object.fromEntries(
@@ -122,6 +126,7 @@ type Frame = Record<string, unknown>
 let clients: Array<{ userId: string; receive: (m: Frame) => void; owner: { send: (s: string) => void } }>
 let frames: Frame[]
 let ack: boolean
+let leaveBrowsers: Array<() => Promise<void>>
 let db: ReturnType<typeof createDb>
 const sound = vi.fn()
 const toast = vi.fn()
@@ -165,6 +170,7 @@ async function browser(userId: string, initiallyConnected = true) {
   const mod = await import('~/composables/useVoice')
   mod.useVoiceLive()
   const v = mod.useVoice()
+  leaveBrowsers.push(() => v.leave(false))
   const restoreAfterUpdate = mocks.onMounted.mock.calls.at(-2)![0] as () => void
   return { ...mod, v, receive, send, connected, handlers, owner, me, restoreAfterUpdate, opened: () => opened() }
 }
@@ -180,6 +186,7 @@ beforeEach(() => {
     ])
     .run()
   clients = []
+  leaveBrowsers = []
   frames = []
   ack = true
   media.rooms = []
@@ -213,6 +220,7 @@ beforeEach(() => {
   })
 })
 afterEach(async () => {
+  for (const leave of leaveBrowsers) await leave()
   for (const c of clients) dropVoiceSocket(c.owner)
   db.$client.close()
   vi.useRealTimers()
@@ -222,6 +230,72 @@ afterEach(async () => {
 })
 
 describe('acknowledged voice join', () => {
+  it('prepares voice code on mount without requesting microphone access or joining', async () => {
+    const capture = vi.spyOn(navigator.mediaDevices, 'getUserMedia')
+    const b = await browser('preload')
+    const mounted = mocks.onMounted.mock.calls[0]![0] as () => void
+    mounted()
+    await flush()
+    expect(capture).not.toHaveBeenCalled()
+    expect(media.rooms).toHaveLength(0)
+    expect(b.send).not.toHaveBeenCalled()
+  })
+
+  it('connects and starts listening while microphone permission is still pending', async () => {
+    let allow!: (stream: MediaStream) => void
+    const permission = vi.spyOn(navigator.mediaDevices, 'getUserMedia').mockImplementation(
+      () =>
+        new Promise(resolve => {
+          allow = resolve
+        }),
+    )
+    let authorize!: (token: { token: string; url: string }) => void
+    const token = vi.fn(
+      () =>
+        new Promise<{ token: string; url: string }>(resolve => {
+          authorize = resolve
+        }),
+    )
+    vi.stubGlobal('$fetch', token)
+    const b = await browser('parallel')
+    const joining = b.v.join('c1')
+    await vi.waitFor(() => expect(permission).toHaveBeenCalled())
+    expect(token).toHaveBeenCalledWith('/api/voice/token', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(media.rooms).toHaveLength(0)
+    authorize({ token: 'token', url: 'url' })
+    await joining
+    const r = media.rooms[0]!
+    expect(b.v.channelId.value).toBe('c1')
+    expect(b.v.connecting.value).toBe(false)
+    expect(b.v.connectionLabel.value).toBe('Connected · Setting up microphone…')
+    expect(r.startAudio).toHaveBeenCalled()
+    expect(r.localParticipant.createTracks).not.toHaveBeenCalled()
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'parallel')).toMatchObject({ muted: true })
+    const stop = vi.fn()
+    allow({ getTracks: () => [{ stop }] } as unknown as MediaStream)
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    expect(stop).toHaveBeenCalled()
+    expect(r.localParticipant.publishTrack).toHaveBeenCalledWith(r.mic)
+    await vi.waitFor(() => expect(sessions.voiceSnapshot().find(p => p.userId === 'parallel')).toMatchObject({ muted: false }))
+    await b.v.leave()
+  })
+
+  it('keeps listening when microphone permission is denied and can retry without reconnecting', async () => {
+    const b = await browser('denied')
+    const capture = vi.spyOn(navigator.mediaDevices, 'getUserMedia').mockRejectedValue(new Error('NotAllowedError'))
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('unavailable'))
+    expect(b.v.channelId.value).toBe('c1')
+    expect(media.rooms[0]!.disconnect).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Microphone access was denied' }))
+    expect(b.v.connecting.value).toBe(false)
+    capture.mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream)
+    await b.v.enableMicrophone()
+    expect(b.v.microphone.value).toBe('ready')
+    expect(media.rooms).toHaveLength(1)
+    await b.v.leave()
+  })
+
   it('keeps voice connected through the unload prompt and only leaves on pagehide', async () => {
     const b = await browser('reload')
     await b.v.join('c1')
@@ -354,6 +428,39 @@ describe('acknowledged voice join', () => {
     expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(true)
   })
 
+  it('prepares the microphone during connection but waits to publish and respects a mute changed meanwhile', async () => {
+    const b = await browser('overlap')
+    let release!: () => void
+    media.connect = () => new Promise<void>(resolve => (release = resolve))
+    const joining = b.v.join('c1')
+    await vi.waitFor(() => expect(media.rooms[0]?.mic.setProcessor).toHaveBeenCalled())
+    const r = media.rooms[0]!
+    expect(r.localParticipant.publishTrack).not.toHaveBeenCalled()
+    expect(b.v.channelId.value).toBeNull()
+    b.v.toggleMic()
+    r.localParticipant.publishTrack.mockImplementation(async () => {
+      expect(r.mic.mute).toHaveBeenCalled()
+    })
+    release()
+    await joining
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'overlap')).toMatchObject({ muted: true })
+  })
+
+  it('does not let slow playback startup block joining or microphone setup', async () => {
+    const b = await browser('slow-playback')
+    let release!: () => void
+    media.connect = async () => {
+      media.rooms[0]!.startAudio.mockImplementation(() => new Promise<void>(resolve => (release = resolve)))
+    }
+    await b.v.join('c1')
+    expect(b.v.channelId.value).toBe('c1')
+    expect(b.v.connecting.value).toBe(false)
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    release()
+    await flush()
+  })
+
   it('initializes the processor before muting and publishes only after capture is released', async () => {
     const b = await browser('early')
     b.v.toggleMic()
@@ -375,6 +482,7 @@ describe('acknowledged voice join', () => {
       })
     }
     await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
     expect(order).toEqual(['processor', 'mute', 'publish'])
     expect(media.rooms[0]!.mic.setProcessor).toHaveBeenCalledWith(expect.any(Object))
   })
@@ -396,9 +504,50 @@ describe('acknowledged voice join', () => {
     await b.v.leave(false)
     release()
     await joining
-    expect(media.rooms[0]!.mic.stop).toHaveBeenCalled()
+    await vi.waitFor(() => expect(media.rooms[0]!.mic.stop).toHaveBeenCalled())
     expect(media.rooms[0]!.mic.setProcessor).not.toHaveBeenCalled()
     expect(media.rooms[0]!.localParticipant.publishTrack).not.toHaveBeenCalled()
+  })
+
+  it('does not let late microphone capture disturb a newer channel', async () => {
+    const b = await browser('late-mic')
+    let release!: () => void
+    media.connect = async () => {
+      const r = media.rooms[0]!
+      r.localParticipant.createTracks.mockImplementation(async () => {
+        await new Promise<void>(resolve => {
+          release = resolve
+        })
+        return [r.mic]
+      })
+    }
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const original = media.rooms[0]!
+    media.connect = undefined
+    await b.v.join('c2')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    release()
+    await vi.waitFor(() => expect(original.mic.stop).toHaveBeenCalled())
+    expect(original.localParticipant.publishTrack).not.toHaveBeenCalled()
+    expect(b.v.channelId.value).toBe('c2')
+    expect(b.v.microphone.value).toBe('ready')
+    expect(media.rooms[1]!.mic.stop).not.toHaveBeenCalled()
+  })
+
+  it('keeps listening and releases capture if microphone processing fails', async () => {
+    const b = await browser('processor-failed')
+    media.connect = async () => {
+      media.rooms[0]!.mic.setProcessor.mockRejectedValueOnce(new Error('Processor failed'))
+    }
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('unavailable'))
+    const r = media.rooms[0]!
+    expect(r.mic.stop).toHaveBeenCalled()
+    expect(r.localParticipant.publishTrack).not.toHaveBeenCalled()
+    expect(r.disconnect).not.toHaveBeenCalled()
+    expect(b.v.channelId.value).toBe('c1')
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'processor-failed')).toMatchObject({ muted: true })
   })
 
   it('replaces the middle browser before connecting, without observer sounds or reordering', async () => {
@@ -549,7 +698,8 @@ describe('acknowledged voice join', () => {
     expect(sessions.sessionOf('middle')?.channelId).toBe('c1')
     media.connect = async () => {
       expect(original.disconnect).toHaveBeenCalled()
-      expect(original.localParticipant.createTracks).not.toHaveBeenCalled()
+      expect(original.mic.stop).toHaveBeenCalled()
+      expect(original.localParticipant.publishTrack).not.toHaveBeenCalled()
       expect(sessions.sessionOf('middle')?.channelId).toBe('c2')
     }
     b.receive({ type: 'voice:move', sid: b.v.sid, channelId: 'c2' })
@@ -604,7 +754,8 @@ describe('acknowledged voice join', () => {
     await flush()
     expect(media.rooms).toHaveLength(1)
     expect(b.send.mock.calls.filter(([m]) => m.type === 'voice:join').map(([m]) => m.channelId)).toEqual(['c1'])
-    expect(original.localParticipant.createTracks).not.toHaveBeenCalled()
+    expect(original.mic.stop).toHaveBeenCalled()
+    expect(original.localParticipant.publishTrack).not.toHaveBeenCalled()
     expect(b.v.channelId.value).toBeNull()
     expect(b.v.activeRoom()).toBeUndefined()
     expect(b.v.connecting.value).toBe(false)

@@ -12,6 +12,8 @@ const state = await vi.hoisted(async () => {
     voice: {
       connection: ref('connected'),
       audioBlocked: ref(false),
+      microphone: ref('ready'),
+      enableMicrophone: vi.fn(),
       retryChannelId: ref<string | null>(null),
       channelId: ref<string | null>('voice'),
       connecting: ref(false),
@@ -30,6 +32,7 @@ beforeEach(() => {
   state.socket.offline.value = false
   state.voice.connection.value = 'connected'
   state.voice.audioBlocked.value = false
+  state.voice.microphone.value = 'ready'
   state.voice.retryChannelId.value = null
   state.voice.channelId.value = 'voice'
   vi.clearAllMocks()
@@ -55,6 +58,18 @@ it('announces app versus media interruptions and only notifies once per transiti
   state.socket.offline.value = false
   await nextTick()
   expect(state.toast).toHaveBeenCalledTimes(2)
+})
+
+it('offers microphone retry without leaving the listening connection', async () => {
+  state.voice.microphone.value = 'unavailable'
+  const wrapper = await mountInApp(ConnectionNotice)
+  expect(wrapper.text()).toContain('You can still listen')
+  const button = wrapper.findAll('button').find(b => b.text() === 'Enable microphone')!
+  await button.trigger('click')
+  expect(state.voice.enableMicrophone).toHaveBeenCalledOnce()
+  state.voice.microphone.value = 'ready'
+  await nextTick()
+  expect(wrapper.text()).toBe('')
 })
 
 it('offers click-to-enable playback and an explicit terminal rejoin', async () => {

@@ -133,6 +133,7 @@ async function setup(supported = true) {
   mod.useVoiceLive()
   voice = mod.useVoice()
   await voice.join('channel')
+  await vi.waitFor(() => expect(voice.microphone.value).toBe('ready'))
   expect(voice.channelId.value).toBe('channel')
   return media.rooms[0]!
 }
@@ -196,7 +197,9 @@ describe('microphone lifecycle', () => {
     await voice.refreshDevices()
     expect(capture).not.toHaveBeenCalled()
     await voice.join('channel')
+    await vi.waitFor(() => expect(voice.microphone.value).toBe('ready'))
     expect(capture).not.toHaveBeenCalled()
+    expect(media.rooms[0]!.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'mac', false)
     expect(media.rooms[0]!.localParticipant.createTracks).toHaveBeenCalledWith({ audio: expect.objectContaining({ deviceId: 'mac' }) })
   })
 

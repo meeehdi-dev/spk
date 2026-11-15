@@ -21,18 +21,20 @@ const c = computed(() => {
   const sharing = v.screenOn.value || v.screenBusy.value
   const none = !v.channelId.value
   switch (props.kind) {
-    case 'mic':
+    case 'mic': {
+      const unavailable = !none && v.microphone.value === 'unavailable'
       return {
-        icon: muted ? 'i-lucide-mic-off' : 'i-lucide-mic',
-        on: muted,
+        icon: muted || unavailable ? 'i-lucide-mic-off' : 'i-lucide-mic',
+        on: muted || unavailable,
         color: 'error' as const,
-        text: muted ? 'Unmute' : 'Mute',
-        tip: 'Mute / unmute',
+        text: unavailable ? 'Enable microphone' : muted ? 'Unmute' : 'Mute',
+        tip: unavailable ? 'Enable microphone' : 'Mute / unmute',
         kbd: 'M',
         options: 'Microphone options',
         disabled: false,
-        click: () => v.toggleMic(),
+        click: () => (unavailable ? v.enableMicrophone() : v.toggleMic()),
       }
+    }
     case 'deafen':
       return {
         icon: deafened ? 'i-lucide-headphone-off' : 'i-lucide-headphones',

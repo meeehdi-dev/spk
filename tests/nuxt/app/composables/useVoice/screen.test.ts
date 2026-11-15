@@ -230,6 +230,7 @@ beforeEach(async () => {
   })
   v = (await import('~/composables/useVoice')).useVoice()
   await v.join('channel')
+  await vi.waitFor(() => expect(v.microphone.value).toBe('ready'))
   expect(toast.mock.calls).toEqual([])
   r = media.rooms[0]!
   p = r.localParticipant

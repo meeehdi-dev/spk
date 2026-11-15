@@ -11,6 +11,7 @@ mockNuxtImport('useSocket', () => () => ({ connected: { value: true }, send: () 
 afterEach(() => {
   const v = useVoice()
   v.channelId.value = null
+  v.microphone.value = 'idle'
   v.screenDialog.value = false
   v.mute.value.muted = false
   v.mute.value.deafened = false
@@ -39,6 +40,19 @@ describe('control styling', () => {
         expect(button.props('variant')).toBe(active ? 'soft' : 'ghost')
       }
     }
+  })
+})
+
+describe('microphone control', () => {
+  it('offers retry instead of a misleading mute action when the microphone is unavailable', async () => {
+    const v = useVoice()
+    v.channelId.value = 'channel'
+    v.microphone.value = 'unavailable'
+    const wrapper = await mountInApp(VoiceControl, { kind: 'mic' })
+    const button = wrapper.get('button[aria-label="Enable microphone"]')
+    await button.trigger('click')
+    expect(v.mute.value.muted).toBe(false)
+    expect(wrapper.findAllComponents(UButton)[0]!.props('icon')).toBe('i-lucide-mic-off')
   })
 })
 
