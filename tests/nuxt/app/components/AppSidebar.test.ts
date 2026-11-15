@@ -79,7 +79,7 @@ it('highlights unread DM rows and channel pings, keeps badges on the right, and 
 it('shows a non-actionable radio indicator matching the camera control only while listening', async () => {
   member.cam = true
   const wrapper = await mountInApp(AppSidebar)
-  await vi.waitFor(() => expect(wrapper.find('[data-member]').exists()).toBe(true))
+  await vi.waitFor(() => expect(wrapper.find('[data-member] [aria-label="Watch User\'s camera"]').exists()).toBe(true))
   const indicator = () => wrapper.find('[data-member] [aria-label="Listening to radio"]')
   expect(indicator().exists()).toBe(false)
   member.radioListening = true
