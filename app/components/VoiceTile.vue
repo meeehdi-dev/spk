@@ -43,6 +43,7 @@ watchEffect(onCleanup => {
 
 const watchers = computed(() => (props.tile.screenLive ? watchersOf(props.tile.userId) : []))
 const soundIcon = computed(() => v.playing.value[props.tile.userId])
+const member = computed(() => voiceMembers(v.channelId.value ?? '').find(m => m.userId === props.tile.userId))
 const vol = computed(() => userVolume(v.volumes.value, props.tile.userId))
 const watchToggle = () => v.watch(props.tile.userId, !props.tile.watching)
 const items = computed(() =>
@@ -132,6 +133,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
       <span class="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
         <span class="min-w-0 truncate">{{ tile.local ? 'You' : nameOf(tile.userId) }}</span>
+        <UIcon v-if="member?.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
+        <UIcon v-else-if="member?.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
         <span v-if="tile.screenLive && tile.screenQuality" class="shrink-0 border-l border-default pl-1.5 text-[10px] whitespace-nowrap">
           {{ tile.screenQuality.height }}p · {{ tile.screenQuality.fps }} fps
         </span>

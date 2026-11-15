@@ -8,8 +8,13 @@ import { mountInApp } from '~~/tests/fixtures/app'
 
 const voice = await vi.hoisted(async () => {
   const { ref } = await import('vue')
-  return { playing: ref({}), volumes: ref({}), watch: vi.fn() }
+  return { channelId: ref('voice'), playing: ref({}), volumes: ref({}), watch: vi.fn() }
 })
+const members = await vi.hoisted(async () => {
+  const { ref } = await import('vue')
+  return ref([{ userId: 'remote', muted: false, deafened: false }])
+})
+mockNuxtImport('voiceMembers', () => () => members.value)
 const fullscreen = vi.hoisted(() => ({ toggle: vi.fn(), exit: vi.fn() }))
 mockNuxtImport('useFullscreen', () => () => fullscreen)
 mockNuxtImport('useVoice', () => () => voice)
@@ -24,6 +29,29 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  members.value = [{ userId: 'remote', muted: false, deafened: false }]
+})
+
+it('updates mute and deafen icons beside the name, with deafen taking priority', async () => {
+  const tile = reactive({ userId: 'remote', local: false, watching: false, screenLive: false, camLive: false })
+  const wrapper = await mountInApp(VoiceTile, { tile, theater: false })
+  const muted = () => wrapper.find('[aria-label="Muted"]')
+  const deafened = () => wrapper.find('[aria-label="Deafened"]')
+
+  expect(muted().exists()).toBe(false)
+  expect(deafened().exists()).toBe(false)
+  members.value[0]!.muted = true
+  await nextTick()
+  expect(muted().classes()).toContain('i-lucide:mic-off')
+  members.value[0]!.deafened = true
+  await nextTick()
+  expect(muted().exists()).toBe(false)
+  expect(deafened().classes()).toContain('i-lucide:headphone-off')
+  members.value[0]!.muted = false
+  members.value[0]!.deafened = false
+  await nextTick()
+  expect(muted().exists()).toBe(false)
+  expect(deafened().exists()).toBe(false)
 })
 
 describe('screen controls', () => {
