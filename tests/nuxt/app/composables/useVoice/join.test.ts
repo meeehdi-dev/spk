@@ -123,10 +123,10 @@ const flush = async () => {
   for (let i = 0; i < 30; i++) await Promise.resolve()
 }
 
-async function browser(userId: string) {
+async function browser(userId: string, initiallyConnected = true) {
   vi.resetModules()
   const handlers = new Set<(m: Frame) => void>()
-  const connected = ref(true)
+  const connected = ref(initiallyConnected)
   const receive = (m: Frame) => {
     for (const h of handlers) h(m)
   }
@@ -150,14 +150,17 @@ async function browser(userId: string) {
     },
     onOpen: vi.fn(),
   }))
-  mocks.useMe.mockImplementation(() => ({ data: ref({ id: userId }) }))
+  const me = ref<{ id: string } | null>({ id: userId })
+  mocks.useMe.mockImplementation(() => ({ data: me }))
   const mod = await import('~/composables/useVoice')
   mod.useVoiceLive()
   const v = mod.useVoice()
-  return { ...mod, v, receive, send, connected, handlers, owner }
+  const restoreAfterUpdate = mocks.onMounted.mock.calls.at(-2)![0] as () => void
+  return { ...mod, v, receive, send, connected, handlers, owner, me, restoreAfterUpdate }
 }
 
 beforeEach(() => {
+  sessionStorage.clear()
   db = createDb(':memory:')
   db.insert(channels)
     .values([
@@ -204,6 +207,7 @@ afterEach(async () => {
   db.$client.close()
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   for (const mock of Object.values(mocks)) mock.mockReset()
 })
 
@@ -233,6 +237,89 @@ describe('acknowledged voice join', () => {
     expect(b.v.channelId.value).toBeNull()
     expect(sessions.sessionOf('reload')).toBeNull()
     expect(sound).not.toHaveBeenCalled()
+  })
+
+  it('rejoins once after an update when auth and the socket are ready, preserving deafen and its restore state', async () => {
+    const b = await browser('update')
+    await b.v.join('c1')
+    b.v.toggleHeadphones()
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    b.v.reloadForUpdate()
+    expect(reload).toHaveBeenCalledOnce()
+    expect(JSON.parse(sessionStorage.getItem('spk:update-voice')!)).toEqual({
+      userId: 'update',
+      channelId: 'c1',
+      mute: { muted: true, deafened: true, restore: false },
+    })
+    const beforeUnload = mocks.useEventListener.mock.calls.find(([, event]) => event === 'beforeunload')![2]
+    const event = new Event('beforeunload', { cancelable: true })
+    beforeUnload(event)
+    expect(event.defaultPrevented).toBe(false)
+    await b.v.leave(false)
+
+    const next = await browser('update', false)
+    next.me.value = null
+    next.restoreAfterUpdate()
+    expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+    next.connected.value = true
+    await flush()
+    expect(next.v.channelId.value).toBeNull()
+    next.me.value = { id: 'update' }
+    await vi.waitFor(() => expect(next.v.channelId.value).toBe('c1'))
+    expect(media.rooms.at(-1)!.mic.mute).toHaveBeenCalled()
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'update')).toMatchObject({ muted: true, deafened: true })
+    next.v.toggleHeadphones()
+    expect(next.v.mute.value).toEqual({ muted: false, deafened: false, restore: false })
+    await next.v.leave(false)
+    next.connected.value = false
+    await flush()
+    next.connected.value = true
+    await flush()
+    expect(next.v.channelId.value).toBeNull()
+  })
+
+  it('does not autojoin on ordinary reloads or restore another account’s intent', async () => {
+    const b = await browser('ordinary')
+    b.restoreAfterUpdate()
+    await flush()
+    expect(media.rooms).toHaveLength(0)
+    sessionStorage.setItem(
+      'spk:update-voice',
+      JSON.stringify({
+        userId: 'other',
+        channelId: 'c1',
+        mute: { muted: false, deafened: false, restore: false },
+      }),
+    )
+    b.restoreAfterUpdate()
+    await flush()
+    expect(media.rooms).toHaveLength(0)
+    expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+  })
+
+  it('consumes an update intent even when reconnecting fails', async () => {
+    sessionStorage.setItem(
+      'spk:update-voice',
+      JSON.stringify({
+        userId: 'failed-update',
+        channelId: 'c1',
+        mute: { muted: true, deafened: false, restore: true },
+      }),
+    )
+    media.connect = async () => {
+      throw new Error('Offline')
+    }
+    const b = await browser('failed-update')
+    b.restoreAfterUpdate()
+    await flush()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not join voice' }))
+    expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+    b.connected.value = false
+    await flush()
+    b.connected.value = true
+    await flush()
+    expect(media.rooms).toHaveLength(1)
+    expect(b.v.channelId.value).toBeNull()
   })
 
   it('keeps mute across leave and applies it on join', async () => {

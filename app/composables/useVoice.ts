@@ -99,6 +99,8 @@ let processor: MicProcessor | undefined
 let pendingJoin: AbortController | undefined
 let pendingJoinDone: Promise<void> | undefined
 let moveEpoch = 0
+const updateVoiceKey = 'spk:update-voice'
+let reloadingForUpdate = false
 
 const asSaved = (d: SavedDevice): SavedDevice => ({ deviceId: d.deviceId, label: d.label })
 
@@ -249,6 +251,18 @@ export function useVoice() {
     })
     applyOutput()
     pushState()
+  }
+
+  function reloadForUpdate() {
+    try {
+      if (channelId.value) sessionStorage.setItem(updateVoiceKey, JSON.stringify({ userId: me.value?.id, channelId: channelId.value, mute: mute.value }))
+      else sessionStorage.removeItem(updateVoiceKey)
+    } catch {
+      toast.add({ title: 'Could not prepare update. Please try again.', color: 'error' })
+      return
+    }
+    reloadingForUpdate = true
+    window.location.reload()
   }
 
   async function join(id: string) {
@@ -879,6 +893,7 @@ export function useVoice() {
     setVolume,
     volumeItems,
     join,
+    reloadForUpdate,
     move,
     leave,
     toggleMic,
@@ -943,6 +958,38 @@ export function useVoiceLive() {
       })
       .catch(() => {})
   onMounted(load)
+  onMounted(() => {
+    let intent: { userId: string; channelId: string; mute: typeof mute.value } | null
+    try {
+      const saved = sessionStorage.getItem(updateVoiceKey)
+      sessionStorage.removeItem(updateVoiceKey) // Consume before joining, including when the join fails.
+      intent = saved ? JSON.parse(saved) : null
+    } catch {
+      return
+    }
+    if (
+      !intent ||
+      typeof intent.userId !== 'string' ||
+      typeof intent.channelId !== 'string' ||
+      typeof intent.mute?.muted !== 'boolean' ||
+      typeof intent.mute?.deafened !== 'boolean' ||
+      typeof intent.mute?.restore !== 'boolean' ||
+      (intent.mute.deafened && !intent.mute.muted)
+    )
+      return
+    watch(
+      () => socket.connected.value && !!v.me.value,
+      ready => {
+        if (!ready || !intent) return
+        const saved = intent
+        intent = null
+        if (saved.userId !== v.me.value?.id || v.channelId.value || v.connecting.value) return
+        v.mute.value = saved.mute
+        void v.join(saved.channelId)
+      },
+      { immediate: true },
+    )
+  })
   socket.onOpen(() => {
     void load()
     // The server drops our session when the socket closes; take it back after a reconnect.
@@ -1010,7 +1057,7 @@ export function useVoiceLive() {
     }
   })
   useEventListener(window, 'beforeunload', e => {
-    if (v.channelId.value) e.preventDefault()
+    if (v.channelId.value && !reloadingForUpdate) e.preventDefault()
   })
   useEventListener(window, 'pagehide', () => {
     void v.leave(false)

@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import setup from '~/plugins/pwa.client'
 
-const { add, navigate } = vi.hoisted(() => ({ add: vi.fn(), navigate: vi.fn() }))
+const { add, navigate, reloadForUpdate } = vi.hoisted(() => ({ add: vi.fn(), navigate: vi.fn(), reloadForUpdate: vi.fn() }))
+mockNuxtImport('useVoice', () => () => ({ reloadForUpdate }))
 mockNuxtImport('useToast', () => () => ({ add }))
 mockNuxtImport('navigateTo', () => navigate)
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  reloadForUpdate.mockImplementation(() => window.location.reload())
+})
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
@@ -21,8 +25,9 @@ function setupClient(dev = false, workerSupported = true) {
   const addEventListener = vi.fn()
   const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
   vi.stubGlobal('navigator', workerSupported ? { serviceWorker: { register, addEventListener } } : {})
-  ;(setup as unknown as (app: { hook: (name: string, handler: (meta?: { id: string }) => void) => void }) => void)({
+  ;(setup as unknown as (app: { hook: (name: string, handler: (meta?: { id: string }) => void) => void; runWithContext: (fn: () => void) => void }) => void)({
     hook: (name, handler) => hooks.set(name, handler),
+    runWithContext: fn => fn(),
   })
   return { hooks, register, addEventListener, reload }
 }
@@ -38,7 +43,8 @@ describe('PWA client', () => {
     expect(add).toHaveBeenCalledExactlyOnceWith({
       id: 'app-update',
       title: 'Update available',
-      description: 'Refreshing disconnects voice and loses unsent GIFs, attachments and replies. Draft text is saved.',
+      description:
+        'Refreshing briefly disconnects voice, then rejoins automatically. Camera and screen sharing stop. Unsent GIFs, attachments and replies are lost. Draft text is saved.',
       duration: 0,
       actions: [{ label: 'Refresh', onClick: expect.any(Function) }],
     })
@@ -47,6 +53,7 @@ describe('PWA client', () => {
     expect(add).toHaveBeenCalledTimes(2)
     expect(reload).not.toHaveBeenCalled()
     add.mock.calls[0]![0].actions[0].onClick()
+    expect(reloadForUpdate).toHaveBeenCalledOnce()
     expect(reload).toHaveBeenCalledOnce()
   })
 

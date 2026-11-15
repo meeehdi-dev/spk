@@ -9,9 +9,10 @@ export default defineNuxtPlugin(nuxtApp => {
     toast.add({
       id: 'app-update',
       title: 'Update available',
-      description: 'Refreshing disconnects voice and loses unsent GIFs, attachments and replies. Draft text is saved.',
+      description:
+        'Refreshing briefly disconnects voice, then rejoins automatically. Camera and screen sharing stop. Unsent GIFs, attachments and replies are lost. Draft text is saved.',
       duration: 0,
-      actions: [{ label: 'Refresh', onClick: () => window.location.reload() }],
+      actions: [{ label: 'Refresh', onClick: () => nuxtApp.runWithContext(() => useVoice().reloadForUpdate()) }],
     })
   })
 
