@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { describe, expect, it } from 'vitest'
 
 import { MAX_SOUND_BYTES } from '#shared/utils/sounds'
@@ -17,6 +19,14 @@ describe('checkSoundSize', () => {
 
 describe('sounds', () => {
   test.beforeEach(({ db }) => addUser(db, 'a', { role: 'admin' }))
+
+  test('lists sounds alphabetically regardless of case without changing their names', ({ db }) => {
+    for (const name of ['zebra', 'Banana', 'apple', 'Apricot']) {
+      createSound(db, 'a', { id: randomUUID(), name, icon: 'bell', durationMs: 1000, size: 5000 }, 5000)
+    }
+
+    expect(listSounds(db).map(sound => sound.name)).toEqual(['apple', 'Apricot', 'Banana', 'zebra'])
+  })
 
   test('saves only an uploaded object of the announced size, then edits name and icon and deletes', ({ db }) => {
     const body = { id, name: ' Airhorn ', icon: 'siren', durationMs: 2000, size: 5000 }

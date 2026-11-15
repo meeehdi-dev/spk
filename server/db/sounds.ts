@@ -48,7 +48,12 @@ export function createSound(
 }
 
 export const listSounds = (db: Db) =>
-  db.select({ id: sounds.id, name: sounds.name, icon: sounds.icon, durationMs: sounds.durationMs }).from(sounds).orderBy(sounds.name).all()
+  db
+    .select({ id: sounds.id, name: sounds.name, icon: sounds.icon, durationMs: sounds.durationMs })
+    .from(sounds)
+    .orderBy(sounds.name)
+    .all()
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'accent' }))
 
 export const getSound = (db: Db, id: string) => db.select().from(sounds).where(eq(sounds.id, id)).get()
 
