@@ -13,12 +13,15 @@ const mainEl = ref<HTMLVideoElement>()
 const cornerEl = ref<HTMLVideoElement>()
 const preview = ref(false)
 const hovered = ref(false)
-const { toggle: fullscreen } = useFullscreen(root)
+const { toggle: fullscreen, exit: exitFullscreen } = useFullscreen(root, { autoExit: true })
 
 const screen = computed(() => (props.tile.screen && (!props.tile.local || preview.value) ? props.tile.screen : undefined))
 const main = computed(() => screen.value ?? props.tile.cam)
 const corner = computed(() => (screen.value && props.tile.cam ? props.tile.cam : undefined))
 const live = computed(() => props.tile.camLive || props.tile.screenLive)
+watch([() => props.tile.watching, live], async ([watching, live]) => {
+  if (!watching || !live) await exitFullscreen()
+})
 const mirrored = (t: unknown) => props.tile.local && t === props.tile.cam
 // The tracks are attached to the <video> elements by hand; detached again when they change.
 watchEffect(onCleanup => {

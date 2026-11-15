@@ -234,6 +234,8 @@ export function useVoice() {
     }
     const all = [room.localParticipant, ...room.remoteParticipants.values()]
     tiles.value = all.map(make)
+    const focused = tiles.value.find(t => t.userId === theater.value)
+    if (focused && !focused.camLive && !focused.screenLive) theater.value = null
     const [cam, screen] = [tiles.value[0]!.camLive, tiles.value[0]!.screenLive]
     const changed = cam !== camOn.value || screen !== screenOn.value
     camOn.value = cam
@@ -812,6 +814,7 @@ export function useVoice() {
   const watch = (id: string, on: boolean) => {
     watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id)
     if (on) theater.value = id
+    else if (theater.value === id) theater.value = null
     rebuild()
     pushState()
   }
