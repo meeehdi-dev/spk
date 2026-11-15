@@ -455,7 +455,7 @@ socket.onOpen(() => {
             <template v-else>
               <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
                 <div v-if="channel?.type === 'dm'" class="font-bold text-default">
-                  This is the start of your conversation with {{ label(channel).slice(1) }}
+                  This is the start of your conversation with <EmojiText :text="label(channel).slice(1)" />
                 </div>
                 <div v-if="!messages.length">No messages yet. Say something!</div>
               </div>
@@ -513,7 +513,7 @@ socket.onOpen(() => {
         </div>
       </div>
       <div class="h-5 px-4 text-xs text-muted" aria-live="polite">
-        {{ typingText }}
+        <EmojiText :text="typingText" />
       </div>
       <ClientOnly>
         <ChatMessageInput

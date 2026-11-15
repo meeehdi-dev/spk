@@ -183,7 +183,10 @@ const soundRows = [
             :items="items(v.devices.value.mics)"
             class="w-full"
             @update:model-value="pick('mic', v.devices.value.mics)($event as string)"
-          />
+          >
+            <template #default="{ modelValue }"><EmojiText :text="items(v.devices.value.mics).find(d => d.value === modelValue)?.label ?? ''" /></template>
+            <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+          </USelect>
         </UFormField>
         <UFormField label="Level">
           <div class="flex items-center gap-3">
@@ -213,7 +216,10 @@ const soundRows = [
             :items="items(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))"
             class="w-full"
             @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)"
-          />
+          >
+            <template #default="{ modelValue }"><EmojiText :text="items(v.devices.value.speakers).find(d => d.value === modelValue)?.label ?? ''" /></template>
+            <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+          </USelect>
         </UFormField>
         <UFormField label="Camera">
           <USelect
@@ -221,7 +227,10 @@ const soundRows = [
             :items="items(v.devices.value.cams)"
             class="w-full"
             @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
-          />
+          >
+            <template #default="{ modelValue }"><EmojiText :text="items(v.devices.value.cams).find(d => d.value === modelValue)?.label ?? ''" /></template>
+            <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+          </USelect>
         </UFormField>
         <VoiceCameraResolution />
         <div class="flex flex-col gap-2">

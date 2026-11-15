@@ -31,8 +31,7 @@ it('keeps ping out of the trigger and opens live diagnostics for any status', as
   expect(panel().textContent).toContain('Unavailable')
   expect(panel().textContent).not.toContain('Updated every')
   expect(panel().querySelector('clipPath rect')?.getAttribute('width')).toBe('276')
-  const warning = Array.from(panel().querySelectorAll('p')).find(p => p.textContent?.includes('Audio playback is blocked'))!
-  expect(warning.classList.contains('invisible')).toBe(true)
+  expect(panel().querySelector('[role="status"]')).toBeNull()
   const path = () => panel().querySelector('path[clip-path]')!.getAttribute('d')
   const initialPath = path()
   await vi.waitFor(() => expect(path()).not.toBe(initialPath))
@@ -42,8 +41,19 @@ it('keeps ping out of the trigger and opens live diagnostics for any status', as
   voice.audioBlocked.value = true
   await flushPromises()
   expect(trigger.text()).toBe('Voice reconnecting…')
-  expect(warning.classList.contains('invisible')).toBe(false)
-  expect(warning.getAttribute('aria-hidden')).toBe('false')
+  expect(panel().querySelector('[role="status"]')?.textContent).toContain('Audio playback is blocked')
+  expect(panel().textContent).not.toContain('Microphone unavailable.')
+  voice.microphone.value = 'unavailable'
+  await flushPromises()
+  expect(panel().querySelectorAll('[role="status"] p')).toHaveLength(2)
+  voice.audioBlocked.value = false
+  await flushPromises()
+  expect(panel().querySelectorAll('[role="status"] p')).toHaveLength(1)
+  expect(panel().textContent).not.toContain('Audio playback is blocked')
+  expect(panel().textContent).toContain('Microphone unavailable.')
+  voice.microphone.value = 'ready'
+  await flushPromises()
+  expect(panel().querySelector('[role="status"]')).toBeNull()
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   await vi.waitFor(() => expect(trigger.attributes('aria-expanded')).toBe('false'))
   await trigger.trigger('click')

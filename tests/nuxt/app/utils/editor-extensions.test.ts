@@ -1,9 +1,10 @@
 import { Editor } from '@tiptap/core'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
-import { chatKeys, fenceLanguage, fixSpoilerSeams, Spoiler, SpkMention } from '~/utils/editor-extensions'
+import { chatKeys, chatMarkExtensions, fenceLanguage, fixSpoilerSeams, Spoiler, SpkMention } from '~/utils/editor-extensions'
 
 const names: Record<string, string> = { u1: 'Alex' }
 function roundTrip(md: string) {
@@ -19,6 +20,132 @@ function roundTrip(md: string) {
   })
   return { out: fixSpoilerSeams(editor.getMarkdown()), json: editor.getJSON(), editor }
 }
+
+describe('editable Twemoji', () => {
+  const made: Editor[] = []
+  let artwork: HTMLImageElement[] = []
+  beforeEach(() => {
+    artwork = []
+    vi.stubGlobal('Image', function () {
+      const image = document.createElement('img')
+      artwork.push(image)
+      return image
+    })
+  })
+  const loadArtwork = () => {
+    for (const image of artwork) image.dispatchEvent(new Event('load'))
+  }
+  const glyphs = (editor: Editor) => [...editor.view.dom.querySelectorAll('[data-emoji]')].map(span => span.getAttribute('data-emoji'))
+  const setup = (content: string, getLabel = (_id: string) => 'Alex 😀', loaded = true) => {
+    const editor = new Editor({
+      extensions: [Markdown, StarterKit, ...chatMarkExtensions(getLabel)],
+      content,
+      contentType: 'markdown',
+    })
+    made.push(editor)
+    if (loaded) loadArtwork()
+    return editor
+  }
+  afterEach(() => {
+    for (const editor of made) editor.destroy()
+    made.length = 0
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('paints complete emoji sequences without changing text, JSON, HTML or markdown', () => {
+    const text = 'hi 😀👩🏽‍💻 🇫🇷 1️⃣ ❤️ end'
+    const editor = setup(text)
+    expect(glyphs(editor)).toEqual(['😀', '👩🏽‍💻', '🇫🇷', '1️⃣', '❤️'])
+    for (const span of editor.view.dom.querySelectorAll<HTMLElement>('[data-emoji]')) {
+      expect(span.textContent).toBe(span.dataset.emoji)
+      expect(span.style.backgroundImage).toMatch(/\/twemoji\/.+\.svg/)
+      expect(span.style.display).toBe('inline-block')
+      expect(span.style.width).toBe('1em')
+      expect(span.style.position).toBe('')
+    }
+    expect(editor.view.dom.querySelector('.ProseMirror-widget')).toBeNull()
+    expect(editor.state.doc.textContent).toBe(text)
+    expect(editor.getJSON().content?.[0]?.content).toEqual([{ type: 'text', text }])
+    expect(editor.getMarkdown()).toBe(text)
+    expect(editor.getHTML()).toBe(`<p>${text}</p>`)
+  })
+
+  it('leaves inline code and code blocks untouched, including after changing marks', () => {
+    const editor = setup('😀 **❤️** ||🔥|| `👩🏽‍💻`\n\n```text\n🇫🇷\n```')
+    expect(glyphs(editor)).toEqual(['😀', '❤️', '🔥'])
+    expect(editor.view.dom.querySelector('[data-spoiler] [data-emoji]')?.textContent).toBe('🔥')
+    expect(editor.view.dom.querySelector('strong [data-emoji]')?.textContent).toBe('❤️')
+    expect(editor.view.dom.querySelectorAll('code [data-emoji]')).toHaveLength(0)
+    expect(editor.view.dom.querySelector('code')?.textContent).toBe('👩🏽‍💻')
+    editor.commands.setContent('😀', { contentType: 'markdown' })
+    editor.chain().selectAll().toggleCode().run()
+    expect(glyphs(editor)).toEqual([])
+    editor.commands.toggleCode()
+    expect(glyphs(editor)).toEqual(['😀'])
+  })
+
+  it('retains text positions and copies Unicode, not decoration markup', () => {
+    const emoji = '👩🏽‍💻'
+    const editor = setup(`a${emoji}b`)
+    const from = 2
+    const to = from + emoji.length
+    for (const pos of [from, from + 2, to]) {
+      const dom = editor.view.domAtPos(pos)
+      expect(editor.view.posAtDOM(dom.node, dom.offset)).toBe(pos)
+    }
+    const span = editor.view.dom.querySelector('[data-emoji]')
+    editor.commands.setTextSelection({ from, to })
+    expect(editor.view.dom.querySelector('[data-emoji]')).toBe(span)
+    expect(editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)).toBe(emoji)
+    const clipboard = editor.view.serializeForClipboard(editor.state.selection.content())
+    expect(clipboard.text).toBe(emoji)
+    expect(clipboard.dom.textContent).toBe(emoji)
+    expect(clipboard.dom.querySelector('img')).toBeNull()
+    editor.commands.insertContent('❤️')
+    expect(editor.getMarkdown()).toBe('a❤️b')
+    loadArtwork()
+    expect(glyphs(editor)).toEqual(['❤️'])
+    editor.commands.undo()
+    expect(editor.getMarkdown()).toBe(`a${emoji}b`)
+    editor.commands.setTextSelection({ from, to })
+    editor.commands.deleteSelection()
+    expect(editor.getMarkdown()).toBe('ab')
+    expect(glyphs(editor)).toEqual([])
+  })
+
+  it('keeps Unicode visible while artwork loads or fails and cleans up pending loads', () => {
+    const editor = setup('😀', undefined, false)
+    expect(glyphs(editor)).toEqual([])
+    expect(editor.view.dom.textContent).toBe('😀')
+    artwork[0]!.dispatchEvent(new Event('error'))
+    expect(glyphs(editor)).toEqual([])
+    expect(editor.view.dom.querySelector('[style*="transparent"]')).toBeNull()
+    editor.commands.insertContent('❤️')
+    artwork[1]!.dispatchEvent(new Event('load'))
+    expect(glyphs(editor)).toEqual(['❤️'])
+    editor.destroy()
+    expect(artwork.every(image => image.onload === null)).toBe(true)
+    made.length = 0
+  })
+
+  it('renders mention labels with fallback while retaining mention serialization and updates', async () => {
+    const editor = setup('hi <@u1>')
+    expect(editor.view.dom.querySelector('.mention img')?.getAttribute('alt')).toBe('😀')
+    expect(editor.getMarkdown()).toBe('hi <@u1>')
+    expect(editor.getText()).toBe('hi @Alex 😀')
+    expect(editor.getHTML()).not.toContain('<img')
+    const image = editor.view.dom.querySelector('.mention img')!
+    image.dispatchEvent(new Event('error'))
+    await nextTick()
+    expect(editor.view.dom.querySelector('.mention')?.textContent).toBe('@Alex 😀')
+    editor.commands.setTextSelection({ from: 4, to: 5 })
+    editor.commands.updateAttributes('mention', { label: 'Sam ❤️' })
+    await nextTick()
+    expect(editor.view.dom.querySelector('.mention img')?.getAttribute('alt')).toBe('❤️')
+    expect(editor.getMarkdown()).toBe('hi <@u1>')
+  })
+})
 
 describe('editor markdown round trip', () => {
   it('mention <@id>', () => {

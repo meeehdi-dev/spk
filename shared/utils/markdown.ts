@@ -31,6 +31,9 @@ interface Node {
 // One emoji: pictograph (+ variation selector, skin tone, ZWJ parts), regional-indicator flag, or keycap.
 const EMOJI = String.raw`(?:\p{RI}\p{RI}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})*)*(?:[\u{E0020}-\u{E007E}]+\u{E007F})?)`
 const EMOJI_SPLIT_RE = new RegExp(`(${EMOJI})`, 'gu')
+
+/** Alternating plain text and complete emoji sequences, starting with plain text. */
+export const splitEmojis = (text: string): string[] => text.split(EMOJI_SPLIT_RE)
 const EMOJI_ONLY_RE = new RegExp(`^(?:${EMOJI}\\s*){1,6}$`, 'u')
 
 /** 1–6 emoji and whitespace, nothing else: rendered large. */
@@ -44,7 +47,7 @@ const BREAK: Node = { type: 'spkBreak', data: { hName: 'br' } }
 function splitText(value: string): Node[] {
   const out: Node[] = []
   const push = (v: string) => {
-    for (const [i, part] of v.split(EMOJI_SPLIT_RE).entries()) {
+    for (const [i, part] of splitEmojis(v).entries()) {
       if (!part) continue
       // hChildren keeps the walker from splitting the emoji text again; it also provides a text fallback.
       out.push(

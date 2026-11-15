@@ -49,8 +49,8 @@ const extensions = [
       :ui="{ base: 'max-h-64 overflow-y-auto py-2 sm:px-3', content: 'min-h-10' }"
     >
       <template #default="{ editor }">
-        <UEditorMentionMenu :editor="editor" :items="mentionItems" />
-        <UEditorEmojiMenu v-if="emojiItems.length" :editor="editor" :items="emojiItems" />
+        <ChatEditorMenu kind="mention" :editor="editor" :items="mentionItems" />
+        <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
       </template>
     </UEditor>
     <div class="flex items-center gap-2 border-t border-default px-2 py-1 text-xs text-muted">

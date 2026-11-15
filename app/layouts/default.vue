@@ -139,7 +139,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
           class="size-4 text-muted"
         />
         <h1 class="truncate text-sm font-medium">
-          {{ title }}
+          <EmojiText :text="title ?? ''" />
         </h1>
         <div class="ml-auto flex items-center">
           <UTooltip text="Search" class="lg:hidden">

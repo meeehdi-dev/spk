@@ -44,6 +44,28 @@ describe('control styling', () => {
 })
 
 describe('microphone control', () => {
+  it('renders device emoji in the selected label and options without changing device values', async () => {
+    const v = useVoice()
+    const devices = v.devices.value
+    const mic = v.settings.value.mic
+    try {
+      v.devices.value = { ...devices, mics: [{ deviceId: 'emoji-mic', label: 'Mic 🎤' } as MediaDeviceInfo] }
+      v.settings.value.mic = { deviceId: 'emoji-mic', label: 'Mic 🎤' }
+      const wrapper = await mountInApp(VoiceControl, { kind: 'mic' })
+      await wrapper.get('button[aria-label="Microphone options"]').trigger('click')
+      await flushPromises()
+      const select = wrapper.getComponent(USelect)
+      expect(select.get('[data-slot="value"] .emoji img').attributes('alt')).toBe('🎤')
+      await select.get('button').trigger('click')
+      await flushPromises()
+      expect(document.querySelector('[role="option"] .emoji img[alt="🎤"]')).not.toBeNull()
+      expect(v.settings.value.mic).toEqual({ deviceId: 'emoji-mic', label: 'Mic 🎤' })
+    } finally {
+      v.devices.value = devices
+      v.settings.value.mic = mic
+    }
+  })
+
   it('offers retry instead of a misleading mute action when the microphone is unavailable', async () => {
     const v = useVoice()
     v.channelId.value = 'channel'

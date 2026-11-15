@@ -74,11 +74,9 @@ const chart = computed(() => pingChart(voice.pingHistory.value, now.value.getTim
             <dd class="text-right tabular-nums">{{ value }}</dd>
           </div>
         </dl>
-        <div class="space-y-1 text-xs text-warning" role="status">
-          <p :class="{ invisible: !voice.audioBlocked.value }" :aria-hidden="!voice.audioBlocked.value">Audio playback is blocked by your browser.</p>
-          <p :class="{ invisible: voice.microphone.value !== 'unavailable' }" :aria-hidden="voice.microphone.value !== 'unavailable'">
-            Microphone unavailable. Check device access and permissions.
-          </p>
+        <div v-if="voice.audioBlocked.value || voice.microphone.value === 'unavailable'" class="space-y-1 text-xs text-warning" role="status">
+          <p v-if="voice.audioBlocked.value">Audio playback is blocked by your browser.</p>
+          <p v-if="voice.microphone.value === 'unavailable'">Microphone unavailable. Check device access and permissions.</p>
         </div>
       </section>
     </template>

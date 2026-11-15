@@ -115,7 +115,14 @@ const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-
               :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.mics.filter(d => d.deviceId !== 'default'))]"
               class="w-full"
               @update:model-value="pick('mic', v.devices.value.mics)($event as string)"
-            />
+            >
+              <template #default="{ modelValue }">
+                <EmojiText
+                  :text="modelValue === 'default' ? 'System default' : (deviceItems(v.devices.value.mics).find(d => d.value === modelValue)?.label ?? '')"
+                />
+              </template>
+              <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+            </USelect>
           </UFormField>
           <UFormField label="Noise suppression">
             <template #hint>
@@ -157,7 +164,14 @@ const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-
               :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.speakers.filter(d => d.deviceId !== 'default'))]"
               class="w-full"
               @update:model-value="pick(output.kind, v.devices.value.speakers)($event as string)"
-            />
+            >
+              <template #default="{ modelValue }">
+                <EmojiText
+                  :text="modelValue === 'default' ? 'System default' : (deviceItems(v.devices.value.speakers).find(d => d.value === modelValue)?.label ?? '')"
+                />
+              </template>
+              <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+            </USelect>
           </UFormField>
           <UFormField label="Output volume">
             <USlider v-model="v.settings.value.outputVolume" :min="0" :max="1" :step="0.01" aria-label="Output volume" @update:model-value="v.applyOutput()" />
@@ -176,7 +190,14 @@ const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-
               :items="[{ label: 'System default', value: 'default' }, ...deviceItems(v.devices.value.cams.filter(d => d.deviceId !== 'default'))]"
               class="w-full"
               @update:model-value="pick('camera', v.devices.value.cams)($event as string)"
-            />
+            >
+              <template #default="{ modelValue }">
+                <EmojiText
+                  :text="modelValue === 'default' ? 'System default' : (deviceItems(v.devices.value.cams).find(d => d.value === modelValue)?.label ?? '')"
+                />
+              </template>
+              <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
+            </USelect>
           </UFormField>
           <VoiceCameraResolution />
         </div>

@@ -104,6 +104,7 @@ const items = (u: Row) => [
       :title="`Reset link for ${link.name} (shown only once, valid 24 hours, one use)`"
       :description="link.url"
     >
+      <template #title><EmojiText :text="`Reset link for ${link.name} (shown only once, valid 24 hours, one use)`" /></template>
       <template #actions>
         <UButton label="Copy" icon="i-lucide-copy" color="neutral" variant="outline" @click="copyLink" />
       </template>
@@ -119,8 +120,8 @@ const items = (u: Row) => [
             <div class="flex min-w-0 items-center gap-2">
               <UAvatar :src="avatarSrc(u)" :alt="u.displayName ?? ''" icon="i-lucide-user" size="sm" :chip="presenceChip(u.id)" />
               <span class="min-w-0">
-                <span class="block truncate font-medium">{{ u.displayName || 'No nickname yet' }}</span>
-                <span class="block truncate text-xs text-muted">{{ u.email }} · {{ size(u.bytes) }}</span>
+                <span class="block truncate font-medium"><EmojiText :text="u.displayName || 'No nickname yet'" /></span>
+                <span class="block truncate text-xs text-muted"><EmojiText :text="u.email" /> · {{ size(u.bytes) }}</span>
               </span>
             </div>
           </UserContext>

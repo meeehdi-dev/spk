@@ -15,6 +15,7 @@ const toggle = () => {
 
 <template>
   <UTooltip v-if="station" :text="label">
+    <template #content="{ ui }"><EmojiText :text="label" :class="ui.text()" /></template>
     <UButton
       v-if="current"
       icon="i-lucide-radio"

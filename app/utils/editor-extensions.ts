@@ -1,9 +1,26 @@
 import type { MentionOptions } from '@tiptap/extension-mention'
+import type { VNode } from 'vue'
 
 import { Extension, Mark, markInputRule, mergeAttributes } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
-import { Plugin } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { VueRenderer } from '@tiptap/vue-3'
+import { defineComponent, h } from 'vue'
+
+import { splitEmojis } from '#shared/utils/markdown'
+import EmojiGlyph from '~/components/mdc/EmojiGlyph.vue'
+import { twemojiSrc } from '~/utils/twemoji'
+
+const MentionLabel = defineComponent({
+  props: { text: { type: String, required: true }, code: Boolean },
+  setup: props => (): VNode =>
+    h(
+      'span',
+      { class: 'mention', 'data-type': 'mention' },
+      props.code ? props.text : splitEmojis(props.text).map((part, i) => (i % 2 ? h(EmojiGlyph, { emoji: part }) : part)),
+    ),
+})
 
 const MENTION_TOKEN = /^<@([\w-]+)>/
 
@@ -23,6 +40,21 @@ export const SpkMention = Mention.extend<{ getLabel?: (id: string) => string | u
     return h.createNode('mention', { id: token.id, label: this.options.getLabel?.(token.id) ?? token.id })
   },
   renderMarkdown: node => `<@${node.attrs?.id}>`,
+  addNodeView() {
+    return ({ node, editor }) => {
+      const props = (n: typeof node) => ({ text: `@${n.attrs.label ?? n.attrs.id}`, code: n.marks.some(mark => mark.type.spec.code) })
+      const renderer = new VueRenderer(MentionLabel, { editor, props: props(node) })
+      return {
+        dom: renderer.element as HTMLElement,
+        update(next) {
+          if (next.type !== node.type) return false
+          renderer.updateProps(props(next))
+          return true
+        },
+        destroy: () => renderer.destroy(),
+      }
+    }
+  },
 })
 
 /** `||hidden||` mark, shown blurred until clicked. */
@@ -127,7 +159,68 @@ const CodeLanguageLabel = Extension.create({
   },
 })
 
-/** Mention node (labels follow current nicknames) + spoiler mark. */
+/** View-only glyphs: the text stays in ProseMirror for selection, editing and clipboard serialization. */
+const EditorEmoji = Extension.create({
+  name: 'editorEmoji',
+  addProseMirrorPlugins() {
+    const editor = this.editor
+    const key = new PluginKey<DecorationSet>('editorEmoji')
+    const artwork = new Map<string, HTMLImageElement>()
+    const loaded = new Set<string>()
+    const load = (emoji: string) => {
+      if (artwork.has(emoji)) return
+      const image = new Image()
+      artwork.set(emoji, image)
+      image.onload = () => {
+        loaded.add(emoji)
+        if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(key, true))
+      }
+      image.src = twemojiSrc(emoji)
+    }
+    const decorate = (doc: typeof editor.state.doc) => {
+      const decorations: Decoration[] = []
+      doc.descendants((node, pos) => {
+        if (node.type.spec.code) return false
+        if (!node.isText || node.marks.some(mark => mark.type.spec.code)) return
+        let from = pos
+        for (const [i, part] of splitEmojis(node.text!).entries()) {
+          const to = from + part.length
+          if (i % 2) {
+            load(part)
+            // Paint on the text span itself so artwork follows wrapping and bidirectional text.
+            if (loaded.has(part))
+              decorations.push(
+                Decoration.inline(from, to, {
+                  'data-emoji': part,
+                  style: `display: inline-block; width: 1em; color: transparent; caret-color: var(--ui-text); text-shadow: none; background: url("${twemojiSrc(part)}") center / contain no-repeat;`,
+                }),
+              )
+          }
+          from = to
+        }
+      })
+      return DecorationSet.create(doc, decorations)
+    }
+    return [
+      new Plugin<DecorationSet>({
+        key,
+        state: {
+          init: (_, { doc }) => decorate(doc),
+          apply: (tr, decorations) => (tr.docChanged || tr.getMeta(key) ? decorate(tr.doc) : decorations),
+        },
+        props: { decorations: state => key.getState(state) },
+        view: () => ({
+          destroy() {
+            for (const image of artwork.values()) image.onload = null
+            artwork.clear()
+          },
+        }),
+      }),
+    ]
+  },
+})
+
+/** Mention node (labels follow current nicknames) + spoiler mark and view-only emoji. */
 export const chatMarkExtensions = (getLabel: (id: string) => string | undefined) => [
   SpkMention.configure({
     HTMLAttributes: { class: 'mention' },
@@ -141,4 +234,5 @@ export const chatMarkExtensions = (getLabel: (id: string) => string | undefined)
   } as never),
   Spoiler,
   CodeLanguageLabel,
+  EditorEmoji,
 ]

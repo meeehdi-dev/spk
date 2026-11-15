@@ -99,12 +99,35 @@ describe('emoji rendering', () => {
     expect(wrapper.find('[data-body]').classes()).toContain('chat-emoji-only')
     const chip = wrapper.find('button[aria-pressed]')
     expect(chip.find('img').attributes('alt')).toBe('❤️')
+    expect(chip.classes()).toEqual(expect.arrayContaining(['bg-primary/10', 'hover:bg-primary/20', 'border-primary/40']))
     await chip.trigger('click')
     expect(actions.react).toHaveBeenCalledWith('m1', '❤️', false)
     const quick = wrapper.find('button[aria-label^="React with"]')
     expect(quick.find('img').exists()).toBe(true)
     await quick.trigger('click')
     expect(actions.react).toHaveBeenLastCalledWith('m1', quick.find('img').attributes('alt'), true)
+  })
+
+  it('gives other reactions a neutral background and keeps selected quick reactions primary on hover', async () => {
+    const wrapper = await mountInApp(
+      ChatMessage,
+      {
+        message: {
+          ...message,
+          reactions: [
+            { emoji: '❤️', userIds: ['b'] },
+            { emoji: '👍', userIds: ['a'] },
+          ],
+        },
+        grouped: false,
+      },
+      { global: { provide: { [chatActionsKey as symbol]: actions } } },
+    )
+    const other = wrapper.find('button[aria-pressed="false"]')
+    expect(other.classes()).toEqual(expect.arrayContaining(['bg-elevated', 'hover:bg-accented', 'border-default', 'text-default']))
+    expect(other.classes()).not.toContain('bg-primary/10')
+    const quick = wrapper.find('button[aria-label="React with 👍"]')
+    expect(quick.classes()).toEqual(expect.arrayContaining(['bg-primary/10', 'hover:bg-primary/20']))
   })
 })
 

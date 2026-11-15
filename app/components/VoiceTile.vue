@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ContextMenuItem } from '@nuxt/ui'
+
 import type { VoiceTile } from '~/composables/useVoice'
 
 import { userVolume } from '#shared/utils/voice'
@@ -93,7 +95,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <UContextMenu :items="items as never">
+  <UContextMenu :items="items as ContextMenuItem[][]">
+    <template #item-label="{ item }"><EmojiText :text="item.label ?? ''" /></template>
     <div
       ref="root"
       tabindex="0"
@@ -132,7 +135,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       </div>
 
       <span class="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
-        <span class="min-w-0 truncate">{{ tile.local ? 'You' : nameOf(tile.userId) }}</span>
+        <span class="min-w-0 truncate"><EmojiText :text="tile.local ? 'You' : nameOf(tile.userId)" /></span>
         <UIcon v-if="member?.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
         <UIcon v-else-if="member?.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
         <span v-if="tile.screenLive && tile.screenQuality" class="shrink-0 border-l border-default pl-1.5 text-[10px] whitespace-nowrap">
@@ -179,6 +182,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
       <UAvatarGroup v-if="watchers.length" :max="5" size="xs" class="absolute bottom-2 left-2">
         <UTooltip v-for="id in watchers" :key="id" :text="nameOf(id)">
+          <template #content="{ ui }"><EmojiText :text="nameOf(id)" :class="ui.text()" /></template>
           <UAvatar :src="avatarSrc(byId.get(id))" :alt="nameOf(id)" />
         </UTooltip>
       </UAvatarGroup>

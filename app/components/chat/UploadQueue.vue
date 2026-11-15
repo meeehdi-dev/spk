@@ -49,12 +49,12 @@ const emit = defineEmits<{ cancel: [key: string]; removeGif: [] }>()
       <UIcon :name="fileIcon(u.mime, u.name)" class="size-5 shrink-0" :class="u.state === 'error' ? 'text-error' : ''" />
       <div class="min-w-0 flex-1">
         <div class="flex gap-2">
-          <span class="truncate">{{ u.name }}</span>
+          <span class="truncate"><EmojiText :text="u.name" /></span>
           <span class="shrink-0 text-muted">{{ formatBytes(u.size) }}</span>
         </div>
         <UProgress v-if="u.state === 'uploading'" :model-value="Math.round(u.progress * 100)" size="xs" />
         <div v-else-if="u.state === 'error'" class="text-error">
-          {{ u.error }}
+          <EmojiText :text="u.error ?? ''" />
         </div>
       </div>
       <UTooltip v-if="u.mime.startsWith('image/')" :text="u.spoiler ? 'Remove spoiler' : 'Mark as spoiler'">

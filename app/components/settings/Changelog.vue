@@ -47,7 +47,7 @@ onMounted(loadMore)
           <ULink :to="commitUrl(entry.sha)" target="_blank" rel="noopener noreferrer" class="shrink-0 font-mono text-primary">
             {{ entry.sha.slice(0, 7) }}
           </ULink>
-          <span class="min-w-0 wrap-anywhere">{{ entry.message }}</span>
+          <span class="min-w-0 wrap-anywhere"><EmojiText :text="entry.message" /></span>
         </div>
       </li>
     </ul>

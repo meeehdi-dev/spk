@@ -41,7 +41,7 @@ const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().inclu
                 @click="press(s.id)"
               >
                 <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
-                <span class="w-full truncate text-xs">{{ s.name }}</span>
+                <span class="w-full truncate text-xs"><EmojiText :text="s.name" /></span>
               </UButton>
             </UContextMenu>
           </div>

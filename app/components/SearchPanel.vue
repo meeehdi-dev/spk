@@ -152,7 +152,9 @@ watch(
     </div>
     <ul v-if="suggestions.length" class="border-b border-default p-1" role="listbox" aria-label="Suggestions">
       <li v-for="(s, i) in suggestions" :key="s">
-        <UButton :label="s" color="neutral" :variant="i === active ? 'soft' : 'ghost'" block class="justify-start" role="option" @click="pick(s)" />
+        <UButton :label="s" color="neutral" :variant="i === active ? 'soft' : 'ghost'" block class="justify-start" role="option" @click="pick(s)">
+          <EmojiText :text="s" data-slot="label" class="truncate" />
+        </UButton>
       </li>
     </ul>
     <div class="min-h-0 flex-1 overflow-y-auto">
@@ -175,16 +177,13 @@ watch(
             >
               <div class="flex items-center gap-2 text-xs text-muted">
                 <UAvatar :src="avatarSrc(byId.get(h.userId))" :alt="nameOf(h.userId)" size="3xs" />
-                <span class="font-bold text-default">{{ nameOf(h.userId) }}</span>
-                <span class="truncate">{{ channelName(h.channelId) }}</span>
+                <span class="font-bold text-default"><EmojiText :text="nameOf(h.userId)" /></span>
+                <span class="truncate"><EmojiText :text="channelName(h.channelId)" /></span>
                 <span class="ml-auto shrink-0" :title="exactTime(h.createdAt)">{{ relativeTime(h.createdAt) }}</span>
               </div>
               <div class="mt-1 line-clamp-3 break-words">
                 <template v-for="(p, j) in parts(h)" :key="j">
-                  <mark v-if="p.mark" class="rounded bg-primary/30 text-inherit">{{ p.text }}</mark
-                  ><template v-else>
-                    {{ p.text }}
-                  </template>
+                  <mark v-if="p.mark" class="rounded bg-primary/30 text-inherit"><EmojiText :text="p.text" /></mark><EmojiText v-else :text="p.text" />
                 </template>
                 <span v-if="h.attachments" class="ml-1 inline-flex items-center gap-1 text-muted"
                   ><UIcon name="i-lucide-paperclip" class="size-3" />{{ h.attachments }}</span

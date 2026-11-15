@@ -289,7 +289,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
         <UContextMenu v-for="s in sounds" :key="s.id" :items="menu(s)">
           <li class="flex items-center gap-3 py-2 text-sm">
             <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
-            <span class="min-w-0 flex-1 truncate">{{ s.name }} <span class="text-xs text-muted">· {{ secs(s.durationMs) }}</span></span>
+            <span class="min-w-0 flex-1 truncate"><EmojiText :text="s.name" /> <span class="text-xs text-muted">· {{ secs(s.durationMs) }}</span></span>
             <UDropdownMenu :items="menu(s)">
               <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" :aria-label="`Actions for ${s.name}`" />
             </UDropdownMenu>
@@ -320,6 +320,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
       </template>
     </UModal>
     <UModal v-model:open="deleteOpen" title="Delete sound" :description="`Delete “${confirmDelete?.name}”? This can't be undone.`">
+      <template #description><EmojiText :text="`Delete “${confirmDelete?.name}”? This can't be undone.`" /></template>
       <template #footer>
         <UButton label="Cancel" color="neutral" variant="ghost" @click="deleteOpen = false" />
         <UButton label="Delete" icon="i-lucide-trash-2" color="error" @click="remove" />

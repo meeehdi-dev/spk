@@ -73,7 +73,9 @@ const groups = computed(() => [
 <template>
   <UModal v-model:open="open" title="Quick switcher" description="Jump to a channel, a conversation or a person">
     <template #content>
-      <UCommandPalette :groups="groups" placeholder="Jump to…" aria-label="Quick switcher" close @update:open="open = $event" />
+      <UCommandPalette :groups="groups" placeholder="Jump to…" aria-label="Quick switcher" close @update:open="open = $event">
+        <template #item-label="{ item }"><EmojiText :text="item.label ?? ''" /></template>
+      </UCommandPalette>
     </template>
   </UModal>
 </template>

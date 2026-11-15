@@ -151,7 +151,9 @@ defineExpose({
   <div class="p-3" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
     <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-elevated px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
-      <span class="truncate">Replying to <b>{{ replyTo.name }}</b> <span class="text-muted">{{ replyTo.preview }}</span></span>
+      <span class="truncate"
+        >Replying to <b><EmojiText :text="replyTo.name" /></b> <span class="text-muted"><EmojiText :text="replyTo.preview" /></span
+      ></span>
       <UTooltip text="Cancel reply" :kbds="['escape']">
         <UButton class="ml-auto" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
       </UTooltip>
@@ -176,8 +178,8 @@ defineExpose({
         @update:model-value="onUpdate"
       >
         <template #default="{ editor }">
-          <UEditorMentionMenu :editor="editor" :items="mentionItems" />
-          <UEditorEmojiMenu v-if="emojiItems.length" :editor="editor" :items="emojiItems" />
+          <ChatEditorMenu kind="mention" :editor="editor" :items="mentionItems" />
+          <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
         </template>
       </UEditor>
       <div class="flex items-center gap-0.5 border-t border-default/50 px-1.5 py-1">

@@ -14,6 +14,7 @@ const src = computed(() => (props.file ? `/api/attachments/${props.file.id}` : '
 
 <template>
   <UModal v-model:open="open" :title="file?.filename ?? 'Image'" :ui="{ content: 'w-auto max-w-[95vw]', body: 'p-2' }">
+    <template #title><EmojiText :text="file?.filename ?? 'Image'" /></template>
     <template #body>
       <img v-if="file" :src="src" :alt="file.filename" class="mx-auto max-h-[80vh] max-w-full object-contain" />
     </template>

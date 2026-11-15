@@ -60,7 +60,7 @@ const toggleTheater = (id: string) => {
               :class="m.speaking ? 'ring-success' : 'ring-transparent'"
             />
             <span class="flex max-w-full items-center gap-1 text-sm">
-              <span class="truncate">{{ byId.get(m.userId)?.displayName ?? 'Unknown user' }}</span>
+              <span class="truncate"><EmojiText :text="byId.get(m.userId)?.displayName ?? 'Unknown user'" /></span>
               <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-4 shrink-0 text-error" aria-label="Deafened" />
               <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-4 shrink-0 text-error" aria-label="Muted" />
             </span>

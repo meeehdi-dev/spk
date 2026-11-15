@@ -92,7 +92,7 @@ const title = computed(
 
       <div v-else-if="d?.kind === 'delete'" class="flex flex-col gap-3">
         <p class="text-sm">
-          Delete <b>{{ d.channel.name }}</b>? Its messages and files are removed for everyone.<template v-if="d.channel.type === 'voice'">
+          Delete <b><EmojiText :text="d.channel.name ?? ''" /></b>? Its messages and files are removed for everyone.<template v-if="d.channel.type === 'voice'">
             People in it are disconnected.
           </template>
           This can't be undone.
@@ -105,8 +105,8 @@ const title = computed(
 
       <div v-else-if="d?.kind === 'ban'" class="flex flex-col gap-3">
         <p class="text-sm">
-          Ban <b>{{ nameOf(d.userId) }}</b>? They are signed out everywhere, removed from voice and can't sign in. Their messages stay. You can unban them
-          later.
+          Ban <b><EmojiText :text="nameOf(d.userId)" /></b>? They are signed out everywhere, removed from voice and can't sign in. Their messages stay. You can
+          unban them later.
         </p>
         <UFormField label="Reason (optional)">
           <UInput v-model="reason" maxlength="200" class="w-full" />
@@ -120,7 +120,7 @@ const title = computed(
       <div v-else-if="d?.kind === 'profile' && profile" class="flex items-center gap-4">
         <UAvatar :src="avatarSrc(profile)" :alt="profile.displayName ?? ''" icon="i-lucide-user" size="3xl" :chip="presenceChip(profile.id)" />
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-lg font-bold">{{ profile.displayName }}</span>
+          <span class="truncate text-lg font-bold"><EmojiText :text="profile.displayName ?? ''" /></span>
           <div class="flex flex-wrap items-center gap-2">
             <UBadge :label="profile.role" :color="profile.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" />
             <UBadge v-if="profile.banned" label="banned" color="error" variant="subtle" />
@@ -131,7 +131,7 @@ const title = computed(
               />{{ presenceLabel(presenceOf(profile.id)) }}</span
             >
           </div>
-          <span v-if="email" class="truncate text-xs text-muted">{{ email }}</span>
+          <span v-if="email" class="truncate text-xs text-muted"><EmojiText :text="email" /></span>
           <UButton
             v-if="me?.id !== profile.id"
             label="Send DM"

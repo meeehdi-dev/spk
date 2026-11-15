@@ -127,6 +127,7 @@ const onDrop = (channelId: string) => {
                 ]"
                 @click="openDm(p)"
               >
+                <EmojiText :text="p.user.displayName!" data-slot="label" class="truncate" />
                 <template #leading>
                   <UAvatar :src="avatarSrc(p.user)" :alt="p.user.displayName!" size="2xs" :chip="presenceChip(p.user.id)" />
                 </template>
@@ -186,6 +187,7 @@ const onDrop = (channelId: string) => {
                   isMuted(c.id) ? 'opacity-50' : '',
                 ]"
               >
+                <EmojiText :text="c.name ?? ''" data-slot="label" class="truncate" />
                 <template #trailing>
                   <UBadge
                     v-if="unreadOf(c.id).mentions"
@@ -247,13 +249,16 @@ const onDrop = (channelId: string) => {
                   variant="ghost"
                   block
                   class="justify-start hover:bg-transparent compact:py-1"
-                />
+                >
+                  <EmojiText :text="c.name ?? ''" data-slot="label" class="truncate" />
+                </UButton>
               </UContextMenu>
               <RadioIndicator :channel-id="c.id" :station="radioDirectory[c.id]" />
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>
               <UTooltip v-else :text="`Join ${c.name}`">
+                <template #content="{ ui }"><EmojiText :text="`Join ${c.name}`" :class="ui.text()" /></template>
                 <UButton
                   icon="i-lucide-phone"
                   color="neutral"
@@ -282,8 +287,9 @@ const onDrop = (channelId: string) => {
                     class="ring-2 transition"
                     :class="m.speaking ? 'ring-success' : 'ring-transparent'"
                   />
-                  <span class="truncate">{{ nameOf(m.userId) }}</span>
+                  <span class="truncate"><EmojiText :text="nameOf(m.userId)" /></span>
                   <UTooltip v-if="m.screen" :text="`Watch ${nameOf(m.userId)}'s stream`" class="ml-auto">
+                    <template #content="{ ui }"><EmojiText :text="`Watch ${nameOf(m.userId)}'s stream`" :class="ui.text()" /></template>
                     <UButton
                       icon="i-lucide-screen-share"
                       color="primary"
@@ -293,6 +299,7 @@ const onDrop = (channelId: string) => {
                     />
                   </UTooltip>
                   <UTooltip v-if="m.cam" :text="`Watch ${nameOf(m.userId)}'s camera`" :class="m.screen ? '' : 'ml-auto'">
+                    <template #content="{ ui }"><EmojiText :text="`Watch ${nameOf(m.userId)}'s camera`" :class="ui.text()" /></template>
                     <UButton
                       icon="i-lucide-video"
                       color="primary"
@@ -322,7 +329,9 @@ const onDrop = (channelId: string) => {
             class="size-4 shrink-0"
             :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
           />
-          <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline">{{ voiceName }}</NuxtLink>
+          <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline"
+            ><EmojiText :text="voiceName ?? ''"
+          /></NuxtLink>
           <span v-else class="truncate">Voice</span>
         </div>
         <VoiceConnectionPopover />
@@ -344,7 +353,7 @@ const onDrop = (channelId: string) => {
         </template>
       </UDropdownMenu>
       <div class="min-w-0 flex-1 leading-tight">
-        <span class="block truncate text-sm font-medium">{{ me.displayName ?? me.email }}</span>
+        <span class="block truncate text-sm font-medium"><EmojiText :text="me.displayName ?? me.email" /></span>
         <span class="block truncate text-xs text-muted">{{
           presenceLabel(myStatus === 'online' ? presenceOf(me.id) : myStatus === 'away' ? 'idle' : myStatus)
         }}</span>

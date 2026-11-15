@@ -34,9 +34,9 @@ onMounted(() => {
     class="group/card relative mt-1 flex max-w-md flex-col overflow-hidden rounded-md border border-l-4 border-default border-l-primary bg-elevated/50"
   >
     <a :href="href" target="_blank" rel="noopener noreferrer" class="flex flex-col gap-0.5 p-2 text-sm hover:bg-elevated">
-      <span class="truncate text-xs text-muted">{{ preview.siteName || host }}</span>
-      <span v-if="preview.title" class="line-clamp-2 font-bold text-primary">{{ preview.title }}</span>
-      <span v-if="preview.description" class="line-clamp-3 text-xs text-toned">{{ preview.description }}</span>
+      <span class="truncate text-xs text-muted"><EmojiText :text="preview.siteName || host" /></span>
+      <span v-if="preview.title" class="line-clamp-2 font-bold text-primary"><EmojiText :text="preview.title" /></span>
+      <span v-if="preview.description" class="line-clamp-3 text-xs text-toned"><EmojiText :text="preview.description" /></span>
       <img
         v-if="preview.image"
         :src="image"

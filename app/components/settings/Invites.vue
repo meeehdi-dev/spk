@@ -92,8 +92,10 @@ const fmt = (d: number) => new Date(d).toLocaleString()
           <li class="flex flex-wrap items-center gap-2 py-2 text-sm">
             <UBadge :label="r.status" :color="colors[r.status]" variant="subtle" />
             <span class="min-w-0 flex-1 truncate"
-              >{{ r.note || 'No note' }}
-              <span class="text-xs text-muted">· expires {{ fmt(r.expiresAt) }}<template v-if="r.usedBy"> · used by {{ r.usedBy.name }}</template></span>
+              ><EmojiText :text="r.note || 'No note'" />
+              <span class="text-xs text-muted"
+                >· expires {{ fmt(r.expiresAt) }}<template v-if="r.usedBy"> · used by <EmojiText :text="r.usedBy.name" /></template
+              ></span>
             </span>
             <UButton v-if="r.status === 'active'" label="Revoke" icon="i-lucide-ban" color="error" variant="ghost" @click="revoke(r.id)" />
           </li>

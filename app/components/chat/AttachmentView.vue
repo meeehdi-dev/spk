@@ -123,7 +123,7 @@ onMounted(() => {
     <div v-else-if="lang && text !== undefined" class="overflow-hidden rounded-md border border-default bg-muted text-sm">
       <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">
         <UIcon :name="fileIcon(file.mime, file.filename)" class="size-4" />
-        <span class="truncate">{{ file.filename }}</span>
+        <span class="truncate"><EmojiText :text="file.filename" /></span>
         <span>{{ formatBytes(file.size) }}</span>
         <UButton
           class="ml-auto"
@@ -153,7 +153,7 @@ onMounted(() => {
     >
       <UIcon :name="fileIcon(file.mime, file.filename)" class="size-6 shrink-0" />
       <span class="min-w-0">
-        <span class="block truncate">{{ file.filename }}</span>
+        <span class="block truncate"><EmojiText :text="file.filename" /></span>
         <span class="block text-xs text-muted">{{ formatBytes(file.size) }}<template v-if="failed"> · preview unavailable</template></span>
       </span>
       <UIcon name="i-lucide-download" class="size-4 shrink-0 text-muted" />

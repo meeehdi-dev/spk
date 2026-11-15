@@ -14,5 +14,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <span ref="el" class="rounded px-1 font-medium" :class="me?.id === uid ? 'bg-primary/20 text-primary' : 'bg-elevated text-primary'">@{{ name }}</span>
+  <span ref="el" class="rounded px-1 font-medium" :class="me?.id === uid ? 'bg-primary/20 text-primary' : 'bg-elevated text-primary'"
+    >@<EmojiText :text="name"
+  /></span>
 </template>

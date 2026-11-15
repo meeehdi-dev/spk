@@ -132,7 +132,7 @@ const status = computed(() => {
           </div>
           <template v-if="radio.station.value">
             <div class="min-w-0">
-              <p class="truncate font-medium text-highlighted">{{ radio.station.value.name }}</p>
+              <p class="truncate font-medium text-highlighted"><EmojiText :text="radio.station.value.name" /></p>
               <p role="status" class="text-xs text-muted">{{ status }}</p>
             </div>
             <div class="flex items-center justify-between gap-2">
@@ -195,14 +195,17 @@ const status = computed(() => {
                 @click="radio.select(station.id)"
               >
                 <span class="flex min-w-0 flex-col items-start">
-                  <span class="w-full truncate text-left">{{ station.name }}</span>
-                  <span class="text-xs font-normal text-muted">{{
-                    'available' in station && station.available === null
-                      ? 'Availability unknown'
-                      : 'available' in station && station.available === false
-                        ? 'Unavailable'
-                        : `${station.country} · ${station.codec}`
-                  }}</span>
+                  <span class="w-full truncate text-left"><EmojiText :text="station.name" /></span>
+                  <span class="text-xs font-normal text-muted"
+                    ><EmojiText
+                      :text="
+                        'available' in station && station.available === null
+                          ? 'Availability unknown'
+                          : 'available' in station && station.available === false
+                            ? 'Unavailable'
+                            : `${station.country} · ${station.codec}`
+                      "
+                  /></span>
                 </span>
               </UButton>
               <UButton

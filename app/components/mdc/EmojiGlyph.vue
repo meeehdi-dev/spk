@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import { version } from '@iconify-json/twemoji/package.json'
+import { twemojiSrc } from '~/utils/twemoji'
 
 const props = defineProps<{ emoji: string }>()
-const code = computed(() =>
-  Array.from(props.emoji.replace(/\uFE0F/g, ''))
-    .map(char => char.codePointAt(0)!.toString(16).padStart(4, '0'))
-    .join('-'),
-)
-const src = computed(() => `/twemoji/${version}/${code.value}.svg`)
+const src = computed(() => twemojiSrc(props.emoji))
 const failed = ref<string>()
 </script>
 

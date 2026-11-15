@@ -220,6 +220,7 @@ function onKey(e: KeyboardEvent) {
 
 <template>
   <UContextMenu :items="items" :content="menuContent">
+    <template #item-label="{ item }"><EmojiText :text="String(item.label ?? '')" /></template>
     <div
       :id="`msg-${message.id}`"
       ref="root"
@@ -243,7 +244,7 @@ function onKey(e: KeyboardEvent) {
       <div class="min-w-0 flex-1">
         <div v-if="!grouped" class="flex items-baseline gap-2 text-sm">
           <button ref="nameEl" type="button" class="font-bold hover:underline" @click="openProfile">
-            {{ nameOf(message.userId) }}
+            <EmojiText :text="nameOf(message.userId)" />
           </button>
           <UTooltip :text="exactTime(message.createdAt)">
             <span class="text-xs text-muted">{{ rel }}</span>
@@ -263,7 +264,9 @@ function onKey(e: KeyboardEvent) {
         >
           <UIcon name="i-lucide-corner-up-right" class="size-3.5 shrink-0" />
           <template v-if="message.replyTo.deleted"> Original message deleted </template>
-          <template v-else> <b class="shrink-0">{{ nameOf(message.replyTo.userId) }}</b><span class="truncate">{{ replyText }}</span> </template>
+          <template v-else>
+            <b class="shrink-0"><EmojiText :text="nameOf(message.replyTo.userId)" /></b><span class="truncate"><EmojiText :text="replyText" /></span>
+          </template>
         </button>
         <ChatMessageEditor
           v-if="editing"
@@ -287,7 +290,7 @@ function onKey(e: KeyboardEvent) {
                 <MDCRenderer v-if="tree" :body="tree" :data="{}" tag="div" />
               </Suspense>
               <!-- Raw text until the markdown is parsed, so the message takes about its final height. -->
-              <div v-if="!tree" class="whitespace-pre-wrap">{{ message.body }}</div>
+              <div v-if="!tree" class="whitespace-pre-wrap"><EmojiText :text="message.body" /></div>
             </div>
             <div v-if="long && !expandedAll" class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-default to-transparent" />
           </div>
@@ -325,11 +328,12 @@ function onKey(e: KeyboardEvent) {
         :class="picker || moreOpen ? '!flex' : ''"
       >
         <UTooltip v-for="e in quickReactions" :key="e" :text="`React ${e}`">
+          <template #content="{ ui }"><EmojiText :text="`React ${e}`" :class="ui.text()" /></template>
           <UButton
             color="neutral"
             variant="ghost"
             :aria-label="`React with ${e}`"
-            :class="message.reactions.some(r => r.emoji === e && mineOf(r)) ? 'bg-primary/10' : ''"
+            :class="message.reactions.some(r => r.emoji === e && mineOf(r)) ? 'bg-primary/10 hover:bg-primary/20' : ''"
             @click="react(e)"
           >
             <EmojiGlyph :emoji="e" aria-hidden="true" class="text-base" />
@@ -378,10 +382,11 @@ function onKey(e: KeyboardEvent) {
         </template>
       </UModal>
       <UModal :open="!!whoReaction" :title="`${whoOpen} reactions`" @update:open="whoOpen = null">
+        <template #title><EmojiText :text="`${whoOpen} reactions`" /></template>
         <template #body>
           <ul class="flex flex-col gap-2">
             <li v-for="id in whoReaction?.userIds" :key="id" class="flex items-center gap-2 text-sm">
-              <UAvatar :src="avatarSrc(byId.get(id))" :alt="nameOf(id)" icon="i-lucide-user" size="xs" /> {{ nameOf(id) }}
+              <UAvatar :src="avatarSrc(byId.get(id))" :alt="nameOf(id)" icon="i-lucide-user" size="xs" /> <EmojiText :text="nameOf(id)" />
             </li>
           </ul>
         </template>

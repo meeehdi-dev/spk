@@ -14,6 +14,7 @@ const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
 
 <template>
   <UModal v-model:open="open" :title="`Volume: ${nameOf(v.volumeFor.value ?? '')}`" description="Only changes what you hear.">
+    <template #title><EmojiText :text="`Volume: ${nameOf(v.volumeFor.value ?? '')}`" /></template>
     <template #body>
       <div v-if="v.volumeFor.value" class="flex flex-col gap-4">
         <UFormField label="Mic volume">

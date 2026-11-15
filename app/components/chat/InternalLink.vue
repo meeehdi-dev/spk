@@ -33,6 +33,6 @@ onMounted(() =>
     :to="`/c/${link.channelId}${link.messageId ? `/m/${link.messageId}` : ''}`"
     class="inline-flex items-center gap-1 rounded bg-elevated px-1 text-primary"
   >
-    <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-3" />{{ label.replace(/^#/, '') }}
+    <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-3" /><EmojiText :text="label.replace(/^#/, '')" />
   </NuxtLink>
 </template>
