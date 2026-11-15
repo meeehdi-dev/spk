@@ -36,9 +36,36 @@ export async function parseHtml(html: string, pageUrl: string) {
   }
 }
 
-async function fetchOne(url: string): Promise<ParsedPreview> {
+/** YouTube watch pages can return generic metadata; oEmbed provides video metadata directly. */
+export async function fetchMetadata(url: string) {
+  const u = new URL(url)
+  const youtube = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'].includes(u.hostname)
+  const id =
+    u.hostname === 'youtu.be'
+      ? u.pathname.slice(1)
+      : u.pathname === '/watch'
+        ? u.searchParams.get('v')
+        : /^\/(?:shorts|live|embed)\/([^/]+)\/?$/.exec(u.pathname)?.[1]
+  if (youtube && /^https?:$/.test(u.protocol) && !u.username && !u.password && !u.port && id && /^[\w-]{11}$/.test(id)) {
+    const endpoint = new URL('https://www.youtube.com/oembed')
+    endpoint.searchParams.set('url', `https://www.youtube.com/watch?v=${id}`)
+    endpoint.searchParams.set('format', 'json')
+    const response = await safeFetch(endpoint.href, { accept: 'json', maxBytes: 64 * 1024 })
+    const data: unknown = JSON.parse(response.body.toString('utf8'))
+    if (!data || typeof data !== 'object' || !('title' in data) || !clip(data.title, 200)) throw new Error('Missing YouTube video title')
+    return {
+      title: clip(data.title, 200),
+      description: 'author_name' in data ? clip(data.author_name, 400) : null,
+      siteName: 'YouTube',
+      image: 'thumbnail_url' in data ? clip(data.thumbnail_url, 2048) : null,
+    }
+  }
   const page = await safeFetch(url, { accept: 'html' })
-  const p = await parseHtml(page.body.toString('utf8'), page.url)
+  return parseHtml(page.body.toString('utf8'), page.url)
+}
+
+async function fetchOne(url: string): Promise<ParsedPreview> {
+  const p = await fetchMetadata(url)
   let imageKey: string | null = null
   if (p.image && (p.title || p.description)) {
     try {

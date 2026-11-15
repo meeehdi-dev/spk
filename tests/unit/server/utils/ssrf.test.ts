@@ -153,6 +153,11 @@ describe('safeFetch', () => {
   it('enforces content type and size', async () => {
     const o = { resolve: async () => ['127.0.0.1'], ...local }
     await expect(safeFetch(`http://a.test:${port}/json`, { accept: 'html', ...o })).rejects.toThrow(/Content type/)
+    expect((await safeFetch(`http://a.test:${port}/json`, { accept: 'json', ...o })).body.toString()).toBe('{}')
+    await expect(safeFetch(`http://a.test:${port}/json`, { accept: 'any', ...o })).rejects.toThrow(/Content type/)
+    await expect(safeFetch(`http://a.test:${port}/page`, { accept: 'json', ...o })).rejects.toThrow(/Content type/)
+    await expect(safeFetch(`http://a.test:${port}/img`, { accept: 'json', ...o })).rejects.toThrow(/Content type/)
+    await expect(safeFetch(`http://a.test:${port}/json`, { accept: 'json', maxBytes: 1, ...o })).rejects.toThrow(/size limit/)
     await expect(safeFetch(`http://a.test:${port}/img`, { accept: 'html', ...o })).rejects.toThrow(/Content type/)
     await expect(safeFetch(`http://a.test:${port}/page`, { accept: 'image', ...o })).rejects.toThrow(/Content type/)
     await expect(safeFetch(`http://a.test:${port}/img`, { accept: 'image', maxBytes: 1000, ...o })).rejects.toThrow(/size limit/)

@@ -27,6 +27,14 @@ describe('preview storage', () => {
     expect(attachPreviews(db, m.id, ['https://x.example/'])).toBeNull() // nothing new
   })
 
+  test('retries cached generic YouTube placeholders before their TTL expires', ({ db }) => {
+    const url = 'https://www.youtube.com/watch?v=Rvllqomd3E8'
+    savePreview(db, url, { ...card, title: '- YouTube' }, 1000)
+    expect(cachedPreview(db, url, 2000)).toBeUndefined()
+    savePreview(db, url, { ...card, title: 'Walid ouvre la porte' }, 2000)
+    expect(cachedPreview(db, url, 2000)?.title).toBe('Walid ouvre la porte')
+  })
+
   test('only the author or an admin removes a card, and it stays removed', ({ db }) => {
     const m = createMessage(db, 'a', 't', 'https://x.example/')
     savePreview(db, 'https://x.example/', card)

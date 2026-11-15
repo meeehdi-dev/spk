@@ -20,7 +20,8 @@ export interface ParsedPreview {
 /** A cached preview that is still fresh, or undefined. */
 export function cachedPreview(db: Db, url: string, now = Date.now()) {
   const row = db.select().from(linkPreviews).where(eq(linkPreviews.url, url)).get()
-  return row && now - row.fetchedAt.getTime() < PREVIEW_TTL_MS ? row : undefined
+  // Retry the generic YouTube placeholder instead of keeping it for the full TTL.
+  return row && row.title !== '- YouTube' && now - row.fetchedAt.getTime() < PREVIEW_TTL_MS ? row : undefined
 }
 
 export function savePreview(db: Db, url: string, p: ParsedPreview, now = Date.now()) {

@@ -53,8 +53,8 @@ export function isBlockedIp(ip: string): boolean {
 }
 
 export interface FetchOpts {
-  /** What the response must be: HTML pages, images, or either. */
-  accept: 'html' | 'image' | 'any'
+  /** What the response must be; `any` allows HTML or images. */
+  accept: 'html' | 'image' | 'json' | 'any'
   maxBytes?: number
   timeoutMs?: number
   maxRedirects?: number
@@ -102,7 +102,7 @@ function request(url: URL, t: { ip: string; host: string; port: number }, o: Fet
         headers: {
           host: url.host,
           'user-agent': 'Mozilla/5.0 (compatible; spk-link-preview/1.0)',
-          accept: o.accept === 'image' ? 'image/*' : 'text/html,application/xhtml+xml,image/*;q=0.8',
+          accept: o.accept === 'json' ? 'application/json' : o.accept === 'image' ? 'image/*' : 'text/html,application/xhtml+xml,image/*;q=0.8',
           'accept-encoding': 'identity', // no compression: the size limit counts real bytes
         },
       },
@@ -142,7 +142,13 @@ export async function safeFetch(input: string, o: FetchOpts): Promise<Fetched> {
     const contentType = (res.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
     const isHtml = HTML.test(contentType),
       isImage = IMAGE.test(contentType)
-    if (!((o.accept !== 'image' && isHtml) || (o.accept !== 'html' && isImage))) {
+    if (
+      !(
+        ((o.accept === 'html' || o.accept === 'any') && isHtml) ||
+        ((o.accept === 'image' || o.accept === 'any') && isImage) ||
+        (o.accept === 'json' && contentType === 'application/json')
+      )
+    ) {
       res.destroy()
       throw new SsrfError('Content type not allowed')
     }
@@ -160,6 +166,7 @@ export async function safeFetch(input: string, o: FetchOpts): Promise<Fetched> {
     }
     // A cut-off page still has its <head>; a cut-off image can't be decoded.
     if (truncated && isImage) throw new SsrfError('Image over the size limit')
+    if (truncated && o.accept === 'json') throw new SsrfError('JSON over the size limit')
     return { url: url.href, contentType, body: Buffer.concat(chunks), truncated }
   }
 }
