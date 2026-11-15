@@ -169,6 +169,9 @@ importers:
       '@iconify-json/lucide':
         specifier: ^1.2.152
         version: 1.2.152
+      '@iconify-json/twemoji':
+        specifier: 1.2.5
+        version: 1.2.5
       '@nuxt/ui':
         specifier: ^4.12.0
         version: 4.12.0(6ec9edd1ac0bfdad7e11ecd676cc940a)
@@ -1757,6 +1760,9 @@ packages:
 
   '@iconify-json/lucide@1.2.152':
     resolution: {integrity: sha512-OQTsOaQ+kD8yhy5EATMD5QHe5O+XJVibExdaRCaXP3hvNPNkn6wVUcTrGA16yU2luqe0ImE4qP74WBK8JuwwNA==}
+
+  '@iconify-json/twemoji@1.2.5':
+    resolution: {integrity: sha512-uKpuIEV0v6K5BW3Mjdyl+XKFVAbbcPxAgifKvEMtZoUZB5+YiY5zaMm2uNNCxyXzAWU9yNLlj41WU6/mvgALsw==}
 
   '@iconify/collections@1.0.762':
     resolution: {integrity: sha512-YKx0whVsIbWMZRjyVHxhBrobnRFSAa1Sb1u6cL0herB99ZrTQ/D9BqI7fVCb70Xkdv/oOuyi3luG6hOtKTkY5A==}
@@ -9968,6 +9974,10 @@ snapshots:
   '@humanwhocodes/retry@0.4.3': {}
 
   '@iconify-json/lucide@1.2.152':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify-json/twemoji@1.2.5':
     dependencies:
       '@iconify/types': 2.0.0
 

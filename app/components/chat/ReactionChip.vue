@@ -25,6 +25,6 @@ onMounted(() => {
     :class="mine ? 'border-primary/40 bg-primary/10' : 'border-default/60'"
     @click="emit('toggle')"
   >
-    <span class="text-base leading-none">{{ reaction.emoji }}</span><span>{{ reaction.userIds.length }}</span>
+    <EmojiGlyph :emoji="reaction.emoji" aria-hidden="true" class="text-base" /><span>{{ reaction.userIds.length }}</span>
   </button>
 </template>

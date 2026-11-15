@@ -45,6 +45,10 @@ CI checks lint and formatting in separate steps alongside the other checks. Oxfm
 
 Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks script variables/calls; ESLint checks Vue attributes and Nuxt UI slot values. Oxfmt preserves duplicates so lint can report them; `pnpm lint:fix` removes exact duplicates. Conflicting utilities require choosing the intended style; classes in separate slots, alternative branches, and distinct responsive variants are checked independently.
 
+### Emoji
+
+Chat messages, reactions, and the searchable picker use locally served [Twemoji](https://github.com/jdecked/twemoji) SVG artwork by Twitter, Inc. and other contributors, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Assets are generated from the pinned `@iconify-json/twemoji` package during Nuxt builds; no emoji CDN is used. Attribution is also served at `/twemoji-LICENSE.txt`. Messages remain Unicode, and unavailable artwork falls back to native emoji.
+
 ### Icons and PWA
 
 `public/logo.svg` is the source for favicons and install icons. After editing it or `public/badge.svg`, run `pnpm icons` and commit the generated files in `public/`. The generator uses the recommended `minimal-2023` preset with default filenames and dark backgrounds; Nuxt serves the committed assets without regenerating them during builds.

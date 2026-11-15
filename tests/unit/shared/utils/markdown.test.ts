@@ -91,10 +91,22 @@ describe('chat markdown rendering', () => {
     expect(t).toContain('blockquote')
     expect(t).not.toContain('h1')
   })
-  it('wraps emoji in a span, leaving other text alone', async () => {
+  it('renders emoji through the glyph component, leaving other text alone', async () => {
     const body = await parse('hi 👍🏽 and 🇫🇷 ok 12')
-    expect(JSON.stringify(body).match(/"emoji"/g)).toHaveLength(2)
+    expect(tags(body).filter(tag => tag === 'emoji-glyph')).toHaveLength(2)
+    expect(JSON.stringify(body)).toContain('"emoji":"👍🏽"')
     expect(text(body)).toBe('hi 👍🏽 and 🇫🇷 ok 12')
+  })
+  it('keeps whole emoji sequences together and leaves code and link destinations unchanged', async () => {
+    const england = '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}'
+    for (const emoji of ['❤️', '1️⃣', '👩🏽‍💻', england]) {
+      const body = await parse(emoji)
+      expect(tags(body)).toEqual(['p', 'emoji-glyph'])
+      expect((body.children[0] as MDCElement).children[0]).toMatchObject({ props: { emoji } })
+    }
+    const body = await parse('`😀`\n\n```\n👍🏽\n```\n\n[label](https://example.com/😀)')
+    expect(tags(body)).not.toContain('emoji-glyph')
+    expect(JSON.stringify(body)).toContain('https://example.com/%F0%9F%98%80')
   })
 })
 

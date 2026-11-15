@@ -332,7 +332,7 @@ function onKey(e: KeyboardEvent) {
             :class="message.reactions.some(r => r.emoji === e && mineOf(r)) ? 'bg-primary/10' : ''"
             @click="react(e)"
           >
-            {{ e }}
+            <EmojiGlyph :emoji="e" aria-hidden="true" class="text-base" />
           </UButton>
         </UTooltip>
         <UPopover
@@ -393,12 +393,9 @@ function onKey(e: KeyboardEvent) {
 <style>
 .chat-body .emoji {
   font-size: 1.2em;
-  line-height: 1;
-  vertical-align: middle;
 }
 .chat-emoji-only .emoji {
   font-size: 2.25rem;
-  line-height: 1.2;
 }
 .chat-body p {
   margin: 0;

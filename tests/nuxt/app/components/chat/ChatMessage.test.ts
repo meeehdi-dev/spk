@@ -88,6 +88,26 @@ function stubResizeObserver() {
   return { observers, notify }
 }
 
+describe('emoji rendering', () => {
+  it('uses SVGs in messages, reaction chips and quick reactions without changing reaction values', async () => {
+    const wrapper = await mountInApp(
+      ChatMessage,
+      { message: { ...message, body: '👍🏽', reactions: [{ emoji: '❤️', userIds: ['a'] }] }, grouped: false },
+      { global: { provide: { [chatActionsKey as symbol]: actions } } },
+    )
+    await vi.waitFor(() => expect(wrapper.find('[data-body] img[alt="👍🏽"]').exists()).toBe(true))
+    expect(wrapper.find('[data-body]').classes()).toContain('chat-emoji-only')
+    const chip = wrapper.find('button[aria-pressed]')
+    expect(chip.find('img').attributes('alt')).toBe('❤️')
+    await chip.trigger('click')
+    expect(actions.react).toHaveBeenCalledWith('m1', '❤️', false)
+    const quick = wrapper.find('button[aria-label^="React with"]')
+    expect(quick.find('img').exists()).toBe(true)
+    await quick.trigger('click')
+    expect(actions.react).toHaveBeenLastCalledWith('m1', quick.find('img').attributes('alt'), true)
+  })
+})
+
 describe('message highlights', () => {
   it('highlights mentions and replies to me, but not code, other users or my own messages', async () => {
     const props = reactive({ message, grouped: false, highlighted: false })

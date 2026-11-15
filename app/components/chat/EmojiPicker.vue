@@ -33,7 +33,9 @@ onMounted(async () => {
     class="max-h-[min(24rem,var(--reka-popover-content-available-height))] w-80 max-w-[calc(100vw-2rem)]"
   >
     <template #item-leading="{ item }">
-      <span aria-hidden="true" class="size-5 shrink-0 text-center text-lg/5">{{ item.emoji }}</span>
+      <span aria-hidden="true" class="inline-flex size-5 shrink-0 items-center justify-center text-lg">
+        <EmojiGlyph :emoji="item.emoji" />
+      </span>
     </template>
     <template #empty>
       <p role="status">{{ loading ? 'Loading emoji…' : failed ? 'Could not load emoji.' : 'No emoji found.' }}</p>

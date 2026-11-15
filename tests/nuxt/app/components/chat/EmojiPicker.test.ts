@@ -30,6 +30,7 @@ describe('emoji reaction picker', () => {
     const { wrapper, input } = await mountPicker()
     expect(load).toHaveBeenCalledOnce()
     expect(input.attributes('aria-label')).toBe('Search emoji')
+    expect(wrapper.findAll('img').map(image => image.attributes('alt'))).toEqual(['😀', '❤️'])
     await vi.waitFor(() => expect(document.activeElement).toBe(input.element))
     expect(wrapper.findComponent({ name: 'UCommandPalette' }).props('fuse')).toEqual({
       fuseOptions: { keys: ['name', 'shortcodes', 'tags'] },
@@ -41,11 +42,12 @@ describe('emoji reaction picker', () => {
   it('finds names, shortcodes and tags, resets on clear, and emits only the selected emoji', async () => {
     const { wrapper, search, shown } = await mountPicker()
     expect(shown()).toHaveLength(2)
-    for (const term of ['red heart', 'heart', 'love']) await search(term, results => expect(results).toEqual([expect.stringContaining('❤️')]))
+    for (const term of ['red heart', 'heart', 'love']) await search(term, results => expect(results).toEqual([expect.stringContaining('red heart')]))
     await search('zzzzzzzzzz', results => expect(results).toEqual([]))
     expect(wrapper.text()).toContain('No emoji found.')
     await search('', results => expect(results).toHaveLength(2))
-    expect(shown()[0]).toContain('😀')
+    expect(shown()[0]).toContain('grinning face')
+    expect(wrapper.findAll('[role="option"]')[0]!.find('img').attributes('alt')).toBe('😀')
     await wrapper.findAll('[role="option"]')[1]!.trigger('click')
     expect(wrapper.emitted('pick')).toEqual([['❤️']])
     wrapper.unmount()
