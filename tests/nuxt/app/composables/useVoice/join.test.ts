@@ -82,7 +82,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       this.rejectConnect?.(new Error('Connection cancelled'))
       this.emit('Disconnected')
     })
-    constructor() {
+    constructor(public options: { disconnectOnPageLeave?: boolean }) {
       media.rooms.push(this)
     }
   }
@@ -208,6 +208,33 @@ afterEach(async () => {
 })
 
 describe('acknowledged voice join', () => {
+  it('keeps voice connected through the unload prompt and only leaves on pagehide', async () => {
+    const b = await browser('reload')
+    await b.v.join('c1')
+    const r = media.rooms[0]!
+    expect(r.options.disconnectOnPageLeave).toBe(false)
+    const beforeUnload = mocks.useEventListener.mock.calls.find(([, event]) => event === 'beforeunload')![2]
+    const pageHide = mocks.useEventListener.mock.calls.find(([, event]) => event === 'pagehide')![2]
+    sound.mockClear()
+
+    // Cancelling the prompt does not fire pagehide; another reload must still warn.
+    for (let i = 0; i < 2; i++) {
+      const event = new Event('beforeunload', { cancelable: true })
+      beforeUnload(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(r.disconnect).not.toHaveBeenCalled()
+      expect(b.v.channelId.value).toBe('c1')
+      expect(sessions.sessionOf('reload')?.channelId).toBe('c1')
+    }
+
+    pageHide()
+    await flush()
+    expect(r.disconnect).toHaveBeenCalledTimes(1)
+    expect(b.v.channelId.value).toBeNull()
+    expect(sessions.sessionOf('reload')).toBeNull()
+    expect(sound).not.toHaveBeenCalled()
+  })
+
   it('keeps mute across leave and applies it on join', async () => {
     const b = await browser('mute')
     b.v.toggleMic()

@@ -293,6 +293,7 @@ export function useVoice() {
       r = new Room({
         adaptiveStream: true,
         dynacast: true,
+        disconnectOnPageLeave: false, // beforeunload can be cancelled; pagehide handles departure.
         publishDefaults: VOICE_PUBLISH_DEFAULTS,
         videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
         audioCaptureDefaults: captureOptions(mic.deviceId),
@@ -1010,6 +1011,9 @@ export function useVoiceLive() {
   })
   useEventListener(window, 'beforeunload', e => {
     if (v.channelId.value) e.preventDefault()
+  })
+  useEventListener(window, 'pagehide', () => {
+    void v.leave(false)
   })
   // Keep the machine awake during a call; the browser drops the lock while the tab is hidden.
   const wakeLock = useWakeLock()
