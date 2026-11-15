@@ -9,6 +9,12 @@ const theater = v.theater
 const tiles = computed(() => (here.value ? v.tiles.value : []))
 const focused = computed(() => tiles.value.find(t => t.userId === theater.value))
 const others = computed(() => tiles.value.filter(t => t !== focused.value))
+const participantsHidden = ref(false)
+const participantsId = useId()
+const participantsLabel = computed(() => (participantsHidden.value ? 'Show participants' : 'Hide participants'))
+watch(focused, tile => {
+  if (!tile) participantsHidden.value = false
+})
 const toggleTheater = (id: string) => {
   theater.value = theater.value === id ? null : id
 }
@@ -25,6 +31,8 @@ const toggleTheater = (id: string) => {
         <div v-if="here && tiles.length" class="flex w-full flex-col gap-3" :class="focused ? 'min-h-0 flex-1' : ''">
           <VoiceTile v-if="focused" :key="focused.userId" :tile="focused" theater class="min-h-0 flex-1" @theater="toggleTheater(focused.userId)" />
           <div
+            v-show="!focused || !participantsHidden"
+            :id="participantsId"
             :class="
               focused
                 ? 'flex justify-center-safe gap-3 overflow-x-auto p-1 [&>*]:w-48 [&>*]:shrink-0'
@@ -71,6 +79,17 @@ const toggleTheater = (id: string) => {
         <VoiceControl kind="screen" labeled />
         <SoundboardPopover labeled />
         <RadioPopover labeled />
+        <UTooltip v-if="focused" :text="participantsLabel">
+          <UButton
+            :icon="participantsHidden ? 'i-lucide-panel-bottom-open' : 'i-lucide-panel-bottom-close'"
+            color="neutral"
+            variant="ghost"
+            :aria-label="participantsLabel"
+            :aria-expanded="!participantsHidden"
+            :aria-controls="participantsId"
+            @click="participantsHidden = !participantsHidden"
+          />
+        </UTooltip>
         <VoiceControl kind="leave" labeled />
       </template>
     </div>
