@@ -3,6 +3,7 @@ import type WaveSurfer from 'wavesurfer.js'
 import type { Region } from 'wavesurfer.js/plugins/regions'
 
 import { cropMono, encodeWav, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BYTES, SOUND_RATE } from '#shared/utils/sounds'
+import { getMediaAudio, playMediaAudio } from '~/utils/media-audio'
 
 const { data: sounds, refresh } = useSounds()
 const toast = useToast()
@@ -22,16 +23,41 @@ useMediaOutput(media)
 const form = reactive({ name: '', icon: 'audio-lines' })
 const decoded = shallowRef<AudioBuffer>()
 const sel = ref({ start: 0, end: 0 })
+const volume = ref(100)
+const mono = computed(() => {
+  const d = decoded.value
+  return d
+    ? cropMono(
+        Array.from({ length: d.numberOfChannels }, (_, i) => d.getChannelData(i)),
+        d.sampleRate,
+        sel.value.start,
+        sel.value.end,
+      )
+    : new Float32Array()
+})
+const clipping = computed(() => mono.value.some(sample => Math.abs(sample * (volume.value / 100)) > 1))
 const playing = ref(false)
 const saving = ref(false)
 let ws: WaveSurfer | undefined
 let region: Region | undefined
+let source: MediaElementAudioSourceNode | undefined
+let gain: GainNode | undefined
+let clipper: WaveShaperNode | undefined
+
+watch(volume, value => {
+  if (gain) gain.gain.value = value / 100
+})
 
 function reset() {
   media.value = null
   ws?.destroy()
   ws = region = undefined
+  source?.disconnect()
+  gain?.disconnect()
+  clipper?.disconnect()
+  source = gain = clipper = undefined
   decoded.value = undefined
+  volume.value = 100
   form.name = ''
   playing.value = false
 }
@@ -73,7 +99,17 @@ async function load(file: File) {
     progressColor: '#f59e0b',
     plugins: [regions],
   })
-  media.value = ws.getMediaElement()
+  const output = getMediaAudio()
+  source = output.context.createMediaElementSource(ws.getMediaElement()!)
+  gain = output.context.createGain()
+  gain.gain.value = volume.value / 100
+  gain.channelCount = 1
+  gain.channelCountMode = 'explicit'
+  clipper = output.context.createWaveShaper()
+  // Match the WAV encoder's hard clipping, even when the output device is turned down.
+  clipper.curve = new Float32Array([-1, 0, 1])
+  source.connect(gain).connect(clipper).connect(output.destination)
+  media.value = output.element ?? null
   ws.on('play', () => {
     playing.value = true
   })
@@ -96,7 +132,7 @@ async function load(file: File) {
 }
 const toggle = () => {
   if (playing.value) ws?.pause()
-  else region?.play(true)
+  else void playMediaAudio(() => region?.play(true))
 }
 
 async function save() {
@@ -104,13 +140,8 @@ async function save() {
   saving.value = true
   try {
     const d = decoded.value
-    const mono = cropMono(
-      Array.from({ length: d.numberOfChannels }, (_, i) => d.getChannelData(i)),
-      d.sampleRate,
-      sel.value.start,
-      sel.value.end,
-    )
-    const wav = encodeWav(mono, d.sampleRate)
+    const samples = mono.value
+    const wav = encodeWav(samples, d.sampleRate, volume.value / 100)
     if (wav.length > MAX_SOUND_BYTES) throw new Error('The cropped sound is too big')
     const { id, url, headers } = await $fetch<{ id: string; url: string; headers: Record<string, string> }>('/api/sounds/presign', {
       method: 'POST',
@@ -120,7 +151,7 @@ async function save() {
     if (!put.ok) throw new Error(`Upload failed (${put.status})`)
     await $fetch('/api/sounds', {
       method: 'POST',
-      body: { id, name: form.name, icon: form.icon, durationMs: Math.round((mono.length / d.sampleRate) * 1000), size: wav.length },
+      body: { id, name: form.name, icon: form.icon, durationMs: Math.round((samples.length / d.sampleRate) * 1000), size: wav.length },
     })
     toast.add({ title: 'Sound added', icon: 'i-lucide-check' })
     reset()
@@ -227,6 +258,10 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             />
             <span>{{ sel.start.toFixed(2) }} s – {{ sel.end.toFixed(2) }} s ({{ (sel.end - sel.start).toFixed(2) }} s, 10 s at most)</span>
           </div>
+          <UFormField label="Volume" :hint="`${volume}%`" description="Applied permanently to the uploaded sound.">
+            <USlider v-model="volume" :min="0" :max="200" :step="1" aria-label="Upload volume" />
+          </UFormField>
+          <p v-if="clipping" role="status" class="text-sm text-warning">This volume clips peaks and may distort the sound. Lower it to avoid distortion.</p>
           <div class="flex flex-wrap items-end gap-2">
             <UFormField label="Name" class="min-w-48 flex-1">
               <UInput v-model="form.name" maxlength="32" class="w-full" />

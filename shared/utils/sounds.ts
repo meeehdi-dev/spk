@@ -15,8 +15,8 @@ export function cropMono(channels: Float32Array[], sampleRate: number, startS: n
   return out
 }
 
-/** 16-bit PCM mono WAV (44-byte header + samples). */
-export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array {
+/** 16-bit PCM mono WAV (44-byte header + samples), with gain baked in and peaks clamped. */
+export function encodeWav(samples: Float32Array, sampleRate: number, gain = 1): Uint8Array {
   const buf = new ArrayBuffer(44 + samples.length * 2)
   const v = new DataView(buf)
   const text = (at: number, s: string) => {
@@ -35,6 +35,6 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
   v.setUint16(34, 16, true) // block align, bits
   text(36, 'data')
   v.setUint32(40, samples.length * 2, true)
-  samples.forEach((s, i) => v.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, s)) * (s < 0 ? 0x8000 : 0x7fff)), true))
+  samples.forEach((s, i) => v.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, s * gain)) * (s < 0 ? 0x8000 : 0x7fff)), true))
   return new Uint8Array(buf)
 }
