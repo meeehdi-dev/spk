@@ -369,7 +369,83 @@ describe('acknowledged voice join', () => {
     expect(next.v.channelId.value).toBeNull()
   })
 
-  it('does not autojoin on ordinary reloads or restore another account’s intent', async () => {
+  it.each(['reload', 'navigate', 'back_forward'])('only restores an ordinary departure on reload (%s)', async type => {
+    const b = await browser('reload')
+    await b.v.join('c1')
+    b.v.toggleHeadphones()
+    const pageHide = mocks.useEventListener.mock.calls.find(([, event]) => event === 'pagehide')![2]
+    pageHide()
+    await flush()
+    expect(JSON.parse(sessionStorage.getItem('spk:update-voice')!)).toEqual({
+      userId: 'reload',
+      channelId: 'c1',
+      mute: { muted: true, deafened: true, restore: false },
+      reloadOnly: true,
+    })
+
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([{ type } as PerformanceNavigationTiming])
+    const next = await browser('reload', false)
+    next.me.value = null
+    next.restoreAfterUpdate()
+    expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+    next.connected.value = true
+    await flush()
+    expect(next.v.channelId.value).toBeNull()
+    next.me.value = { id: 'reload' }
+    await flush()
+    expect(next.v.channelId.value).toBe(type === 'reload' ? 'c1' : null)
+    if (type === 'reload') {
+      expect(next.v.mute.value).toEqual({ muted: true, deafened: true, restore: false })
+      expect(next.v.camOn.value).toBe(false)
+      expect(next.v.screenOn.value).toBe(false)
+      await next.v.leave(false)
+      next.connected.value = false
+      await flush()
+      next.connected.value = true
+      await flush()
+      expect(next.v.channelId.value).toBeNull()
+    }
+  })
+
+  it.each(['leave', 'disconnect', 'takeover'])('does not save reload intent after %s', async action => {
+    const b = await browser('departed')
+    await b.v.join('c1')
+    if (action === 'leave') await b.v.leave(false)
+    else if (action === 'disconnect') b.receive({ type: 'voice:disconnect', sid: b.v.sid, reason: 'Disconnected by admin' })
+    else b.receive({ type: 'voice:kicked', sid: 'another-tab' })
+    await flush()
+    const pageHide = mocks.useEventListener.mock.calls.find(([, event]) => event === 'pagehide')![2]
+    pageHide()
+    expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+  })
+
+  it('still releases media on pagehide when storage is unavailable', async () => {
+    const b = await browser('storage')
+    await b.v.join('c1')
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('Storage unavailable')
+    })
+    const pageHide = mocks.useEventListener.mock.calls.find(([, event]) => event === 'pagehide')![2]
+    expect(() => pageHide()).not.toThrow()
+    await flush()
+    expect(media.rooms[0]!.disconnect).toHaveBeenCalledOnce()
+    expect(b.v.channelId.value).toBeNull()
+    expect(sessions.sessionOf('storage')).toBeNull()
+  })
+
+  it.each(['{', '{}', '{"userId":"ordinary","channelId":"c1","mute":{"muted":false,"deafened":true,"restore":false}}'])(
+    'ignores malformed resume intent: %s',
+    async saved => {
+      sessionStorage.setItem('spk:update-voice', saved)
+      const b = await browser('ordinary')
+      b.restoreAfterUpdate()
+      await flush()
+      expect(media.rooms).toHaveLength(0)
+      expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
+    },
+  )
+
+  it('does not autojoin without saved intent or restore another account’s intent', async () => {
     const b = await browser('ordinary')
     b.restoreAfterUpdate()
     await flush()
@@ -388,12 +464,14 @@ describe('acknowledged voice join', () => {
     expect(sessionStorage.getItem('spk:update-voice')).toBeNull()
   })
 
-  it('consumes an update intent even when reconnecting fails', async () => {
+  it.each([false, true])('consumes the intent even when reconnecting fails (reloadOnly: %s)', async reloadOnly => {
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([{ type: 'reload' } as PerformanceNavigationTiming])
     sessionStorage.setItem(
       'spk:update-voice',
       JSON.stringify({
         userId: 'failed-update',
         channelId: 'c1',
+        reloadOnly,
         mute: { muted: true, deafened: false, restore: true },
       }),
     )

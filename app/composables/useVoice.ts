@@ -1153,7 +1153,7 @@ export function useVoiceLive() {
     void load()
   })
   onMounted(() => {
-    let intent: { userId: string; channelId: string; mute: typeof mute.value } | null
+    let intent: { userId: string; channelId: string; mute: typeof mute.value; reloadOnly?: boolean } | null
     try {
       const saved = sessionStorage.getItem(updateVoiceKey)
       sessionStorage.removeItem(updateVoiceKey) // Consume before joining, including when the join fails.
@@ -1163,6 +1163,7 @@ export function useVoiceLive() {
     }
     if (
       !intent ||
+      (intent.reloadOnly && (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type !== 'reload') ||
       typeof intent.userId !== 'string' ||
       typeof intent.channelId !== 'string' ||
       typeof intent.mute?.muted !== 'boolean' ||
@@ -1256,6 +1257,15 @@ export function useVoiceLive() {
     if (v.channelId.value && !reloadingForUpdate) e.preventDefault()
   })
   useEventListener(window, 'pagehide', () => {
+    if (!reloadingForUpdate) {
+      try {
+        if (v.channelId.value)
+          sessionStorage.setItem(updateVoiceKey, JSON.stringify({ userId: v.me.value?.id, channelId: v.channelId.value, mute: v.mute.value, reloadOnly: true }))
+        else sessionStorage.removeItem(updateVoiceKey)
+      } catch {
+        // Storage can be unavailable; still release media and presence.
+      }
+    }
     void v.leave(false)
   })
   // Keep the machine awake during a call; the browser drops the lock while the tab is hidden.
