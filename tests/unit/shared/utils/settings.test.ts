@@ -7,6 +7,8 @@ describe('settingsTabFromPath', () => {
     expect(settingsTabFromPath('/settings', false)).toBe('profile')
     expect(settingsTabFromPath('/settings/', true)).toBe('profile')
     expect(settingsTabFromPath('/settings/voice', false)).toBe('voice')
+    expect(settingsTabFromPath('/settings/changelog', false)).toBe('changelog')
+    expect(settingsTabFromPath('/settings/changelog', true)).toBe('changelog')
     expect(settingsTabFromPath('/settings/users', true)).toBe('users')
   })
   it('falls back to profile for unknown or admin-only tabs for non-admins', () => {

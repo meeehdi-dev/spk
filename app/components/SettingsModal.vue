@@ -28,6 +28,7 @@ const view = computed(() =>
         voice: resolveComponent('SettingsVoice'),
         notifications: resolveComponent('SettingsNotifications'),
         shortcuts: resolveComponent('SettingsShortcuts'),
+        changelog: resolveComponent('SettingsChangelog'),
         soundboard: resolveComponent('SettingsSoundboard'),
         invites: resolveComponent('SettingsInvites'),
         users: resolveComponent('SettingsUsers'),
