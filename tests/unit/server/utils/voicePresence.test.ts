@@ -64,13 +64,16 @@ describe('voice presence', () => {
   it('reconnect with the same sid keeps flags; speaking clears on mute', () => {
     const a = {}
     joinVoice('u2', 'c1', 's', a)
+    updateVoice('u2', 's', { speaking: true, radioListening: true, watching: ['remote'] })
+    joinVoice('u2', 'c1', 's', {})
+    expect(voiceSnapshot().find(p => p.userId === 'u2')).toMatchObject({ speaking: true, radioListening: true, watching: ['remote'] })
     updateVoice('u2', 's', { deafened: true, muted: true, speaking: true })
     expect(voiceSnapshot().find(p => p.userId === 'u2')).toMatchObject({ speaking: false, muted: true })
     joinVoice('u2', 'c1', 's', {})
     expect(voiceSnapshot().find(p => p.userId === 'u2')).toMatchObject({ deafened: true })
     leaveVoice('u2', 's')
   })
-  it('closing the socket clears its sessions only', () => {
+  it('explicit owner cleanup clears its sessions only', () => {
     const a = {},
       b = {}
     joinVoice('u3', 'c1', 's', a)

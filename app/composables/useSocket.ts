@@ -33,29 +33,18 @@ let ws: WebSocket | undefined
 let started = false
 let retry = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
-let heartbeat: ReturnType<typeof setTimeout> | undefined
-let heard = 0
-// The server pings every 20 seconds; tolerate two missed pings and scheduling delays.
-const HEARTBEAT_MS = 60_000
+let connectTimer: ReturnType<typeof setTimeout> | undefined
 const connected = ref(false)
 const offline = ref(false)
 
 function resetSocket() {
   clearTimeout(retryTimer)
   retryTimer = undefined
-  clearTimeout(heartbeat)
+  clearTimeout(connectTimer)
   const old = ws
   ws = undefined // callbacks from an old socket must not affect its replacement
   connected.value = false
   old?.close()
-}
-
-function armHeartbeat() {
-  clearTimeout(heartbeat)
-  heartbeat = setTimeout(() => {
-    resetSocket()
-    connect()
-  }, HEARTBEAT_MS)
 }
 
 function connect() {
@@ -64,21 +53,21 @@ function connect() {
   retryTimer = undefined
   const current = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws?status=${localStorage.getItem('spk:status') ?? ''}`)
   ws = current
-  heard = Date.now()
-  // Also bounds a connection attempt that never opens or closes.
-  armHeartbeat()
+  // Bound the handshake only; an open socket never expires because its tab is idle.
+  connectTimer = setTimeout(() => {
+    if (ws !== current) return
+    resetSocket()
+    connect()
+  }, 60_000)
   current.onopen = () => {
     if (ws !== current) return
     retry = 0
-    heard = Date.now()
-    armHeartbeat()
+    clearTimeout(connectTimer)
     connected.value = true
     openHandlers.forEach(h => h())
   }
   current.onmessage = e => {
     if (ws !== current) return
-    heard = Date.now()
-    armHeartbeat()
     try {
       const m = JSON.parse(e.data)
       if (m.type === 'ping') current.send('ping')
@@ -109,7 +98,6 @@ export function useSocket() {
     })
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || offline.value) return
-      if (ws && Date.now() - heard >= HEARTBEAT_MS) resetSocket()
       connect()
     })
     connect()

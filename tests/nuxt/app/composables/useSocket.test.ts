@@ -54,19 +54,20 @@ function fire(target: Map<string, EventListener>, name: string) {
   target.get(name)!(new Event(name))
 }
 
-it('reconnects silently dead sockets and ignores callbacks from their replacements', async () => {
+it('never expires an open socket for inactivity and ignores callbacks from replaced sockets', async () => {
   const socket = await setup()
   const first = sockets[0]!
   first.open()
   expect(socket.connected.value).toBe(true)
-  await vi.advanceTimersByTimeAsync(40_000)
+  await vi.advanceTimersByTimeAsync(24 * 60 * 60_000)
   first.onmessage?.({ data: '{"type":"ping"}' })
   expect(first.send).toHaveBeenCalledWith('ping')
-  await vi.advanceTimersByTimeAsync(59_999)
+  await vi.advanceTimersByTimeAsync(24 * 60 * 60_000)
   expect(sockets).toHaveLength(1)
-  await vi.advanceTimersByTimeAsync(1)
-  expect(first.close).toHaveBeenCalledOnce()
+  expect(first.close).not.toHaveBeenCalled()
+  first.onclose?.()
   expect(socket.connected.value).toBe(false)
+  await vi.advanceTimersByTimeAsync(1000)
   const second = sockets[1]!
   second.open()
   first.onclose?.()
@@ -95,7 +96,7 @@ it('waits offline, retries promptly online and never duplicates a healthy socket
   expect(sockets).toHaveLength(2)
 })
 
-it('keeps backoff and rechecks an expired connection after waking the tab', async () => {
+it('keeps backoff but does not reset an open socket after waking the tab', async () => {
   await setup()
   sockets[0]!.open()
   sockets[0]!.onclose?.()
@@ -107,6 +108,16 @@ it('keeps backoff and rechecks an expired connection after waking the tab', asyn
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   vi.setSystemTime(Date.now() + 120_000)
   fire(documentEvents, 'visibilitychange')
-  expect(sockets[1]!.close).toHaveBeenCalledOnce()
-  expect(sockets).toHaveLength(3)
+  expect(sockets[1]!.close).not.toHaveBeenCalled()
+  expect(sockets).toHaveLength(2)
+})
+
+it('bounds a handshake that never opens without applying that timeout to an open socket', async () => {
+  await setup()
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(sockets[0]!.close).toHaveBeenCalledOnce()
+  expect(sockets).toHaveLength(2)
+  sockets[1]!.open()
+  await vi.advanceTimersByTimeAsync(120_000)
+  expect(sockets[1]!.close).not.toHaveBeenCalled()
 })

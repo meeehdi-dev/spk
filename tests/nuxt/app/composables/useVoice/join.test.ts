@@ -96,6 +96,12 @@ vi.mock('~/utils/voice-processor', () => ({
     destroy = vi.fn(async () => {})
   },
 }))
+vi.mock('livekit-server-sdk', async importOriginal => ({
+  ...(await importOriginal<typeof import('livekit-server-sdk')>()),
+  RoomServiceClient: class {
+    getParticipant = vi.fn(async () => ({ identity: 'connected' }))
+  },
+}))
 vi.mock('livekit-client', () => ({
   Track: { Kind: { Audio: 'audio' } },
   RoomEvent: Object.fromEntries(
@@ -209,6 +215,7 @@ beforeEach(() => {
     configurable: true,
     value: { getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }] }), enumerateDevices: async () => [] },
   })
+  vi.stubGlobal('useRuntimeConfig', () => ({ livekit: { apiKey: 'key', apiSecret: 'secret' }, public: { livekitUrl: 'wss://rtc.example.com' } }))
   vi.stubGlobal('useDb', () => db)
   for (const [name, fn] of Object.entries(sessions)) vi.stubGlobal(name, fn)
   vi.stubGlobal('broadcast', (m: Frame) => {
@@ -221,7 +228,7 @@ beforeEach(() => {
 })
 afterEach(async () => {
   for (const leave of leaveBrowsers) await leave()
-  for (const c of clients) dropVoiceSocket(c.owner)
+  for (const c of clients) sessions.dropVoiceOwner(c.owner)
   db.$client.close()
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -797,6 +804,25 @@ describe('acknowledged voice join', () => {
 })
 
 describe('voice reconnection', () => {
+  it('keeps membership and makes no leave/join sounds during app socket recovery', async () => {
+    const observer = await browser('observer')
+    await observer.v.join('c1')
+    const b = await browser('afk')
+    await b.v.join('c1')
+    sound.mockClear()
+    b.connected.value = false
+    dropVoiceSocket(b.owner)
+    await flush()
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'afk')).toBeDefined()
+    b.connected.value = true
+    b.opened()
+    await flush()
+    expect(sessions.voiceSnapshot().filter(p => p.userId === 'afk')).toHaveLength(1)
+    expect(sound).not.toHaveBeenCalled()
+    expect(media.rooms).toHaveLength(2)
+    expect(media.rooms.every(r => r.disconnect.mock.calls.length === 0)).toBe(true)
+  })
+
   it('keeps healthy media through an app redeploy and restores full presence state', async () => {
     const b = await browser('redeploy')
     await b.v.join('c1')
@@ -854,7 +880,7 @@ describe('voice reconnection', () => {
     expect(toast.mock.calls.filter(([m]) => m.title === 'Voice interrupted. Reconnecting…')).toHaveLength(1)
     dropVoiceSocket(b.owner)
     b.opened()
-    expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeUndefined()
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeDefined()
     r.emit('Reconnected')
     expect(b.v.connection.value).toBe('connected')
     expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeDefined()

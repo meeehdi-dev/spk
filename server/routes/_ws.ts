@@ -5,7 +5,6 @@ import { radioSnapshot } from '../utils/radioState'
 
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
-const heard = new WeakMap<Peer, number>() // last time each peer sent anything
 const timers = new WeakMap<Peer, ReturnType<typeof setInterval>>()
 
 export default defineWebSocketHandler({
@@ -45,18 +44,15 @@ export default defineWebSocketHandler({
     const p = addPeer(userId, peer, peer.context.status as ManualStatus | undefined)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
     peer.send(JSON.stringify({ type: 'radio:snapshot', channels: radioSnapshot() }))
-    heard.set(peer, Date.now())
     timers.set(
       peer,
       setInterval(() => {
-        // Silent for over 2 pings (a sleeping laptop, dropped Wi-Fi): terminating runs the close hook's presence and voice cleanup.
-        if (Date.now() - (heard.get(peer) ?? 0) > 2 * PING_MS) return peer.terminate()
+        // Keep proxies alive, but never disconnect a tab for delayed JavaScript replies.
         peer.send(JSON.stringify({ type: 'ping' }))
       }, PING_MS),
     )
   },
   message(peer, message) {
-    heard.set(peer, Date.now())
     const text = message.text()
     if (text === 'ping') peer.send(JSON.stringify({ type: 'pong' }))
     else handleClientFrame(peer.context.userId as string, text, peer)

@@ -1188,7 +1188,7 @@ export function useVoiceLive() {
   })
   socket.onOpen(() => {
     void load()
-    // The server drops our session when the socket closes; take it back after a reconnect.
+    // Reclaim the existing session without dropping voice presence during app socket recovery.
     if (v.channelId.value)
       socket.send({
         type: 'voice:join',

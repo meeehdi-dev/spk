@@ -33,6 +33,7 @@ const pub = ({ sid: _sid, owner: _owner, ready: _ready, ...p }: Session): VoiceP
 export function joinVoice(userId: string, channelId: string, sid: string, owner: unknown, ready = true) {
   const old = sessions.get(userId)
   const visible = ready || (!!old?.ready && old.channelId === channelId)
+  const resuming = old?.sid === sid && old.channelId === channelId
   sessions.set(userId, {
     userId,
     channelId,
@@ -40,11 +41,11 @@ export function joinVoice(userId: string, channelId: string, sid: string, owner:
     owner,
     muted: old?.sid === sid ? old.muted : false,
     deafened: old?.sid === sid ? old.deafened : false,
-    speaking: false,
+    speaking: resuming ? old.speaking : false,
     cam: old?.sid === sid ? old.cam : false,
     screen: old?.sid === sid ? old.screen : false,
-    radioListening: false,
-    watching: [],
+    radioListening: resuming ? old.radioListening : false,
+    watching: resuming ? old.watching : [],
     ready: visible,
   })
   if (old && old.channelId !== channelId) clearEmptyRadio(old.channelId)
@@ -77,7 +78,7 @@ export function leaveVoice(userId: string, sid: string) {
   return { userId, channelId, ready }
 }
 
-/** The socket that owns sessions closed: they are ghosts now. */
+/** Explicitly removes every session owned by this socket. */
 export function dropVoiceOwner(owner: unknown) {
   const gone: Array<{ userId: string; channelId: string }> = []
   for (const [userId, s] of sessions)
@@ -88,6 +89,9 @@ export function dropVoiceOwner(owner: unknown) {
     }
   return gone
 }
+
+/** Sessions still owned by this app socket; a reconnect transfers ownership. */
+export const voiceSessionsOf = (owner: unknown) => [...sessions.values()].filter(s => s.owner === owner)
 
 /** All current sessions. */
 export const voiceSnapshot = (): VoicePresence[] => [...sessions.values()].filter(s => s.ready).map(pub)

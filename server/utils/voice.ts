@@ -1,6 +1,7 @@
 import type { Peer } from 'crossws'
 
 import { and, eq } from 'drizzle-orm'
+import { RoomServiceClient, ServerError } from 'livekit-server-sdk'
 
 import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
 import { channels } from '../db/schema'
@@ -58,7 +59,26 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
   }
 }
 
-/** The socket closed: whoever it held in voice is gone. */
+/** An app socket closing says nothing about healthy voice media. Only LiveKit can confirm departure. */
 export function dropVoiceSocket(owner: unknown) {
-  for (const g of dropVoiceOwner(owner)) broadcast(presenceFrame(null, g.userId))
+  for (const s of voiceSessionsOf(owner)) if (!s.ready) leaveVoice(s.userId, s.sid)
+  if (!voiceSessionsOf(owner).length) return
+  const cfg = useRuntimeConfig()
+  if (!cfg.livekit.apiKey || !cfg.livekit.apiSecret || !cfg.public.livekitUrl) return
+  const client = new RoomServiceClient(cfg.public.livekitUrl.replace(/^ws/, 'http'), cfg.livekit.apiKey, cfg.livekit.apiSecret)
+  const check = async () => {
+    for (const s of voiceSessionsOf(owner)) {
+      try {
+        await client.getParticipant(s.channelId, s.userId)
+      } catch (e) {
+        if (e instanceof ServerError && e.code === 'not_found') {
+          // The RPC may finish after a reconnect or another tab has taken ownership.
+          if (voiceSessionsOf(owner).includes(s) && leaveVoice(s.userId, s.sid)?.ready) broadcast(presenceFrame(null, s.userId))
+        } else console.warn('[livekit] voice departure check failed', (e as Error).message)
+      }
+    }
+    // This polls actual membership, not inactivity: a connected participant never expires.
+    if (voiceSessionsOf(owner).length) setTimeout(() => void check(), 20_000).unref()
+  }
+  void check()
 }

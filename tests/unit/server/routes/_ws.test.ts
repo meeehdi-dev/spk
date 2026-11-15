@@ -6,7 +6,10 @@ const station = { id: 'station', name: 'Radio', url: 'https://stream.example.com
 const selected = { channelId: 'c', station: { id: station.id, name: station.name } }
 
 beforeEach(() => vi.resetModules())
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 describe('websocket open', () => {
   it.each([false, true])('sends the current radio snapshot, station selected: %s', async active => {
@@ -21,11 +24,19 @@ describe('websocket open', () => {
     vi.stubGlobal('broadcast', peers.broadcast)
     vi.stubGlobal('removePeer', peers.removePeer)
     vi.stubGlobal('dropVoiceSocket', vi.fn())
+    vi.useFakeTimers()
     const raw: string[] = []
-    const peer = { context: { userId: 'late' }, send: (value: string) => raw.push(value) } as unknown as Peer
+    const terminate = vi.fn()
+    const peer = { context: { userId: 'late' }, send: (value: string) => raw.push(value), terminate } as unknown as Peer
     await import('~~/server/routes/_ws')
     await hooks.open!(peer)
     expect(raw.map(value => JSON.parse(value))).toContainEqual({ type: 'radio:snapshot', channels: active ? [selected] : [] })
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(terminate).not.toHaveBeenCalled()
+    expect(raw.map(value => JSON.parse(value)).filter(value => value.type === 'ping')).toHaveLength(30)
     await hooks.close!(peer, { code: 1000, reason: '' })
+    const count = raw.length
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(raw).toHaveLength(count)
   })
 })
