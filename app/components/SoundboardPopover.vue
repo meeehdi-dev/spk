@@ -35,7 +35,7 @@ const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().inclu
               color="neutral"
               variant="soft"
               class="h-16 flex-col justify-center gap-1"
-              :disabled="cooling"
+              :disabled="!sb.on || cooling"
               :aria-label="`Play ${s.name}`"
               @click="press(s.id)"
             >
