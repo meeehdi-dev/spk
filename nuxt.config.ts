@@ -5,6 +5,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   app: {
     head: {
+      title: 'spk',
       link: [
         { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
         { rel: 'icon', href: '/logo.svg', sizes: 'any', type: 'image/svg+xml' },

@@ -43,7 +43,11 @@ const searchFocus = () => {
 }
 const inChat = computed(() => route.path.startsWith('/c/') && !isVoice.value)
 const { all: navChannels } = useNavChannels()
-const { of: unreadOf } = useUnread()
+const { of: unreadOf, counts } = useUnread()
+const unreadTotal = computed(() => Object.values(counts.value).reduce((total, state) => total + state.unread, 0))
+useHead({
+  title: () => `${title.value || 'spk'}${unreadTotal.value ? ` (${unreadTotal.value})` : ''}${title.value ? ' | spk' : ''}`,
+})
 const switcher = ref(false)
 const shortcutsOpen = useShortcutsOverlay()
 const searchInput = () => document.getElementById('search-input')
