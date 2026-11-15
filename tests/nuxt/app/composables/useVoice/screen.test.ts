@@ -49,6 +49,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       for (const fn of this.events.get(event) ?? []) fn()
     }
     connect = vi.fn(async () => {})
+    canPlaybackAudio = true
     startAudio = vi.fn(async () => {})
     disconnect = vi.fn(async () => {
       this.emit('Disconnected')
@@ -68,6 +69,10 @@ vi.mock('livekit-client', async importOriginal => {
     RoomEvent: Object.fromEntries(
       [
         'Disconnected',
+        'SignalReconnecting',
+        'Reconnecting',
+        'Reconnected',
+        'AudioPlaybackStatusChanged',
         'ParticipantConnected',
         'ParticipantDisconnected',
         'TrackPublished',
@@ -82,6 +87,7 @@ vi.mock('livekit-client', async importOriginal => {
       ].map(name => [name, name]),
     ),
     Room: MockRoom,
+    DisconnectReason: sdk.DisconnectReason,
   }
 })
 
@@ -395,6 +401,7 @@ describe('live screen settings', () => {
     v.watch('remote', true)
     r.remoteParticipants.delete('remote')
     r.emit('ParticipantDisconnected')
+    await Promise.resolve() // distinguish a real departure from LiveKit's synchronous full-reconnect teardown
     expect(v.watching.value).toEqual([])
     r.remoteParticipants.set('remote', remote)
     v.watch('remote', true)

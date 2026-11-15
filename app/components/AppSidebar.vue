@@ -314,16 +314,24 @@ const onDrop = (channelId: string) => {
     <div v-if="voice.channelId.value || voice.connecting.value" class="mx-2 mb-2 flex items-center gap-1 rounded-lg bg-elevated/50 p-2">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 text-sm font-medium">
-          <UIcon name="i-lucide-radio" class="size-4 shrink-0 text-success" />
+          <UIcon
+            name="i-lucide-radio"
+            class="size-4 shrink-0"
+            :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
+          />
           <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline">{{ voiceName }}</NuxtLink>
           <span v-else class="truncate">Voice</span>
         </div>
-        <div class="text-xs text-muted">{{ voice.ping.value !== null ? `${voice.ping.value} ms` : voice.connecting.value ? 'Connecting…' : 'Connected' }}</div>
+        <div class="text-xs text-muted">
+          {{ voice.connectionLabel.value
+          }}<span v-if="voice.connection.value === 'connected' && !voice.audioBlocked.value && voice.ping.value !== null"> · {{ voice.ping.value }} ms</span>
+        </div>
       </div>
       <VoiceControl kind="camera" />
       <VoiceControl kind="screen" />
       <SoundboardPopover />
       <RadioPopover />
+      <VoiceReconnect />
       <VoiceControl kind="leave" />
     </div>
 

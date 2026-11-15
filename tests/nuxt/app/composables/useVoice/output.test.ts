@@ -33,6 +33,8 @@ const { media, MockRoom } = vi.hoisted(() => {
   class MockRoom {
     events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
+    canPlaybackAudio = true
+    state = 'connected'
     restartTrack = vi.fn(async () => {})
     mic = {
       stopOnMute: false,
@@ -88,9 +90,16 @@ vi.mock('livekit-client', () => ({
     TrackUnsubscribed: 'unsubscribed',
     Disconnected: 'disconnected',
     ActiveDeviceChanged: 'activeDeviceChanged',
+    SignalReconnecting: 'signalReconnecting',
+    Reconnecting: 'reconnecting',
+    Reconnected: 'reconnected',
+    AudioPlaybackStatusChanged: 'audioPlaybackChanged',
+    ParticipantDisconnected: 'participantDisconnected',
+    TrackUnpublished: 'trackUnpublished',
     ActiveSpeakersChanged: 'speakers',
   },
   Room: MockRoom,
+  DisconnectReason: { UNKNOWN_REASON: 0, SIGNAL_CLOSE: 9, STATE_MISMATCH: 6, CONNECTION_TIMEOUT: 14, SERVER_SHUTDOWN: 3, MEDIA_FAILURE: 15 },
 }))
 
 const device = (deviceId: string) => ({ deviceId, label: deviceId, kind: 'audiooutput' })
@@ -103,10 +112,18 @@ let voice: ReturnType<typeof import('~/composables/useVoice').useVoice>
 
 function track(source: string) {
   const element = document.createElement('audio')
-  return { source, kind: 'audio', attach: () => element, detach: () => [element], setSinkId: vi.fn(async (_id: string) => {}), setVolume: vi.fn() }
+  return {
+    source,
+    kind: 'audio',
+    attachedElements: [element],
+    attach: () => element,
+    detach: () => [element],
+    setSinkId: vi.fn(async (_id: string) => {}),
+    setVolume: vi.fn(),
+  }
 }
 function participant(id: string, tracks: ReturnType<typeof track>[]) {
-  const pubs = new Map(tracks.map((t, i) => [i, { source: t.source, track: t, isDesired: true, setSubscribed: vi.fn() }]))
+  const pubs = new Map(tracks.map((t, i) => [i, { source: t.source, track: t, audioTrack: t, isDesired: true, setSubscribed: vi.fn() }]))
   return { identity: id, audioTrackPublications: pubs, trackPublications: pubs, videoTrackPublications: new Map(), getTrackPublication: () => undefined }
 }
 async function setup(supported = true) {
@@ -394,6 +411,65 @@ describe('independent remote audio outputs', () => {
     expect(mic.setSinkId).toHaveBeenLastCalledWith('')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('')
     expect(toast).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('audio recovery', () => {
+  it('restores subscriptions, attachments, independent outputs and deafen without duplicate elements', async () => {
+    const r = await setup()
+    const mic = track('microphone')
+    const screen = track('screen_share_audio')
+    const p = { ...participant('one', [mic, screen]), getTrackPublication: (source: string) => (source === 'screen_share' ? { isMuted: false } : undefined) }
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    voice.toggleHeadphones()
+    r.emit('subscribed', mic)
+    r.emit('subscribed', mic)
+    expect(document.querySelectorAll('audio')).toHaveLength(1)
+    // Full restart removes participants before emitting Reconnecting.
+    r.remoteParticipants.delete('one')
+    r.emit('participantDisconnected')
+    r.emit('reconnecting')
+    await Promise.resolve()
+    expect(voice.watching.value).toEqual(['one'])
+    expect(voice.theater.value).toBe('one')
+    r.remoteParticipants.set('one', p)
+    p.trackPublications.get(0)!.isDesired = false
+    r.emit('reconnected')
+    await Promise.resolve()
+    expect(p.trackPublications.get(0)!.setSubscribed).toHaveBeenCalledWith(true)
+    expect(mic.setSinkId).toHaveBeenLastCalledWith('voice')
+    expect(screen.setSinkId).toHaveBeenLastCalledWith('screen')
+    expect(mic.setVolume).toHaveBeenLastCalledWith(0)
+    expect(screen.setVolume).toHaveBeenLastCalledWith(0)
+    expect(document.querySelectorAll('audio')).toHaveLength(2)
+    r.emit('reconnected')
+    expect(document.querySelectorAll('audio')).toHaveLength(2)
+    await voice.leave(false)
+    expect(document.querySelectorAll('audio')).toHaveLength(0)
+  })
+
+  it('exposes initial and later playback failures and retries audio on demand', async () => {
+    media.connect = () => {
+      const r = media.rooms.at(-1)!
+      r.canPlaybackAudio = false
+      r.startAudio.mockRejectedValueOnce(new Error('Gesture required'))
+    }
+    const r = await setup()
+    expect(voice.audioBlocked.value).toBe(true)
+    expect(voice.connectionLabel.value).toBe('Audio playback blocked')
+    r.startAudio.mockRejectedValueOnce(new Error('Still blocked'))
+    await voice.enableAudio()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not enable audio' }))
+    r.canPlaybackAudio = true
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(false)
+    r.canPlaybackAudio = false
+    r.emit('audioPlaybackChanged')
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.leave(false)
+    r.emit('audioPlaybackChanged')
+    expect(voice.audioBlocked.value).toBe(false)
   })
 })
 

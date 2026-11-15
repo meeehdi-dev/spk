@@ -51,6 +51,9 @@ export interface VoiceMember {
 const sid = import.meta.client ? crypto.randomUUID() : ''
 const channelId = ref<string | null>(null)
 const connecting = ref(false)
+const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalReconnecting'>('disconnected')
+const audioBlocked = ref(false)
+const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
 const presence = ref<Record<string, VoiceMember>>({})
 const devices = ref<{ mics: MediaDeviceInfo[]; speakers: MediaDeviceInfo[]; cams: MediaDeviceInfo[] }>({ mics: [], speakers: [], cams: [] })
@@ -141,8 +144,7 @@ export function useVoice() {
   }
 
   // The state the server shows to others: sent on change, at most every ~50 ms (the latest values go out).
-  let speaking = false,
-    lastSent = 0
+  let lastSent = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   function pushState() {
     if (!channelId.value) return
@@ -160,7 +162,7 @@ export function useVoice() {
       sid,
       muted: mute.value.muted,
       deafened: mute.value.deafened,
-      speaking: speaking && !mute.value.muted,
+      speaking: speakingIds.has(me.value?.id ?? '') && !mute.value.muted,
       cam: camOn.value,
       screen: screenOn.value,
       watching: watching.value,
@@ -200,6 +202,27 @@ export function useVoice() {
       }
     }
   }
+  function attachAudio(track: RemoteAudioTrack) {
+    if (!track.attachedElements.some(e => e.isConnected)) document.body.append(track.attach())
+  }
+
+  let pruneQueued = false
+  function pruneWatching() {
+    if (pruneQueued) return
+    const r = room
+    pruneQueued = true
+    queueMicrotask(() => {
+      pruneQueued = false
+      if (!r || room !== r || connection.value === 'reconnecting' || r.state === 'reconnecting') return
+      const remaining = watching.value.filter(id => r.remoteParticipants.has(id))
+      if (remaining.length !== watching.value.length) {
+        watching.value = remaining
+        pushState()
+      }
+      if (theater.value && theater.value !== r.localParticipant.identity && !r.remoteParticipants.has(theater.value)) theater.value = null
+    })
+  }
+
   function rebuild() {
     if (!room) {
       tiles.value = []
@@ -207,10 +230,9 @@ export function useVoice() {
       theater.value = null
       return
     }
-    const stillThere = watching.value.filter(id => room!.remoteParticipants.has(id))
-    const watchingChanged = stillThere.length !== watching.value.length
-    watching.value = stillThere
-    if (theater.value && theater.value !== room.localParticipant.identity && !room.remoteParticipants.has(theater.value)) theater.value = null
+    // LiveKit removes participants synchronously before announcing a full reconnect.
+    pruneWatching()
+    const recovering = room.state === 'reconnecting' || connection.value === 'reconnecting'
     syncSubs()
     const make = (p: Participant): VoiceTile => {
       const cam = p.getTrackPublication('camera' as Track.Source),
@@ -235,12 +257,12 @@ export function useVoice() {
     const all = [room.localParticipant, ...room.remoteParticipants.values()]
     tiles.value = all.map(make)
     const focused = tiles.value.find(t => t.userId === theater.value)
-    if (focused && !focused.camLive && !focused.screenLive) theater.value = null
+    if (!recovering && focused && !focused.camLive && !focused.screenLive) theater.value = null
     const [cam, screen] = [tiles.value[0]!.camLive, tiles.value[0]!.screenLive]
     const changed = cam !== camOn.value || screen !== screenOn.value
     camOn.value = cam
     screenOn.value = screen
-    if (changed || watchingChanged) pushState()
+    if (changed) pushState()
     applyOutput()
   }
   function applyMute() {
@@ -270,7 +292,9 @@ export function useVoice() {
   async function join(id: string) {
     if (channelId.value === id || connecting.value) return
     connecting.value = true
+    moveEpoch++
     if (channelId.value) await leave(false)
+    retryChannelId.value = null
     const attempt = new AbortController()
     pendingJoin = attempt
     let settled!: () => void
@@ -304,7 +328,7 @@ export function useVoice() {
       signal.throwIfAborted()
       const mic = matchDevice(settings.value.mic, devices.value.mics)
       const { token, url } = await $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id } })
-      const { Room, RoomEvent, Track } = await import('livekit-client')
+      const { Room, RoomEvent, Track, DisconnectReason } = await import('livekit-client')
       signal.throwIfAborted()
       r = new Room({
         adaptiveStream: true,
@@ -315,13 +339,14 @@ export function useVoice() {
         audioCaptureDefaults: captureOptions(mic.deviceId),
       })
       r.on(RoomEvent.TrackSubscribed, track => {
-        if (track.kind !== Track.Kind.Audio) return
-        document.body.append(track.attach()) // remote audio only plays while attached to an element
+        if (signal.aborted || (room !== r && pendingJoin !== attempt) || track.kind !== Track.Kind.Audio) return
+        attachAudio(track as RemoteAudioTrack) // remote audio only plays while attached to an element
         void routeOutput(track as RemoteAudioTrack)
         applyOutput()
       })
       // Firefox: LiveKit's own default-device pick sets every remote sink on devicechange; restore ours.
       r.on(RoomEvent.ActiveDeviceChanged, kind => {
+        if (signal.aborted || (room !== r && pendingJoin !== attempt)) return
         if (kind === 'audiooutput') {
           void routeOutputs('speaker')
           void routeOutputs('mediaSpeaker')
@@ -329,6 +354,7 @@ export function useVoice() {
       })
       r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
       r.on(RoomEvent.ActiveSpeakersChanged, list => {
+        if (signal.aborted || (room !== r && pendingJoin !== attempt)) return
         const active = new Set(list.map(p => p.identity))
         for (const id of active) {
           clearTimeout(speakingOff.get(id))
@@ -342,13 +368,11 @@ export function useVoice() {
             setTimeout(() => {
               speakingOff.delete(id)
               speakingIds.delete(id)
-              speaking = speakingIds.has(me.value?.id ?? '')
               pushState()
               rebuild()
             }, SPEAKING_HOLD_MS),
           )
         }
-        speaking = speakingIds.has(me.value?.id ?? '')
         pushState()
         rebuild()
       })
@@ -364,10 +388,62 @@ export function useVoice() {
         RoomEvent.ParticipantConnected,
         RoomEvent.ParticipantDisconnected,
       ] as const)
-        r.on(ev, rebuild)
-      r.on(RoomEvent.Disconnected, () => {
-        if (room === r) void leave(false, 'You were disconnected from voice')
-        else if (pendingJoin === attempt) attempt.abort(new Error('You were disconnected from voice'))
+        r.on(ev, () => {
+          if (!signal.aborted && (room === r || pendingJoin === attempt)) rebuild()
+        })
+      const interrupted = (state: 'reconnecting' | 'signalReconnecting') => {
+        if (room !== r) return
+        if (connection.value === 'connected')
+          toast.add({
+            title: state === 'reconnecting' ? 'Voice interrupted. Reconnecting…' : 'Voice signaling reconnecting. Audio may still work.',
+            color: 'warning',
+          })
+        if (connection.value !== 'reconnecting') connection.value = state
+        stopPing()
+        clearSpeaking()
+        pushState()
+        rebuild()
+      }
+      r.on(RoomEvent.SignalReconnecting, () => interrupted('signalReconnecting'))
+      r.on(RoomEvent.Reconnecting, () => interrupted('reconnecting'))
+      r.on(RoomEvent.Reconnected, () => {
+        if (!r || room !== r) return
+        const recovered = connection.value !== 'connected'
+        connection.value = 'connected'
+        rebuild()
+        for (const p of r.remoteParticipants.values())
+          for (const pub of p.audioTrackPublications.values()) {
+            if (pub.audioTrack) attachAudio(pub.audioTrack as RemoteAudioTrack)
+          }
+        void Promise.all([routeOutputs('speaker'), routeOutputs('mediaSpeaker')]).then(() => {
+          if (room !== r) return
+          applyOutput()
+        })
+        audioBlocked.value = !r.canPlaybackAudio
+        socket.send({ type: 'voice:ready', sid })
+        lastSent = 0
+        pushState()
+        startPing(r)
+        if (recovered) toast.add({ title: 'Voice connection restored', color: 'success', icon: 'i-lucide-wifi' })
+      })
+      r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        if (r && room === r) audioBlocked.value = !r.canPlaybackAudio
+      })
+      r.on(RoomEvent.Disconnected, reason => {
+        if (room === r) {
+          const retry =
+            reason === undefined ||
+            [
+              DisconnectReason.UNKNOWN_REASON,
+              DisconnectReason.SIGNAL_CLOSE,
+              DisconnectReason.STATE_MISMATCH,
+              DisconnectReason.CONNECTION_TIMEOUT,
+              DisconnectReason.SERVER_SHUTDOWN,
+              DisconnectReason.MEDIA_FAILURE,
+            ].includes(reason)
+          void leave(false, 'You were disconnected from voice')
+          if (retry) retryChannelId.value = id
+        } else if (pendingJoin === attempt) attempt.abort(new Error('You were disconnected from voice'))
       })
       // Replace the server session before LiveKit can evict the previous browser.
       const nonce = crypto.randomUUID()
@@ -391,7 +467,11 @@ export function useVoice() {
       signal.throwIfAborted()
       await r.connect(url, token, { autoSubscribe: false })
       signal.throwIfAborted()
-      await r.startAudio().catch(() => {})
+      // Autoplay can require a fresh user gesture; expose Enable audio after joining.
+      let playbackFailed = false
+      await r.startAudio().catch(() => {
+        playbackFailed = true
+      })
       signal.throwIfAborted()
       const { MicProcessor } = await import('~/utils/voice-processor') // browser-only: needs AudioWorkletNode
       signal.throwIfAborted()
@@ -412,6 +492,8 @@ export function useVoice() {
       await r.localParticipant.publishTrack(localMic)
       signal.throwIfAborted()
       room = r
+      connection.value = 'connected'
+      audioBlocked.value = playbackFailed || !r.canPlaybackAudio
       processor = nextProcessor
       rebuild()
       channelId.value = id
@@ -464,7 +546,6 @@ export function useVoice() {
     speakingOff.forEach(clearTimeout)
     speakingOff.clear()
     speakingIds.clear()
-    speaking = false
   }
 
   async function move(id: string) {
@@ -480,6 +561,9 @@ export function useVoice() {
 
   async function leave(sound = true, reason?: string) {
     moveEpoch++
+    retryChannelId.value = null
+    connection.value = 'disconnected'
+    audioBlocked.value = false
     const pending = pendingJoin
     pending?.abort()
     const r = room
@@ -490,6 +574,7 @@ export function useVoice() {
     }
     screenSession = pendingScreenSession = undefined
     room = undefined
+    for (const p of r?.remoteParticipants.values() ?? []) for (const pub of p.audioTrackPublications.values()) pub.audioTrack?.detach().forEach(e => e.remove())
     clearSpeaking()
     watching.value = []
     theater.value = null
@@ -502,6 +587,33 @@ export function useVoice() {
     rebuild()
     if (sound) playVoiceSound('leave')
     if (reason) toast.add({ title: reason, color: 'warning', icon: 'i-lucide-phone-off' })
+  }
+
+  async function enableAudio() {
+    const r = room
+    if (!r) return
+    try {
+      await r.startAudio()
+      if (room === r) audioBlocked.value = !r.canPlaybackAudio
+    } catch (e) {
+      if (room !== r) return
+      audioBlocked.value = true
+      toast.add({ title: 'Could not enable audio', description: (e as Error).message, color: 'error' })
+    }
+  }
+
+  async function reconnect() {
+    if (connecting.value) return
+    const id = channelId.value ?? retryChannelId.value
+    if (!id) return
+    connecting.value = true
+    const leaving = leave(false)
+    const epoch = moveEpoch
+    await leaving
+    connecting.value = false
+    // A leave, move or takeover during teardown cancels this explicit retry.
+    if (epoch !== moveEpoch) return
+    await join(id)
   }
 
   // Sounds are for your own mute and deafen only; the rising variant plays when you unmute / undeafen.
@@ -866,6 +978,22 @@ export function useVoice() {
     sid,
     channelId,
     connecting,
+    connection,
+    audioBlocked,
+    retryChannelId,
+    connectionLabel: computed(() => {
+      if (connecting.value) return 'Connecting…'
+      if (connection.value === 'reconnecting') return 'Voice reconnecting…'
+      if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
+      if (audioBlocked.value) return 'Audio playback blocked'
+      return connection.value === 'connected' ? 'Connected' : 'Not connected'
+    }),
+    enableAudio,
+    reconnect,
+    syncState: () => {
+      lastSent = 0
+      pushState()
+    },
     mute,
     devices,
     canPickOutput,
@@ -1004,8 +1132,9 @@ export function useVoiceLive() {
         muted: v.mute.value.muted,
         deafened: v.mute.value.deafened,
         watching: v.watching.value,
-        ready: true, // already connected: don't blink
+        ready: v.connection.value === 'connected' || v.connection.value === 'signalReconnecting',
       })
+    v.syncState()
   })
   socket.on(m => {
     if (m.type === 'voice:presence') {
@@ -1045,7 +1174,7 @@ export function useVoiceLive() {
       const sound = sounds.value.find(x => x.id === m.soundId)
       if (sound) showSound(m.userId, `i-lucide-${sound.icon}`, sound.durationMs)
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)
-    } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
+    } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value)) {
       void v.leave(false, m.reason)
     } else if (m.type === 'voice:move' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
       // Settle a pending connection before joining the admin's destination.
@@ -1055,7 +1184,7 @@ export function useVoiceLive() {
           void navigateTo(`/c/${m.channelId}`)
         }
       })
-    } else if (m.type === 'voice:kicked' && m.sid !== sid && (v.channelId.value || v.connecting.value)) {
+    } else if (m.type === 'voice:kicked' && m.sid !== sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value)) {
       void v.leave(false, 'You joined voice from another tab or device')
     }
   })

@@ -30,36 +30,93 @@ type Handler = (msg: SocketFrame) => void
 const handlers = new Set<Handler>()
 const openHandlers = new Set<() => void>()
 let ws: WebSocket | undefined
+let started = false
 let retry = 0
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+let heartbeat: ReturnType<typeof setTimeout> | undefined
+let heard = 0
+// The server pings every 20 seconds; tolerate two missed pings and scheduling delays.
+const HEARTBEAT_MS = 60_000
 const connected = ref(false)
+const offline = ref(false)
+
+function resetSocket() {
+  clearTimeout(retryTimer)
+  retryTimer = undefined
+  clearTimeout(heartbeat)
+  const old = ws
+  ws = undefined // callbacks from an old socket must not affect its replacement
+  connected.value = false
+  old?.close()
+}
+
+function armHeartbeat() {
+  clearTimeout(heartbeat)
+  heartbeat = setTimeout(() => {
+    resetSocket()
+    connect()
+  }, HEARTBEAT_MS)
+}
 
 function connect() {
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws?status=${localStorage.getItem('spk:status') ?? ''}`) // the server applies it before announcing presence
-  ws.onopen = () => {
+  if (offline.value || ws) return
+  clearTimeout(retryTimer)
+  retryTimer = undefined
+  const current = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws?status=${localStorage.getItem('spk:status') ?? ''}`)
+  ws = current
+  heard = Date.now()
+  // Also bounds a connection attempt that never opens or closes.
+  armHeartbeat()
+  current.onopen = () => {
+    if (ws !== current) return
     retry = 0
+    heard = Date.now()
+    armHeartbeat()
     connected.value = true
     openHandlers.forEach(h => h())
   }
-  ws.onmessage = e => {
+  current.onmessage = e => {
+    if (ws !== current) return
+    heard = Date.now()
+    armHeartbeat()
     try {
       const m = JSON.parse(e.data)
-      if (m.type === 'ping') ws?.send('ping') // keeps the server's dead-socket check satisfied
+      if (m.type === 'ping') current.send('ping')
       handlers.forEach(h => h(m))
     } catch {
       /* ignore malformed frames */
     }
   }
-  ws.onclose = () => {
-    connected.value = false
-    setTimeout(connect, Math.min(1000 * 2 ** retry++, 15_000))
+  current.onclose = () => {
+    if (ws !== current) return
+    resetSocket()
+    if (!offline.value) retryTimer = setTimeout(connect, Math.min(1000 * 2 ** retry++, 15_000))
   }
 }
 
 /** One shared WebSocket for the app (reconnects with backoff). Client only. */
 export function useSocket() {
-  if (import.meta.client && !ws) connect()
+  if (import.meta.client && !started) {
+    started = true
+    offline.value = !navigator.onLine
+    window.addEventListener('offline', () => {
+      offline.value = true
+      resetSocket()
+    })
+    window.addEventListener('online', () => {
+      offline.value = false
+      connect()
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || offline.value) return
+      if (ws && Date.now() - heard >= HEARTBEAT_MS) resetSocket()
+      connect()
+    })
+    connect()
+  }
   return {
     connected,
+    offline,
     send: (data: unknown) => {
       if (ws?.readyState !== WebSocket.OPEN) return false
       ws.send(JSON.stringify(data))

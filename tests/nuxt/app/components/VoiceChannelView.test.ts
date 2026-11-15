@@ -9,6 +9,8 @@ const voice = await vi.hoisted(async () => {
   const { ref } = await import('vue')
   return {
     channelId: ref('voice'),
+    connecting: ref(false),
+    connectionLabel: ref('Connected'),
     theater: ref<string | null>('streamer'),
     tiles: ref([{ userId: 'streamer' }, { userId: 'participant' }]),
   }
@@ -29,6 +31,7 @@ it('collapses the theater strip without unmounting tiles and resets when theater
             template: '<div :data-user="tile.userId" :data-theater="theater" />',
           },
           VoiceControl: true,
+          VoiceReconnect: true,
           SoundboardPopover: true,
           RadioPopover: true,
         },

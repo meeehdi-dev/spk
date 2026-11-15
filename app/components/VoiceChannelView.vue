@@ -25,6 +25,7 @@ const toggleTheater = (id: string) => {
     <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <!-- my-auto centers the group but, unlike justify-center, still lets a tall group scroll from its top. -->
       <div class="flex w-full flex-col items-center gap-6 p-6 compact:gap-3 compact:p-3" :class="focused ? 'min-h-0 flex-1' : 'my-auto'">
+        <p v-if="here" role="status" class="text-sm text-muted">{{ v.connectionLabel.value }}</p>
         <p v-if="!members.length" class="text-sm text-muted">Nobody is here yet.</p>
 
         <!-- In the channel: one tile per person, with the webcam / screen opt-in rules. Theater: one tile fills the panel, the rest sit in a strip below. -->
@@ -90,6 +91,7 @@ const toggleTheater = (id: string) => {
             @click="participantsHidden = !participantsHidden"
           />
         </UTooltip>
+        <VoiceReconnect labeled />
         <VoiceControl kind="leave" labeled />
       </template>
     </div>

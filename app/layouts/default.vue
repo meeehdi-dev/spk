@@ -166,6 +166,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         </div>
       </header>
 
+      <ConnectionNotice />
+
       <main class="min-h-0 flex-1" :class="route.path.startsWith('/c/') ? 'overflow-hidden' : 'overflow-y-auto'">
         <slot />
       </main>

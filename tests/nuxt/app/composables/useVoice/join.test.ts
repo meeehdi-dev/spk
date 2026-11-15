@@ -37,6 +37,8 @@ const { media, MockRoom } = vi.hoisted(() => {
   class MockRoom {
     events = new Map<string, ((...args: unknown[]) => void)[]>()
     remoteParticipants = new Map()
+    canPlaybackAudio = true
+    state = 'connected'
     mic = { stopOnMute: false, setProcessor: vi.fn(async () => {}), mute: vi.fn(async () => {}), unmute: vi.fn(async () => {}), stop: vi.fn() }
     cameraPublished = false
     camera = { isMuted: false, restartTrack: vi.fn(async (_options: unknown) => {}) }
@@ -64,8 +66,8 @@ const { media, MockRoom } = vi.hoisted(() => {
       return this
     }
     rejectConnect?: (e: Error) => void
-    emit(event: string) {
-      for (const fn of this.events.get(event) ?? []) fn()
+    emit(event: string, ...args: unknown[]) {
+      for (const fn of this.events.get(event) ?? []) fn(...args)
     }
     connect = vi.fn(async () => {
       try {
@@ -95,6 +97,10 @@ vi.mock('livekit-client', () => ({
   RoomEvent: Object.fromEntries(
     [
       'Disconnected',
+      'SignalReconnecting',
+      'Reconnecting',
+      'Reconnected',
+      'AudioPlaybackStatusChanged',
       'ParticipantConnected',
       'ParticipantDisconnected',
       'TrackPublished',
@@ -109,6 +115,7 @@ vi.mock('livekit-client', () => ({
     ].map(name => [name, name]),
   ),
   Room: MockRoom,
+  DisconnectReason: { UNKNOWN_REASON: 0, SIGNAL_CLOSE: 9, STATE_MISMATCH: 6, CONNECTION_TIMEOUT: 14, SERVER_SHUTDOWN: 3, MEDIA_FAILURE: 15 },
 }))
 
 type Frame = Record<string, unknown>
@@ -127,6 +134,7 @@ async function browser(userId: string, initiallyConnected = true) {
   vi.resetModules()
   const handlers = new Set<(m: Frame) => void>()
   const connected = ref(initiallyConnected)
+  let opened = () => {}
   const receive = (m: Frame) => {
     for (const h of handlers) h(m)
   }
@@ -148,7 +156,9 @@ async function browser(userId: string, initiallyConnected = true) {
       handlers.add(h)
       return () => handlers.delete(h)
     },
-    onOpen: vi.fn(),
+    onOpen: (fn: () => void) => {
+      opened = fn
+    },
   }))
   const me = ref<{ id: string } | null>({ id: userId })
   mocks.useMe.mockImplementation(() => ({ data: me }))
@@ -156,7 +166,7 @@ async function browser(userId: string, initiallyConnected = true) {
   mod.useVoiceLive()
   const v = mod.useVoice()
   const restoreAfterUpdate = mocks.onMounted.mock.calls.at(-2)![0] as () => void
-  return { ...mod, v, receive, send, connected, handlers, owner, me, restoreAfterUpdate }
+  return { ...mod, v, receive, send, connected, handlers, owner, me, restoreAfterUpdate, opened: () => opened() }
 }
 
 beforeEach(() => {
@@ -629,6 +639,83 @@ describe('acknowledged voice join', () => {
     await other.v.leave()
     expect(sound.mock.calls).toEqual([['leave']])
     await observer.v.leave(false)
+  })
+})
+
+describe('voice reconnection', () => {
+  it('keeps healthy media through an app redeploy and restores full presence state', async () => {
+    const b = await browser('redeploy')
+    await b.v.join('c1')
+    await b.v.toggleCamera()
+    const r = media.rooms.at(-1)!
+    r.localParticipant.identity = 'redeploy'
+    r.emit('ActiveSpeakersChanged', [r.localParticipant])
+    b.connected.value = false
+    dropVoiceSocket(b.owner)
+    expect(r.disconnect).not.toHaveBeenCalled()
+    b.connected.value = true
+    b.opened()
+    await vi.waitFor(() => expect(sessions.voiceSnapshot().find(p => p.userId === 'redeploy')).toMatchObject({ cam: true, speaking: true }))
+    expect(b.v.activeRoom()).toBe(r)
+    await b.v.leave(false)
+  })
+
+  it('defers readiness while media reconnects, then restores it without starting a new room', async () => {
+    const b = await browser('recovery')
+    await b.v.join('c1')
+    const r = media.rooms.at(-1)!
+    r.emit('Reconnecting')
+    r.emit('Reconnecting')
+    expect(b.v.connectionLabel.value).toBe('Voice reconnecting…')
+    expect(b.v.ping.value).toBeNull()
+    expect(toast.mock.calls.filter(([m]) => m.title === 'Voice interrupted. Reconnecting…')).toHaveLength(1)
+    dropVoiceSocket(b.owner)
+    b.opened()
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeUndefined()
+    r.emit('Reconnected')
+    expect(b.v.connection.value).toBe('connected')
+    expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeDefined()
+    expect(media.rooms).toHaveLength(1)
+    await b.v.leave(false)
+    toast.mockClear()
+    r.emit('Reconnected')
+    expect(b.v.channelId.value).toBeNull()
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('offers a manual retry only for transport failures and preserves deafen on rejoin', async () => {
+    const b = await browser('retry')
+    await b.v.join('c1')
+    b.v.toggleHeadphones()
+    media.rooms.at(-1)!.emit('Disconnected', 9)
+    expect(b.v.retryChannelId.value).toBe('c1')
+    await b.v.reconnect()
+    expect(b.v.channelId.value).toBe('c1')
+    expect(b.v.mute.value.deafened).toBe(true)
+    media.rooms.at(-1)!.emit('Disconnected', 4)
+    expect(b.v.retryChannelId.value).toBeNull()
+    await b.v.reconnect()
+    expect(media.rooms).toHaveLength(2)
+  })
+
+  it('cancels an explicit reconnect if another tab takes over during teardown', async () => {
+    const b = await browser('retry-takeover')
+    await b.v.join('c1')
+    const r = media.rooms.at(-1)!
+    let finish!: () => void
+    r.disconnect.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve
+        }),
+    )
+    const retrying = b.v.reconnect()
+    expect(b.v.connecting.value).toBe(true)
+    b.receive({ type: 'voice:kicked', sid: 'successor' })
+    finish()
+    await retrying
+    expect(media.rooms).toHaveLength(1)
+    expect(b.v.channelId.value).toBeNull()
   })
 })
 
