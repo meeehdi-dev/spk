@@ -45,7 +45,8 @@ it('announces app versus media interruptions and only notifies once per transiti
   expect(state.toast).not.toHaveBeenCalled()
   state.socket.connected.value = false
   await nextTick()
-  expect(wrapper.text()).toContain('Voice may still work')
+  expect(wrapper.text()).toBe('')
+  expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'App connection lost. Reconnecting…' }))
   state.socket.offline.value = true
   await nextTick()
   expect(wrapper.text()).toContain('Offline')

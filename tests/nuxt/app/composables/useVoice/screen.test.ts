@@ -811,15 +811,16 @@ describe('live screen settings', () => {
 })
 
 describe('screen controls', () => {
-  it('toggleScreen opens the dialog when idle and stops when sharing', async () => {
+  it('toggleScreen starts capture immediately when idle and stops when sharing', async () => {
+    const video = track('video')
+    p.createScreenTracks.mockResolvedValueOnce([video])
     v.toggleScreen()
-    expect(v.screenDialog.value).toBe(true)
-    expect(p.createScreenTracks).not.toHaveBeenCalled()
-    v.screenDialog.value = false
-    const { video } = await share()
+    expect(p.createScreenTracks).toHaveBeenCalledOnce()
+    await flush()
+    expect(v.screenOn.value).toBe(true)
     v.toggleScreen()
     await flush()
-    expect(v.screenDialog.value).toBe(false)
     expect(video.stop).toHaveBeenCalled()
+    expect(v.screenOn.value).toBe(false)
   })
 })

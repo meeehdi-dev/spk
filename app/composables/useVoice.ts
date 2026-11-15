@@ -88,7 +88,6 @@ const radioListening = ref(false)
 const camOn = ref(false)
 const screenOn = ref(false)
 const screenBusy = ref(false)
-const screenDialog = ref(false)
 let screenEpoch = 0
 type ScreenSession = { video: LocalVideoTrack; audio?: LocalAudioTrack; publication?: LocalVideoTrack }
 let screenSession: ScreenSession | undefined
@@ -964,7 +963,7 @@ export function useVoice() {
   const toggleScreen = () => {
     if (!channelId.value) return
     if (screenOn.value || screenBusy.value) void stopScreen()
-    else screenDialog.value = true
+    else void startScreen()
   }
   const watch = (id: string, on: boolean) => {
     watching.value = on ? [...new Set([...watching.value, id])] : watching.value.filter(x => x !== id)
@@ -1071,7 +1070,6 @@ export function useVoice() {
     camOn,
     screenOn,
     screenBusy,
-    screenDialog,
     setScreenQuality,
     setScreenAudio,
     volumeFor,

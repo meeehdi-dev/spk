@@ -1,19 +1,29 @@
 <script setup lang="ts">
 import type { RadioSummary } from '#shared/utils/radio'
 
-const props = defineProps<{ station: RadioSummary['station'] | undefined }>()
-const label = computed(() => `Radio selected: ${props.station?.name ?? ''}`)
+const props = defineProps<{ channelId: string; station: RadioSummary['station'] | undefined }>()
+const voice = useVoice()
+const radio = useRadio()
+const current = computed(() => voice.channelId.value === props.channelId && !!radio.station.value)
+const needsListen = computed(() => !radio.enabled.value || radio.playback.value === 'blocked' || radio.playback.value === 'error')
+const label = computed(() => `${current.value ? (needsListen.value ? 'Resume radio' : 'Pause radio') : 'Radio selected'}: ${props.station?.name ?? ''}`)
+const toggle = () => {
+  if (needsListen.value) radio.listen()
+  else radio.mute()
+}
 </script>
 
 <template>
   <UTooltip v-if="station" :text="label">
-    <span
-      tabindex="0"
-      role="img"
+    <UButton
+      v-if="current"
+      icon="i-lucide-radio"
+      :color="needsListen ? 'neutral' : 'primary'"
+      variant="ghost"
       :aria-label="label"
-      class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-    >
-      <UIcon name="i-lucide-radio" class="size-4" aria-hidden="true" />
-    </span>
+      :aria-pressed="!needsListen"
+      @click="toggle"
+    />
+    <UButton v-else as="span" icon="i-lucide-radio" color="primary" variant="ghost" :aria-label="label" />
   </UTooltip>
 </template>

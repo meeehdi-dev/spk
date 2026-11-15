@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // One voice control: the main button plus, where it has options, a narrow chevron of the same height. Used by the sidebar card and user row, and the bottom bar. All state lives in useVoice().
-import { matchDevice } from '#shared/utils/voice'
+import { matchDevice, SCREEN_FPS, SCREEN_HEIGHTS } from '#shared/utils/voice'
 
 const props = defineProps<{ kind: 'mic' | 'deafen' | 'camera' | 'screen' | 'leave'; labeled?: boolean }>()
 const v = useVoice()
@@ -183,6 +183,36 @@ const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-
       </template>
     </UPopover>
 
-    <UButton v-else-if="kind === 'screen'" v-bind="chevron" :disabled="c.disabled" :aria-label="c.options" @click="v.screenDialog.value = true" />
+    <UPopover v-else-if="kind === 'screen'" :content="{ align: 'end', side: 'top' }">
+      <UButton v-bind="chevron" :disabled="c.disabled" :aria-label="c.options" />
+      <template #content>
+        <div class="flex w-72 flex-col gap-3 p-3 text-sm">
+          <USwitch
+            :model-value="v.settings.value.screenAudio"
+            label="Share audio"
+            :disabled="v.screenBusy.value"
+            @update:model-value="v.setScreenAudio($event)"
+          />
+          <UFormField label="Max resolution">
+            <USelect
+              :model-value="v.settings.value.screenQuality.height"
+              :items="SCREEN_HEIGHTS.map(height => ({ label: `${height}p`, value: height }))"
+              :disabled="v.screenBusy.value"
+              class="w-full"
+              @update:model-value="v.setScreenQuality({ ...v.settings.value.screenQuality, height: $event })"
+            />
+          </UFormField>
+          <UFormField label="Frame rate">
+            <USelect
+              :model-value="v.settings.value.screenQuality.fps"
+              :items="SCREEN_FPS.map(fps => ({ label: `${fps} fps`, value: fps }))"
+              :disabled="v.screenBusy.value"
+              class="w-full"
+              @update:model-value="v.setScreenQuality({ ...v.settings.value.screenQuality, fps: $event })"
+            />
+          </UFormField>
+        </div>
+      </template>
+    </UPopover>
   </UFieldGroup>
 </template>

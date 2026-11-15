@@ -44,7 +44,7 @@ export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation:
 
 export const SCREEN_HEIGHTS = [720, 1080, 1440] as const
 export const SCREEN_FPS = [5, 30, 60] as const
-/** Max capture height (16:9 ceiling) and frame rate chosen in the screen share dialog. */
+/** Max capture height (16:9 ceiling) and frame rate chosen in the screen share options. */
 export interface ScreenQuality {
   height: (typeof SCREEN_HEIGHTS)[number]
   fps: (typeof SCREEN_FPS)[number]

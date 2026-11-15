@@ -1,5 +1,6 @@
-import { UButton } from '#components'
+import { UButton, USelect, USwitch } from '#components'
 import { mockNuxtImport } from '@nuxt/test-utils/runtime'
+import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 
@@ -12,7 +13,6 @@ afterEach(() => {
   const v = useVoice()
   v.channelId.value = null
   v.microphone.value = 'idle'
-  v.screenDialog.value = false
   v.mute.value.muted = false
   v.mute.value.deafened = false
   v.camOn.value = false
@@ -57,14 +57,28 @@ describe('microphone control', () => {
 })
 
 describe('screen control', () => {
-  it('opens the screen dialog from the chevron without changing the saved quality', async () => {
+  it('opens inline options without changing settings and applies changes immediately', async () => {
     const v = useVoice()
     v.channelId.value = 'channel'
-    const quality = v.settings.value.screenQuality
+    v.settings.value.screenQuality = { height: 1080, fps: 30 }
+    v.settings.value.screenAudio = true
     const wrapper = await mountInApp(VoiceControl, { kind: 'screen' })
-    expect(v.screenDialog.value).toBe(false)
     await wrapper.find('button[aria-label="Screen share options"]').trigger('click')
-    expect(v.screenDialog.value).toBe(true)
-    expect(v.settings.value.screenQuality).toEqual(quality)
+    await flushPromises()
+    expect(v.settings.value.screenQuality).toEqual({ height: 1080, fps: 30 })
+    const selects = wrapper.findAllComponents(USelect)
+    expect(selects).toHaveLength(2)
+    selects[0]!.vm.$emit('update:modelValue', 1440)
+    await nextTick()
+    selects[1]!.vm.$emit('update:modelValue', 60)
+    wrapper.findComponent(USwitch).vm.$emit('update:modelValue', false)
+    await nextTick()
+    expect(v.settings.value.screenQuality).toEqual({ height: 1440, fps: 60 })
+    expect(v.settings.value.screenAudio).toBe(false)
+    v.screenBusy.value = true
+    await nextTick()
+    expect(wrapper.findAllComponents({ name: 'USelect' }).every(select => select.props('disabled'))).toBe(true)
+    expect(wrapper.findComponent({ name: 'USwitch' }).props('disabled')).toBe(true)
+    v.screenBusy.value = false
   })
 })

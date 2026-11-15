@@ -249,7 +249,7 @@ const onDrop = (channelId: string) => {
                   class="justify-start hover:bg-transparent compact:py-1"
                 />
               </UContextMenu>
-              <RadioIndicator :station="radioDirectory[c.id]" />
+              <RadioIndicator :channel-id="c.id" :station="radioDirectory[c.id]" />
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>
@@ -318,7 +318,7 @@ const onDrop = (channelId: string) => {
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 text-sm font-medium">
           <UIcon
-            name="i-lucide-radio"
+            name="i-lucide-volume-2"
             class="size-4 shrink-0"
             :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
           />
@@ -332,9 +332,8 @@ const onDrop = (channelId: string) => {
       </div>
       <VoiceControl kind="camera" />
       <VoiceControl kind="screen" />
-      <SoundboardPopover />
       <RadioPopover />
-      <VoiceReconnect />
+      <SoundboardPopover />
       <VoiceControl kind="leave" />
     </div>
 

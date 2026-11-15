@@ -101,7 +101,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     <ShortcutsOverlay />
     <SettingsModal />
     <VoiceDialogs />
-    <ScreenShareDialog />
     <AdminDialogs />
     <UDashboardSidebar
       id="main"

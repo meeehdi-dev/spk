@@ -31,13 +31,21 @@ it('collapses the theater strip without unmounting tiles and resets when theater
             template: '<div :data-user="tile.userId" :data-theater="theater" />',
           },
           VoiceControl: true,
-          VoiceReconnect: true,
           SoundboardPopover: true,
           RadioPopover: true,
         },
       },
     },
   )
+  expect(wrapper.text()).not.toContain('Connected')
+  expect(wrapper.html()).not.toContain('voice-reconnect')
+  expect(wrapper.html().indexOf('<radio-popover-stub')).toBeLessThan(wrapper.html().indexOf('<soundboard-popover-stub'))
+  voice.connectionLabel.value = 'Voice interrupted. Reconnecting…'
+  await nextTick()
+  expect(wrapper.get('[role="status"]').text()).toContain('Voice interrupted')
+  voice.connectionLabel.value = 'Connected'
+  await nextTick()
+
   const participant = wrapper.get('[data-user="participant"]')
   const participantElement = participant.element
   const strip = participant.element.parentElement as HTMLElement

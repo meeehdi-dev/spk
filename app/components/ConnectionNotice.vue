@@ -15,7 +15,6 @@ watch(socket.connected, (on, was) => {
 const message = computed(() => {
   const parts: string[] = []
   if (socket.offline.value) parts.push('Offline. Waiting for your network to return.')
-  else if (!socket.connected.value) parts.push('App reconnecting. Voice may still work.')
   if (v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
   else if (v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
   if (v.audioBlocked.value) parts.push('Audio playback is blocked. Enable audio to hear the call.')
