@@ -49,7 +49,10 @@ const { media, MockRoom } = vi.hoisted(() => {
         return this.videoTrack.isMuted
       },
     }
+    engine = { client: { rtt: 42 } }
     localParticipant = {
+      audioTrackPublications: new Map(),
+      connectionQuality: 'excellent',
       identity: 'local',
       isLocal: true,
       getTrackPublication: (source: string) => (source === 'camera' && this.cameraPublished ? this.cameraPublication : undefined),
@@ -945,6 +948,51 @@ describe('voice reconnection', () => {
     b.receive({ type: 'voice:presence', userId: 'remote', channelId: null })
     expect(b.v.tiles.value.find(t => t.userId === 'remote')).toBeUndefined()
     await b.v.leave(false)
+  })
+
+  it('bounds ping history, shows reconnect gaps, and clears diagnostics on leave', async () => {
+    const b = await browser('diagnostics')
+    vi.useFakeTimers()
+    await b.v.join('c1')
+    await flush()
+    expect(b.v.ping.value).toBe(42)
+    await vi.advanceTimersByTimeAsync(70_000)
+    expect(b.v.pingHistory.value.length).toBeLessThanOrEqual(31)
+    expect(b.v.pingHistory.value.every(p => p.time > Date.now() - 60_000)).toBe(true)
+    const r = media.rooms.at(-1)!
+    r.emit('Reconnecting')
+    expect(b.v.diagnostics.value).toBeNull()
+    expect(b.v.pingHistory.value.at(-1)?.ping).toBeNull()
+    r.emit('Reconnected')
+    await flush()
+    expect(b.v.ping.value).toBe(42)
+    await b.v.leave(false)
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(b.v.pingHistory.value).toEqual([])
+    expect(b.v.diagnostics.value).toBeNull()
+  })
+
+  it('does not overlap stats reads or restore measurements after leaving mid-read', async () => {
+    const b = await browser('diagnostics-race')
+    vi.useFakeTimers()
+    await b.v.join('c1')
+    await flush()
+    let resolve!: (stats: undefined) => void
+    const getSenderStats = vi.fn(
+      () =>
+        new Promise<undefined>(done => {
+          resolve = done
+        }),
+    )
+    media.rooms.at(-1)!.localParticipant.audioTrackPublications.set('mic', { audioTrack: { getSenderStats } })
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(getSenderStats).toHaveBeenCalledTimes(1)
+    await b.v.leave(false)
+    resolve(undefined)
+    await flush()
+    expect(b.v.ping.value).toBeNull()
+    expect(b.v.pingHistory.value).toEqual([])
+    expect(b.v.diagnostics.value).toBeNull()
   })
 
   it('defers readiness while media reconnects, then restores it without starting a new room', async () => {

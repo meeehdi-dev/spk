@@ -51,6 +51,8 @@ const { media, MockRoom } = vi.hoisted(() => {
       stop: vi.fn(),
     }
     localParticipant = {
+      audioTrackPublications: new Map(),
+      connectionQuality: 'excellent',
       identity: 'local',
       isLocal: true,
       getTrackPublication: () => ({ audioTrack: this.mic }),

@@ -325,10 +325,7 @@ const onDrop = (channelId: string) => {
           <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline">{{ voiceName }}</NuxtLink>
           <span v-else class="truncate">Voice</span>
         </div>
-        <div class="text-xs text-muted">
-          {{ voice.connectionLabel.value
-          }}<span v-if="voice.connection.value === 'connected' && !voice.audioBlocked.value && voice.ping.value !== null"> · {{ voice.ping.value }} ms</span>
-        </div>
+        <VoiceConnectionPopover />
       </div>
       <VoiceControl kind="camera" />
       <VoiceControl kind="screen" />

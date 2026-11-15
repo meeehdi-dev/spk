@@ -36,6 +36,7 @@ import {
   type ScreenQuality,
   type UserVolume,
 } from '#shared/utils/voice'
+import { createVoiceDiagnostics, type VoiceDiagnostics } from '~/utils/voice-diagnostics'
 
 export interface VoiceMember {
   channelId: string
@@ -84,6 +85,9 @@ const playingOff = new Map<string, ReturnType<typeof setTimeout>>()
 /** Round-trip time to the LiveKit server in ms, null while unknown. */
 const ping = ref<number | null>(null)
 let pingTimer: ReturnType<typeof setInterval> | undefined
+const pingHistory = ref<{ time: number; ping: number | null }[]>([])
+const diagnostics = ref<VoiceDiagnostics | null>(null)
+let pingEpoch = 0
 const radioListening = ref(false)
 const camOn = ref(false)
 const screenOn = ref(false)
@@ -458,7 +462,7 @@ export function useVoice() {
             color: 'warning',
           })
         if (connection.value !== 'reconnecting') connection.value = state
-        stopPing()
+        stopPing(false)
         clearSpeaking()
         pushState()
         rebuild()
@@ -566,19 +570,39 @@ export function useVoice() {
   }
 
   function startPing(r: Room) {
-    stopPing()
-    const read = () => {
-      // shortcut: `engine.client.rtt` is LiveKit-internal; switch to a public API when one exists.
-      const rtt = (r as unknown as { engine?: { client?: { rtt?: number } } }).engine?.client?.rtt
-      ping.value = rtt ? Math.round(rtt) : null
+    stopPing(false)
+    const epoch = pingEpoch
+    const collect = createVoiceDiagnostics(r)
+    let reading = false
+    const read = async () => {
+      if (reading) return
+      reading = true
+      try {
+        // shortcut: `engine.client.rtt` is LiveKit-internal; switch to a public API when one exists.
+        const rtt = (r as unknown as { engine?: { client?: { rtt?: number } } }).engine?.client?.rtt
+        const sample = await collect()
+        if (epoch !== pingEpoch) return
+        ping.value = typeof rtt === 'number' && Number.isFinite(rtt) && rtt >= 0 ? Math.round(rtt) : null
+        diagnostics.value = sample
+        const time = Date.now()
+        pingHistory.value = [...pingHistory.value.filter(p => p.time > time - 60_000), { time, ping: ping.value }].slice(-31)
+      } finally {
+        reading = false
+      }
     }
-    read()
-    pingTimer = setInterval(read, 2000)
+    void read()
+    pingTimer = setInterval(() => {
+      void read()
+    }, 2000)
   }
-  function stopPing() {
+  function stopPing(clearHistory = true) {
+    pingEpoch++
     clearInterval(pingTimer)
     pingTimer = undefined
     ping.value = null
+    diagnostics.value = null
+    if (clearHistory) pingHistory.value = []
+    else pingHistory.value = [...pingHistory.value, { time: Date.now(), ping: null }].slice(-31)
   }
 
   function clearSpeaking() {
@@ -1066,6 +1090,8 @@ export function useVoice() {
     theater,
     playing,
     ping,
+    pingHistory,
+    diagnostics,
     watchStream,
     camOn,
     screenOn,
