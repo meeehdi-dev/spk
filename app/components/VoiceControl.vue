@@ -16,7 +16,6 @@ const pick = (kind: 'mic' | 'speaker' | 'mediaSpeaker' | 'camera', list: MediaDe
   if (d) void v.pickDevice(kind, d)
 }
 const current = (saved?: { deviceId: string; label: string }, list: MediaDeviceInfo[] = []) => matchDevice(saved, list).deviceId ?? 'default'
-const chevron = { icon: 'i-lucide-chevron-up', color: 'neutral', variant: 'ghost', class: 'w-5 px-0' } as const
 const c = computed(() => {
   const { muted, deafened } = v.mute.value
   const sharing = v.screenOn.value || v.screenBusy.value
@@ -88,20 +87,20 @@ const c = computed(() => {
       }
   }
 })
+const buttonStyle = computed(
+  () =>
+    ({
+      color: props.kind === 'leave' ? 'error' : c.value.on ? c.value.color : 'neutral',
+      variant: c.value.on ? 'soft' : 'ghost',
+    }) as const,
+)
+const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-up', class: 'w-5 px-0' }))
 </script>
 
 <template>
   <UFieldGroup>
     <UTooltip :text="c.tip" :kbds="c.kbd ? ['meta', 'alt', 'shift', c.kbd] : undefined">
-      <UButton
-        :icon="c.icon"
-        :color="kind === 'leave' ? 'error' : c.on ? c.color : 'neutral'"
-        :variant="c.on ? 'soft' : 'ghost'"
-        :disabled="c.disabled"
-        :aria-label="c.text"
-        :label="labeled ? c.text : undefined"
-        @click="c.click()"
-      />
+      <UButton :icon="c.icon" v-bind="buttonStyle" :disabled="c.disabled" :aria-label="c.text" :label="labeled ? c.text : undefined" @click="c.click()" />
     </UTooltip>
 
     <UPopover v-if="kind === 'mic'" :content="{ align: 'end', side: 'top' }">
