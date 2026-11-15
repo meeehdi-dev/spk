@@ -7,7 +7,23 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import RadioPopover from '~/components/RadioPopover.vue'
 import { mountInApp, requestError } from '~~/tests/fixtures/app'
 
-mockNuxtImport('useSocket', () => () => ({ connected: { value: true }, send: () => true, on: () => {} }))
+const playback = await vi.hoisted(async () => {
+  const { ref } = await import('vue')
+  return {
+    channelId: ref<string | null>('channel'),
+    station: ref<{ id: string; name: string } | null>(null),
+    enabled: ref(true),
+    playback: ref('idle'),
+    volume: ref(0.5),
+    commandError: ref(''),
+    listen: vi.fn(),
+    mute: vi.fn(),
+    stop: vi.fn(),
+    select: vi.fn(),
+  }
+})
+mockNuxtImport('useRadio', () => () => playback)
+mockNuxtImport('useVoice', () => () => ({ channelId: playback.channelId, mute: { value: { deafened: false } } }))
 
 interface State {
   open: boolean
@@ -33,7 +49,18 @@ beforeAll(() => {
   registerEndpoint('/api/radio/favorites/station', { method: 'DELETE', handler: () => remove() })
 })
 beforeEach(() => {
-  for (const fn of [list, save, remove]) fn.mockReset()
+  for (const fn of [list, save, remove, playback.listen, playback.mute, playback.stop, playback.select]) fn.mockReset()
+  playback.channelId.value = 'channel'
+  playback.station.value = null
+  playback.enabled.value = true
+  playback.playback.value = 'idle'
+  playback.listen.mockImplementation(() => {
+    playback.enabled.value = true
+  })
+  playback.mute.mockImplementation(() => {
+    playback.enabled.value = false
+  })
+  list.mockResolvedValue([])
   remove.mockResolvedValue({ ok: true })
 })
 
@@ -45,8 +72,54 @@ async function mountPopover() {
     await flushPromises()
     if (settled) await vi.waitFor(() => expect(state.favoritesLoading).toBe(false))
   }
-  return { state, setOpen }
+  return { wrapper, state, setOpen }
 }
+
+describe('radio split control', () => {
+  it('opens settings from either control without a station, and disables both outside voice', async () => {
+    const { wrapper, state, setOpen } = await mountPopover()
+    await wrapper.find('[aria-label="Radio settings"]').trigger('click')
+    expect(state.open).toBe(true)
+    await setOpen(false)
+    await wrapper.find('[aria-label="Radio options"]').trigger('click')
+    expect(state.open).toBe(true)
+    expect(playback.listen).not.toHaveBeenCalled()
+    expect(playback.mute).not.toHaveBeenCalled()
+    await setOpen(false)
+    playback.channelId.value = null
+    await flushPromises()
+    expect(wrapper.find('[aria-label="Radio settings"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[aria-label="Radio options"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('pauses and resumes locally without opening settings or stopping the shared station', async () => {
+    playback.station.value = { id: 'station', name: 'Jazz' }
+    playback.playback.value = 'playing'
+    const { wrapper, state } = await mountPopover()
+    const button = () => wrapper.findComponent(RadioPopover).findAllComponents({ name: 'UButton' })[0]!
+    expect(button().props()).toMatchObject({ color: 'primary', variant: 'soft' })
+    await wrapper.find('[aria-label="Pause radio"]').trigger('click')
+    expect(playback.mute).toHaveBeenCalledOnce()
+    expect(button().props()).toMatchObject({ color: 'neutral', variant: 'ghost' })
+    await wrapper.find('[aria-label="Resume radio"]').trigger('click')
+    expect(playback.listen).toHaveBeenCalledOnce()
+    expect(state.open).toBe(false)
+    expect(playback.stop).not.toHaveBeenCalled()
+    await wrapper.find('[aria-label="Radio options"]').trigger('click')
+    expect(state.open).toBe(true)
+    expect(playback.mute).toHaveBeenCalledOnce()
+  })
+
+  it.each(['blocked', 'error'])('retries %s playback from the main control', async status => {
+    playback.station.value = { id: 'station', name: 'Jazz' }
+    playback.playback.value = status
+    const { wrapper, state } = await mountPopover()
+    await wrapper.find('[aria-label="Resume radio"]').trigger('click')
+    expect(playback.listen).toHaveBeenCalledOnce()
+    expect(playback.mute).not.toHaveBeenCalled()
+    expect(state.open).toBe(false)
+  })
+})
 
 describe('radio favorites interaction state', () => {
   it('loads on open, filters favorites by name, and defaults to All on reopen', async () => {

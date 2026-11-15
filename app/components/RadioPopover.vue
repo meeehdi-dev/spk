@@ -79,10 +79,19 @@ async function find() {
     if (search === epoch) loading.value = false
   }
 }
+const needsListen = computed(() => !radio.enabled.value || radio.playback.value === 'blocked' || radio.playback.value === 'error')
+const active = computed(() => !!radio.station.value && !needsListen.value)
+const buttonStyle = computed(() => ({ color: active.value ? 'primary' : 'neutral', variant: active.value ? 'soft' : 'ghost' }) as const)
+const actionLabel = computed(() => (!radio.station.value ? 'Radio settings' : needsListen.value ? 'Resume radio' : 'Pause radio'))
+function togglePlayback() {
+  if (!radio.station.value) open.value = true
+  else if (needsListen.value) radio.listen()
+  else radio.mute()
+}
 const status = computed(() => {
-  if (!radio.enabled.value) return 'Muted for you'
+  if (!radio.enabled.value) return 'Paused for you'
   if (v.mute.value.deafened) return 'Deafened'
-  if (radio.playback.value === 'blocked') return 'Press Listen to allow audio.'
+  if (radio.playback.value === 'blocked') return 'Resume to allow audio.'
   if (radio.playback.value === 'error') return 'This stream could not play in your browser.'
   if (radio.playback.value === 'playing') return 'Playing'
   return 'Connecting…'
@@ -90,88 +99,116 @@ const status = computed(() => {
 </script>
 
 <template>
-  <UPopover v-model:open="open" :content="{ align: 'end', side: 'top' }">
-    <UTooltip text="Channel radio">
+  <UFieldGroup>
+    <UTooltip :text="actionLabel">
       <UButton
         icon="i-lucide-radio"
-        color="neutral"
-        variant="ghost"
+        v-bind="buttonStyle"
         :disabled="!v.channelId.value"
-        aria-label="Channel radio"
+        :aria-label="actionLabel"
+        :aria-pressed="radio.station.value ? active : undefined"
         :label="labeled ? 'Radio' : undefined"
+        @click="togglePlayback"
       />
     </UTooltip>
-    <template #content>
-      <div class="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 p-3 text-sm">
-        <p class="font-medium">Channel radio</p>
-        <template v-if="radio.station.value">
-          <p class="truncate">{{ radio.station.value.name }}</p>
-          <p role="status" class="text-muted">{{ status }}</p>
-          <div class="flex gap-2">
-            <UButton
-              v-if="!radio.enabled.value || radio.playback.value === 'blocked' || radio.playback.value === 'error'"
-              :label="radio.playback.value === 'error' ? 'Retry' : 'Listen'"
-              @click="radio.listen"
-            />
-            <UButton v-else label="Mute for me" color="neutral" variant="soft" @click="radio.mute" />
-            <UButton label="Stop for everyone" color="neutral" variant="soft" @click="radio.stop" />
+    <UPopover v-model:open="open" :content="{ align: 'end', side: 'top' }">
+      <UButton v-bind="buttonStyle" icon="i-lucide-chevron-up" class="w-5 px-0" :disabled="!v.channelId.value" aria-label="Radio options" />
+      <template #content>
+        <div class="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 p-3 text-sm">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-radio" class="size-4 shrink-0 text-primary" />
+            <h2 class="font-medium">Channel radio</h2>
           </div>
-          <USlider v-model="radio.volume.value" :min="0" :max="1" :step="0.01" aria-label="Radio volume (only you)" />
-        </template>
-        <p v-else class="text-muted">No station selected.</p>
-        <p v-if="radio.commandError.value" role="alert" class="text-error">{{ radio.commandError.value }}</p>
-        <USeparator />
-        <div class="flex gap-2" role="group" aria-label="Radio station filter">
-          <UButton label="All" color="neutral" :variant="favoritesOnly ? 'ghost' : 'soft'" :aria-pressed="!favoritesOnly" @click="favoritesOnly = false" />
-          <UButton label="Favorites" color="neutral" :variant="favoritesOnly ? 'soft' : 'ghost'" :aria-pressed="favoritesOnly" @click="favoritesOnly = true" />
-        </div>
-        <p v-if="favoritesLoading" role="status" class="text-muted">Loading favorites…</p>
-        <p v-if="favoritesError" role="alert" class="text-error">{{ favoritesError }}</p>
-        <form class="flex gap-2" @submit.prevent="find">
-          <UInput v-model="q" :maxlength="100" placeholder="Search stations" aria-label="Search radio stations" class="min-w-0 flex-1" />
-          <UButton v-if="!favoritesOnly" type="submit" icon="i-lucide-search" :loading="loading" aria-label="Find stations" />
-        </form>
-        <p v-if="!favoritesOnly && error" role="alert" class="text-error">{{ error }}</p>
-        <p v-else-if="!favoritesOnly && search && !loading && !stations.length" class="text-muted">No supported HTTPS MP3/AAC stations found.</p>
-        <p v-if="favoritesOnly && favoritesReady && !visibleStations.length" class="text-muted">
-          {{ favorites.length ? 'No favorites match your search.' : 'No favorites yet. Star a station in All to save it.' }}
-        </p>
-        <div class="flex max-h-60 flex-col gap-1 overflow-y-auto">
-          <div v-for="station in visibleStations" :key="station.id" class="flex items-center gap-1">
+          <template v-if="radio.station.value">
+            <div class="min-w-0">
+              <p class="truncate font-medium text-highlighted">{{ radio.station.value.name }}</p>
+              <p role="status" class="text-xs text-muted">{{ status }}</p>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <UButton
+                :icon="needsListen ? (radio.playback.value === 'error' ? 'i-lucide-rotate-cw' : 'i-lucide-play') : 'i-lucide-pause'"
+                :label="needsListen ? (radio.playback.value === 'error' ? 'Retry' : 'Resume') : 'Pause'"
+                color="primary"
+                variant="soft"
+                @click="togglePlayback"
+              />
+              <UButton icon="i-lucide-square" label="Stop for everyone" color="neutral" variant="ghost" @click="radio.stop" />
+            </div>
+            <UFormField label="Volume (only you)" :hint="`${Math.round(radio.volume.value * 100)}%`">
+              <USlider v-model="radio.volume.value" :min="0" :max="1" :step="0.01" aria-label="Radio volume (only you)" />
+            </UFormField>
+          </template>
+          <p v-else class="text-muted">Find a station to play in this channel.</p>
+          <p v-if="radio.commandError.value" role="alert" class="text-error">{{ radio.commandError.value }}</p>
+          <USeparator />
+          <div class="flex gap-2" role="group" aria-label="Radio station filter">
             <UButton
-              color="neutral"
-              variant="ghost"
-              class="min-w-0 flex-1 justify-start"
-              :disabled="'available' in station && station.available === false"
-              :aria-label="`Play ${station.name} for everyone`"
-              @click="radio.select(station.id)"
-            >
-              <span class="truncate">{{ station.name }}</span>
-              <span class="ml-auto shrink-0 text-xs text-muted">{{
-                'available' in station && station.available === null
-                  ? 'Availability unknown'
-                  : 'available' in station && station.available === false
-                    ? 'Unavailable'
-                    : `${station.country} · ${station.codec}`
-              }}</span>
-            </UButton>
+              icon="i-lucide-list-music"
+              label="All stations"
+              :color="favoritesOnly ? 'neutral' : 'primary'"
+              :variant="favoritesOnly ? 'ghost' : 'soft'"
+              :aria-pressed="!favoritesOnly"
+              @click="favoritesOnly = false"
+            />
             <UButton
               icon="i-lucide-star"
-              :color="isFavorite(station.id) ? 'primary' : 'neutral'"
-              variant="ghost"
-              :disabled="!favoritesReady || favoritesLoading"
-              :loading="saving.includes(station.id)"
-              :aria-pressed="isFavorite(station.id)"
-              :aria-label="`${isFavorite(station.id) ? 'Remove' : 'Add'} ${station.name} ${isFavorite(station.id) ? 'from' : 'to'} favorites`"
-              @click="toggleFavorite(station)"
+              label="Favorites"
+              :color="favoritesOnly ? 'primary' : 'neutral'"
+              :variant="favoritesOnly ? 'soft' : 'ghost'"
+              :aria-pressed="favoritesOnly"
+              @click="favoritesOnly = true"
             />
           </div>
+          <p v-if="favoritesLoading" role="status" class="text-muted">Loading favorites…</p>
+          <p v-if="favoritesError" role="alert" class="text-error">{{ favoritesError }}</p>
+          <form class="flex gap-2" @submit.prevent="find">
+            <UInput v-model="q" :maxlength="100" placeholder="Search stations" aria-label="Search radio stations" class="min-w-0 flex-1" />
+            <UButton v-if="!favoritesOnly" type="submit" icon="i-lucide-search" :loading="loading" aria-label="Find stations" />
+          </form>
+          <p v-if="!favoritesOnly && error" role="alert" class="text-error">{{ error }}</p>
+          <p v-else-if="!favoritesOnly && search && !loading && !stations.length" class="text-muted">No stations found. Try another search.</p>
+          <p v-if="favoritesOnly && favoritesReady && !visibleStations.length" class="text-muted">
+            {{ favorites.length ? 'No favorites match your search.' : 'No favorites yet. Star a station to save it.' }}
+          </p>
+          <div class="flex max-h-60 flex-col gap-1 overflow-y-auto">
+            <div v-for="station in visibleStations" :key="station.id" class="flex items-center gap-1">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                :icon="radio.station.value?.id === station.id ? 'i-lucide-radio' : 'i-lucide-play'"
+                class="min-w-0 flex-1 justify-start"
+                :disabled="'available' in station && station.available === false"
+                :aria-label="`Play ${station.name} for everyone`"
+                @click="radio.select(station.id)"
+              >
+                <span class="flex min-w-0 flex-col items-start">
+                  <span class="w-full truncate text-left">{{ station.name }}</span>
+                  <span class="text-xs font-normal text-muted">{{
+                    'available' in station && station.available === null
+                      ? 'Availability unknown'
+                      : 'available' in station && station.available === false
+                        ? 'Unavailable'
+                        : `${station.country} · ${station.codec}`
+                  }}</span>
+                </span>
+              </UButton>
+              <UButton
+                icon="i-lucide-star"
+                :color="isFavorite(station.id) ? 'primary' : 'neutral'"
+                variant="ghost"
+                :disabled="!favoritesReady || favoritesLoading"
+                :loading="saving.includes(station.id)"
+                :aria-pressed="isFavorite(station.id)"
+                :aria-label="`${isFavorite(station.id) ? 'Remove' : 'Add'} ${station.name} ${isFavorite(station.id) ? 'from' : 'to'} favorites`"
+                @click="toggleFavorite(station)"
+              />
+            </div>
+          </div>
+          <a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer" class="text-xs text-primary hover:underline"
+            >Stations from Radio Browser</a
+          >
         </div>
-        <p class="text-xs text-muted">One station for this channel. Your browser connects directly to the station; listeners can hear different delays.</p>
-        <a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer" class="text-xs text-primary hover:underline"
-          >Stations from Radio Browser</a
-        >
-      </div>
-    </template>
-  </UPopover>
+      </template>
+    </UPopover>
+  </UFieldGroup>
 </template>

@@ -301,6 +301,9 @@ const onDrop = (channelId: string) => {
                       @click="voice.watchStream(c.id, m.userId)"
                     />
                   </UTooltip>
+                  <UTooltip v-if="m.radioListening" text="Listening to radio" :class="m.screen || m.cam ? '' : 'ml-auto'">
+                    <UButton as="span" icon="i-lucide-radio" color="primary" variant="ghost" aria-label="Listening to radio" />
+                  </UTooltip>
                   <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
                   <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
                 </li>

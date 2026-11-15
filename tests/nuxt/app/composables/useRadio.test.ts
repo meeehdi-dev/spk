@@ -1,5 +1,6 @@
 import type { SavedDevice } from '#shared/utils/voice'
 import type { SocketFrame } from '~/composables/useSocket'
+import type { RadioPlayback } from '~/utils/radio-player'
 
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,14 +8,21 @@ import { defineComponent } from 'vue'
 
 import { useRadio, useRadioLive } from '~/composables/useRadio'
 
-const media = vi.hoisted(() => ({ start: vi.fn(async () => {}), stop: vi.fn(), output: vi.fn() }))
-vi.mock('~/utils/radio-player', () => ({ createRadioPlayer: () => media }))
+const media = vi.hoisted(() => ({ start: vi.fn(async () => {}), stop: vi.fn(), output: vi.fn(), status: (_value: RadioPlayback) => {} }))
+vi.mock('~/utils/radio-player', () => ({
+  createRadioPlayer: (status: (value: RadioPlayback) => void) => {
+    media.status = status
+    media.stop.mockImplementation(() => status('idle'))
+    return media
+  },
+}))
 
 const mocks = await vi.hoisted(async () => {
   const { ref } = await import('vue')
   return {
     voice: {
       sid: 's',
+      setRadioListening: vi.fn(),
       channelId: ref<string | null>(null),
       mute: ref({ deafened: false, muted: false }),
       settings: ref<{ radioVolume: number; outputVolume: number; speaker?: SavedDevice; mediaSpeaker?: SavedDevice }>({ radioVolume: 0.5, outputVolume: 1 }),
@@ -62,6 +70,39 @@ beforeEach(async () => {
 })
 
 describe('radio session lifecycle', () => {
+  it('announces listening only during audible playback and clears it on mute, failure and leave', () => {
+    const { voice } = mocks
+    const listening = () => voice.setRadioListening.mock.lastCall?.[0]
+    receive(frame(1))
+    expect(listening()).toBe(false)
+    media.status('playing')
+    expect(listening()).toBe(true)
+    voice.mute.value.muted = true
+    expect(listening()).toBe(true)
+    voice.mute.value.deafened = true
+    expect(listening()).toBe(false)
+    voice.mute.value.deafened = false
+    expect(listening()).toBe(true)
+    voice.settings.value.radioVolume = 0
+    expect(listening()).toBe(false)
+    voice.settings.value.radioVolume = 0.5
+    voice.settings.value.outputVolume = 0
+    expect(listening()).toBe(false)
+    voice.settings.value.outputVolume = 1
+    expect(listening()).toBe(true)
+    useRadio().mute()
+    expect(listening()).toBe(false)
+    useRadio().listen()
+    media.status('playing')
+    expect(listening()).toBe(true)
+    media.status('error')
+    expect(listening()).toBe(false)
+    media.status('blocked')
+    expect(listening()).toBe(false)
+    media.status('playing')
+    voice.channelId.value = null
+    expect(listening()).toBe(false)
+  })
   it('follows media output changes and unplug/replug independently of voice without restarting', () => {
     const { voice } = mocks
     voice.devices.value.speakers = [

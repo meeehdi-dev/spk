@@ -44,6 +44,7 @@ export interface VoiceMember {
   speaking: boolean
   cam: boolean
   screen: boolean
+  radioListening: boolean
   watching: string[]
 }
 
@@ -81,6 +82,7 @@ const playingOff = new Map<string, ReturnType<typeof setTimeout>>()
 /** Round-trip time to the LiveKit server in ms, null while unknown. */
 const ping = ref<number | null>(null)
 let pingTimer: ReturnType<typeof setInterval> | undefined
+const radioListening = ref(false)
 const camOn = ref(false)
 const screenOn = ref(false)
 const screenBusy = ref(false)
@@ -165,6 +167,7 @@ export function useVoice() {
       speaking: speakingIds.has(me.value?.id ?? '') && !mute.value.muted,
       cam: camOn.value,
       screen: screenOn.value,
+      radioListening: radioListening.value,
       watching: watching.value,
     })
   }
@@ -994,6 +997,11 @@ export function useVoice() {
       lastSent = 0
       pushState()
     },
+    setRadioListening: (listening: boolean) => {
+      if (radioListening.value === listening) return
+      radioListening.value = listening
+      pushState()
+    },
     mute,
     devices,
     canPickOutput,
@@ -1148,6 +1156,7 @@ export function useVoiceLive() {
           speaking: m.speaking,
           cam: !!m.cam,
           screen: !!m.screen,
+          radioListening: !!m.radioListening,
           watching: m.watching ?? [],
         }
       else Reflect.deleteProperty(next, m.userId)

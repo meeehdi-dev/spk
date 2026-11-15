@@ -102,9 +102,20 @@ export function useRadioLive() {
       ),
     { deep: true, immediate: true, flush: 'sync' },
   )
+  watch(
+    () =>
+      !!radio.station.value &&
+      radio.enabled.value &&
+      playback.value === 'playing' &&
+      !voice.mute.value.deafened &&
+      voice.settings.value.radioVolume * voice.settings.value.outputVolume > 0,
+    listening => voice.setRadioListening(listening),
+    { immediate: true, flush: 'sync' },
+  )
   onMounted(refresh)
   onScopeDispose(() => {
     reset()
+    voice.setRadioListening(false)
     player = undefined
   })
 }

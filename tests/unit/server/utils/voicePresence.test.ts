@@ -93,6 +93,19 @@ describe('voice cam/screen flags', () => {
   })
 })
 
+describe('radio listening presence', () => {
+  it('broadcasts boolean listening state, ignores invalid updates and resets on join', () => {
+    joinVoice('radio-user', 'c1', 's', {})
+    expect(updateVoice('radio-user', 's', { radioListening: true })).toMatchObject({ radioListening: true })
+    updateVoice('radio-user', 's', { radioListening: 'yes' } as never)
+    expect(voiceSnapshot().find(p => p.userId === 'radio-user')).toMatchObject({ radioListening: true })
+    expect(updateVoice('radio-user', 's', { radioListening: false })).toMatchObject({ radioListening: false })
+    updateVoice('radio-user', 's', { radioListening: true })
+    expect(joinVoice('radio-user', 'c2', 's', {}).presence.radioListening).toBe(false)
+    leaveVoice('radio-user', 's')
+  })
+})
+
 describe('voice watching', () => {
   it('validates the array, caps it and resets on a new session', () => {
     joinVoice('u6', 'c1', 's', {})

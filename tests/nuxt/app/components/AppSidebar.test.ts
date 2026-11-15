@@ -6,8 +6,12 @@ import AppSidebar from '~/components/AppSidebar.vue'
 import { mountInApp } from '~~/tests/fixtures/app'
 
 const role = vi.hoisted(() => ({ value: 'user' }))
+const member = await vi.hoisted(async () => {
+  const { reactive } = await import('vue')
+  return reactive({ userId: 'user', channelId: 'source', radioListening: false, cam: false, screen: false })
+})
 const move = vi.fn()
-mockNuxtImport('voiceMembers', () => (id: string) => (id === 'source' ? [{ userId: 'user', channelId: 'source' }] : []))
+mockNuxtImport('voiceMembers', () => (id: string) => (id === 'source' ? [member] : []))
 
 beforeAll(() => {
   registerEndpoint('/api/profile/me', () => ({ id: 'me', email: 'me@x.dev', role: role.value, displayName: 'Me', avatarKey: null }))
@@ -23,6 +27,7 @@ beforeAll(() => {
 beforeEach(() => {
   clearNuxtData()
   move.mockReset()
+  Object.assign(member, { radioListening: false, cam: false, screen: false })
   useUnread().counts.value = {}
 })
 afterEach(() => vi.restoreAllMocks())
@@ -69,6 +74,24 @@ it('highlights unread DM rows and channel pings, keeps badges on the right, and 
   expect(channel().classes()).toContain('font-bold')
   expect(dm().classes()).not.toContain('bg-primary/10')
   expect(dm().find('[aria-label="Unread messages"]').exists()).toBe(false)
+})
+
+it('shows a non-actionable radio indicator matching the camera control only while listening', async () => {
+  member.cam = true
+  const wrapper = await mountInApp(AppSidebar)
+  await vi.waitFor(() => expect(wrapper.find('[data-member]').exists()).toBe(true))
+  const indicator = () => wrapper.find('[data-member] [aria-label="Listening to radio"]')
+  expect(indicator().exists()).toBe(false)
+  member.radioListening = true
+  await nextTick()
+  expect(indicator().element.tagName).toBe('SPAN')
+  const camera = wrapper.find('[data-member] [aria-label="Watch User\'s camera"]')
+  expect(indicator().classes()).toEqual(camera.classes().filter(name => name !== 'ml-auto'))
+  expect(wrapper.findAllComponents({ name: 'UButton' }).some(button => button.props('icon') === 'i-lucide-radio' && button.props('as') === 'span')).toBe(true)
+  expect(indicator().element.hasAttribute('tabindex')).toBe(false)
+  member.radioListening = false
+  await nextTick()
+  expect(indicator().exists()).toBe(false)
 })
 
 describe('voice member dragging', () => {
