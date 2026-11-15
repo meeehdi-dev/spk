@@ -40,9 +40,16 @@ it('collapses the theater strip without unmounting tiles and resets when theater
   expect(wrapper.text()).not.toContain('Connected')
   expect(wrapper.html()).not.toContain('voice-reconnect')
   expect(wrapper.html().indexOf('<radio-popover-stub')).toBeLessThan(wrapper.html().indexOf('<soundboard-popover-stub'))
+  const participantGroup = wrapper.get('[data-user="participant"]').element.parentElement
+  const groupClasses = participantGroup!.className
   voice.connectionLabel.value = 'Voice interrupted. Reconnecting…'
   await nextTick()
-  expect(wrapper.get('[role="status"]').text()).toContain('Voice interrupted')
+  const status = wrapper.get('[role="status"]')
+  expect(status.text()).toContain('Voice interrupted')
+  expect(status.classes()).toEqual(expect.arrayContaining(['absolute', 'pointer-events-none']))
+  expect(participantGroup!.contains(status.element)).toBe(false)
+  expect(wrapper.get('[data-user="participant"]').element.parentElement).toBe(participantGroup)
+  expect(participantGroup!.className).toBe(groupClasses)
   voice.connectionLabel.value = 'Connected'
   await nextTick()
 

@@ -73,6 +73,33 @@ async function mountSettings() {
   return { wrapper, click, video, v: useVoice() }
 }
 
+describe('device permission notice', () => {
+  it('reserves the notice space and removes its action from accessibility and focus when labels are available', async () => {
+    const { wrapper, v } = await mountSettings()
+    const notice = wrapper.findComponent({ name: 'UAlert' })
+    const element = notice.element
+    expect(notice.classes()).toContain('invisible')
+    expect(notice.attributes('aria-hidden')).toBe('true')
+    expect(notice.attributes('inert')).toBeDefined()
+    v.devices.value = { ...v.devices.value, mics: [{ deviceId: 'mac', kind: 'audioinput', label: '' } as MediaDeviceInfo] }
+    await nextTick()
+    expect(notice.element).toBe(element)
+    expect(notice.classes()).not.toContain('invisible')
+    expect(notice.attributes('aria-hidden')).toBe('false')
+    expect(notice.attributes('inert')).toBeUndefined()
+    const input = stream()
+    vi.spyOn(navigator.mediaDevices, 'enumerateDevices').mockResolvedValueOnce(v.devices.value.mics)
+    getUserMedia.mockResolvedValueOnce(input.value)
+    await notice.find('button').trigger('click')
+    await flushPromises()
+    expect(getUserMedia).toHaveBeenCalledOnce()
+    expect(input.stop).toHaveBeenCalledOnce()
+    expect(notice.element).toBe(element)
+    expect(notice.classes()).toContain('invisible')
+    expect(notice.attributes('inert')).toBeDefined()
+  })
+})
+
 describe('microphone test capture', () => {
   it.each(['stop', 'unmount', 'join'])('releases late capture after %s', async action => {
     let resolve!: (value: MediaStream) => void

@@ -10,7 +10,7 @@ const voice = await vi.hoisted(async () => {
   return {
     connectionLabel: ref('Connected'),
     ping: ref<number | null>(42),
-    pingHistory: ref([{ time: Date.now(), ping: 42 }]),
+    pingHistory: ref([{ time: Date.now() - 3000, ping: 42 }]),
     diagnostics: ref(null),
     audioBlocked: ref(false),
     microphone: ref('ready'),
@@ -29,13 +29,21 @@ it('keeps ping out of the trigger and opens live diagnostics for any status', as
   await vi.waitFor(() => expect(panel()).not.toBeNull())
   expect(panel().textContent).toContain('42 ms')
   expect(panel().textContent).toContain('Unavailable')
+  expect(panel().textContent).not.toContain('Updated every')
+  expect(panel().querySelector('clipPath rect')?.getAttribute('width')).toBe('276')
+  const warning = Array.from(panel().querySelectorAll('p')).find(p => p.textContent?.includes('Audio playback is blocked'))!
+  expect(warning.classList.contains('invisible')).toBe(true)
+  const path = () => panel().querySelector('path[clip-path]')!.getAttribute('d')
+  const initialPath = path()
+  await vi.waitFor(() => expect(path()).not.toBe(initialPath))
   expect(panel().querySelector('svg')?.getAttribute('aria-label')).toContain('42 to 42')
   voice.connectionLabel.value = 'Voice reconnecting…'
   voice.ping.value = null
   voice.audioBlocked.value = true
   await flushPromises()
   expect(trigger.text()).toBe('Voice reconnecting…')
-  expect(panel().textContent).toContain('Audio playback is blocked')
+  expect(warning.classList.contains('invisible')).toBe(false)
+  expect(warning.getAttribute('aria-hidden')).toBe('false')
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   await vi.waitFor(() => expect(trigger.attributes('aria-expanded')).toBe('false'))
   await trigger.trigger('click')

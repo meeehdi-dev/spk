@@ -168,7 +168,9 @@ const soundRows = [
       </template>
       <div class="flex flex-col gap-4">
         <UAlert
-          v-if="labelsHidden"
+          :class="{ invisible: !labelsHidden }"
+          :aria-hidden="!labelsHidden"
+          :inert="!labelsHidden"
           color="info"
           variant="subtle"
           icon="i-lucide-info"

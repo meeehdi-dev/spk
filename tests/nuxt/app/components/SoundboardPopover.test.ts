@@ -11,23 +11,27 @@ const state = await vi.hoisted(async () => {
     settings: ref({ soundboard: { on: true, volume: 0.7 } }),
     cooling: ref(false),
     press: vi.fn(),
+    sounds: ref([{ id: 'sound', name: 'Bell', icon: 'bell', durationMs: 1000 }]),
+    refresh: vi.fn(),
   }
 })
 mockNuxtImport('useVoice', () => () => ({ channelId: { value: 'voice' }, settings: state.settings }))
 mockNuxtImport('useSoundboard', () => () => ({ cooling: state.cooling, press: state.press }))
 mockNuxtImport('useSounds', () => () => ({
-  data: { value: [{ id: 'sound', name: 'Bell', icon: 'bell', durationMs: 1000 }] },
-  refresh: vi.fn(),
+  data: state.sounds,
+  refresh: state.refresh,
 }))
 
 beforeEach(() => {
   state.settings.value.soundboard.on = true
   state.cooling.value = false
   state.press.mockClear()
+  state.refresh.mockClear()
+  state.sounds.value = [{ id: 'sound', name: 'Bell', icon: 'bell', durationMs: 1000 }]
 })
 
-it('disables sound buttons when hearing sounds is off and preserves cooldown disabling', async () => {
-  const wrapper = await mountInApp(
+const mountPopover = () =>
+  mountInApp(
     SoundboardPopover,
     {},
     {
@@ -38,6 +42,9 @@ it('disables sound buttons when hearing sounds is off and preserves cooldown dis
       },
     },
   )
+
+it('disables sound buttons when hearing sounds is off and preserves cooldown disabling', async () => {
+  const wrapper = await mountPopover()
   const sound = wrapper.get('button[aria-label="Play Bell"]')
   expect(sound.attributes('disabled')).toBeUndefined()
   await sound.trigger('click')
@@ -58,4 +65,33 @@ it('disables sound buttons when hearing sounds is off and preserves cooldown dis
   state.cooling.value = false
   await nextTick()
   expect(sound.attributes('disabled')).toBeUndefined()
+})
+
+it('keeps search, results and controls mounted across refresh sizes and empty searches', async () => {
+  const wrapper = await mountPopover()
+  const search = wrapper.get('input[aria-label="Search sounds"]')
+  const results = wrapper.get('[aria-label="Sounds"]')
+  const toggle = wrapper.get('button[role="switch"]').element
+  const slider = wrapper.get('[role="slider"]').element
+  expect(results.classes()).toContain('h-60')
+  expect(results.find('[aria-label="Play Bell"]').exists()).toBe(true)
+
+  state.sounds.value = Array.from({ length: 9 }, (_, i) => ({ id: `sound-${i}`, name: `Sound ${i}`, icon: 'bell', durationMs: 1000 }))
+  await nextTick()
+  expect(wrapper.get('input[aria-label="Search sounds"]').element).toBe(search.element)
+  expect(results.findAll('button').length).toBe(9)
+  await search.setValue('missing')
+  expect(results.text()).toBe('No match.')
+
+  state.sounds.value = []
+  await nextTick()
+  expect(results.text()).toContain('No sounds yet.')
+  expect(wrapper.get('input[aria-label="Search sounds"]').element).toBe(search.element)
+  expect(wrapper.get('button[role="switch"]').element).toBe(toggle)
+  expect(wrapper.get('[role="slider"]').element).toBe(slider)
+  expect(results.classes()).toContain('h-60')
+
+  state.sounds.value = [{ id: 'sound', name: 'Bell', icon: 'bell', durationMs: 1000 }]
+  await search.setValue('bell')
+  expect(results.find('[aria-label="Play Bell"]').exists()).toBe(true)
 })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const toast = useToast()
 const root = useTemplateRef('root')
 const commits = shallowRef<{ sha: string; message: string; date: string }[]>([])
 const page = ref<number | null>(1)
@@ -21,6 +22,7 @@ async function loadMore() {
     page.value = data.nextPage
   } catch {
     failed.value = true
+    toast.add({ title: 'Changelog is unavailable. Try again later.', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     loading.value = false
   }
@@ -49,14 +51,16 @@ onMounted(loadMore)
         </div>
       </li>
     </ul>
-    <div role="status" class="text-sm text-muted">
-      <p v-if="loading">Loading commits…</p>
-      <div v-else-if="failed" class="space-y-2">
-        <p>Changelog is unavailable. Try again later.</p>
-        <UButton label="Retry" color="neutral" variant="outline" @click="loadMore" />
-      </div>
-      <p v-else-if="page === null">{{ commits.length ? 'End of commit history.' : 'No commits yet.' }}</p>
-      <UButton v-else label="Load more" color="neutral" variant="outline" @click="loadMore" />
+    <div role="status" class="flex min-h-8 items-center text-sm text-muted">
+      <p v-if="page === null">{{ commits.length ? 'End of commit history.' : 'No commits yet.' }}</p>
+      <UButton
+        v-else
+        :label="loading ? 'Loading commits…' : failed ? 'Retry' : 'Load more'"
+        :loading="loading"
+        color="neutral"
+        variant="outline"
+        @click="loadMore"
+      />
     </div>
   </div>
 </template>

@@ -36,6 +36,7 @@ const mono = computed(() => {
     : new Float32Array()
 })
 const clipping = computed(() => mono.value.some(sample => Math.abs(sample * (volume.value / 100)) > 1))
+const clippingWarning = 'This volume clips peaks and may distort the sound. Lower it to avoid distortion.'
 const playing = ref(false)
 const saving = ref(false)
 let ws: WaveSurfer | undefined
@@ -261,7 +262,10 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
           <UFormField label="Volume" :hint="`${volume}%`" description="Applied permanently to the uploaded sound.">
             <USlider v-model="volume" :min="0" :max="200" :step="1" aria-label="Upload volume" />
           </UFormField>
-          <p v-if="clipping" role="status" class="text-sm text-warning">This volume clips peaks and may distort the sound. Lower it to avoid distortion.</p>
+          <p role="status" class="grid text-sm text-warning">
+            <span aria-hidden="true" class="invisible col-start-1 row-start-1">{{ clippingWarning }}</span>
+            <span v-if="clipping" class="col-start-1 row-start-1">{{ clippingWarning }}</span>
+          </p>
           <div class="flex flex-wrap items-end gap-2">
             <UFormField label="Name" class="min-w-48 flex-1">
               <UInput v-model="form.name" maxlength="32" class="w-full" />

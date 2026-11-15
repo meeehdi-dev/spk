@@ -40,7 +40,9 @@ beforeEach(() => {
 
 it('announces app versus media interruptions and only notifies once per transition', async () => {
   const wrapper = await mountInApp(ConnectionNotice)
-  expect(wrapper.get('[role="status"]').attributes('aria-live')).toBe('polite')
+  const status = wrapper.get('[role="status"]')
+  expect(status.attributes('aria-live')).toBe('polite')
+  expect(status.classes()).toEqual(expect.arrayContaining(['relative', 'h-0', 'z-20']))
   expect(wrapper.text()).toBe('')
   expect(state.toast).not.toHaveBeenCalled()
   state.socket.connected.value = false
@@ -50,6 +52,7 @@ it('announces app versus media interruptions and only notifies once per transiti
   state.socket.offline.value = true
   await nextTick()
   expect(wrapper.text()).toContain('Offline')
+  expect(status.get('.absolute').classes()).toEqual(expect.arrayContaining(['top-0', 'max-h-[50dvh]', 'overflow-y-auto']))
   expect(state.toast).toHaveBeenCalledTimes(1)
   state.voice.connection.value = 'reconnecting'
   await nextTick()

@@ -3,20 +3,20 @@ definePageMeta({ layout: 'blank' })
 const token = String(useRoute().query.token ?? '')
 const { data: check } = await useFetch<{ valid: boolean }>('/api/reset-password/check', { query: { token } })
 const password = ref('')
-const error = ref('')
+const toast = useToast()
 const loading = ref(false)
 const done = ref(false)
 
 async function submit() {
   loading.value = true
-  error.value = ''
   try {
     await $fetch('/api/reset-password', { method: 'POST', body: { token, password: password.value } })
     done.value = true
   } catch (e) {
-    error.value = errorText(e, 'Could not reset the password')
+    toast.add({ title: errorText(e, 'Could not reset the password'), color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 </script>
 
@@ -49,7 +49,6 @@ async function submit() {
       <UFormField label="New password" name="password" hint="At least 8 characters">
         <UInput v-model="password" type="password" autocomplete="new-password" minlength="8" required class="w-full" />
       </UFormField>
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
       <UButton type="submit" label="Set password" icon="i-lucide-key-round" :loading="loading" block />
     </UForm>
   </UCard>

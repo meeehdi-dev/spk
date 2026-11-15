@@ -4,22 +4,30 @@ import type { RadioFavorite, RadioStation } from '#shared/utils/radio'
 defineProps<{ labeled?: boolean }>()
 const v = useVoice()
 const radio = useRadio()
+const toast = useToast()
 const q = ref('')
 const stations = ref<RadioStation[]>([])
 const loading = ref(false)
 const error = ref('')
+const searched = ref(false)
 const open = ref(false)
 const favoritesOnly = ref(false)
 const favorites = ref<RadioFavorite[]>([])
 const favoritesLoading = ref(false)
 const favoritesReady = ref(false)
-const favoritesError = ref('')
 const saving = ref<string[]>([])
 let favoritesRequest = 0
 const visibleStations = computed(() =>
   favoritesOnly.value ? favorites.value.filter(station => station.name.toLowerCase().includes(q.value.trim().toLowerCase())) : stations.value,
 )
 const isFavorite = (id: string) => favorites.value.some(station => station.id === id)
+watch(
+  radio.commandError,
+  message => {
+    if (message && open.value) toast.add({ id: 'radio-command-error', title: message, color: 'error', icon: 'i-lucide-circle-alert' })
+  },
+  { flush: 'sync' },
+)
 watch(open, async value => {
   if (!value) return
   favoritesOnly.value = false
@@ -27,7 +35,6 @@ watch(open, async value => {
   const request = ++favoritesRequest
   favoritesLoading.value = true
   favoritesReady.value = false
-  favoritesError.value = ''
   try {
     const results = await $fetch<RadioFavorite[]>('/api/radio/favorites')
     if (request === favoritesRequest) {
@@ -35,7 +42,8 @@ watch(open, async value => {
       favoritesReady.value = true
     }
   } catch {
-    if (request === favoritesRequest) favoritesError.value = 'Could not load favorites. Close and reopen Radio to retry.'
+    if (request === favoritesRequest)
+      toast.add({ title: 'Could not load favorites. Close and reopen Radio to retry.', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     if (request === favoritesRequest) favoritesLoading.value = false
   }
@@ -43,7 +51,6 @@ watch(open, async value => {
 async function toggleFavorite(station: Omit<RadioStation, 'url'>) {
   if (!favoritesReady.value || saving.value.includes(station.id)) return
   saving.value.push(station.id)
-  favoritesError.value = ''
   try {
     if (isFavorite(station.id)) {
       await $fetch(`/api/radio/favorites/${station.id}`, { method: 'DELETE' })
@@ -53,7 +60,7 @@ async function toggleFavorite(station: Omit<RadioStation, 'url'>) {
       favorites.value = [...favorites.value, favorite].sort((a, b) => a.name.localeCompare(b.name))
     }
   } catch {
-    favoritesError.value = 'Could not update favorites. Try again. You can save up to 50 stations.'
+    toast.add({ title: 'Could not update favorites. Try again. You can save up to 50 stations.', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     saving.value = saving.value.filter(id => id !== station.id)
   }
@@ -63,6 +70,7 @@ async function find() {
   if (favoritesOnly.value) return
   const epoch = ++search
   error.value = ''
+  searched.value = false
   stations.value = []
   loading.value = false
   if (q.value.trim().length < 2) {
@@ -72,9 +80,12 @@ async function find() {
   loading.value = true
   try {
     const results = await $fetch<RadioStation[]>('/api/radio/stations', { query: { q: q.value.trim() } })
-    if (search === epoch) stations.value = results
+    if (search === epoch) {
+      stations.value = results
+      searched.value = true
+    }
   } catch {
-    if (search === epoch) error.value = 'Radio search is unavailable. Try again later.'
+    if (search === epoch) toast.add({ title: 'Radio search is unavailable. Try again later.', color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     if (search === epoch) loading.value = false
   }
@@ -139,7 +150,6 @@ const status = computed(() => {
             </UFormField>
           </template>
           <p v-else class="text-muted">Find a station to play in this channel.</p>
-          <p v-if="radio.commandError.value" role="alert" class="text-error">{{ radio.commandError.value }}</p>
           <USeparator />
           <div class="flex gap-2" role="group" aria-label="Radio station filter">
             <UButton
@@ -159,19 +169,22 @@ const status = computed(() => {
               @click="favoritesOnly = true"
             />
           </div>
-          <p v-if="favoritesLoading" role="status" class="text-muted">Loading favorites…</p>
-          <p v-if="favoritesError" role="alert" class="text-error">{{ favoritesError }}</p>
           <form class="flex gap-2" @submit.prevent="find">
             <UInput v-model="q" :maxlength="100" placeholder="Search stations" aria-label="Search radio stations" class="min-w-0 flex-1" />
             <UButton v-if="!favoritesOnly" type="submit" icon="i-lucide-search" :loading="loading" aria-label="Find stations" />
           </form>
-          <p v-if="!favoritesOnly && error" role="alert" class="text-error">{{ error }}</p>
-          <p v-else-if="!favoritesOnly && search && !loading && !stations.length" class="text-muted">No stations found. Try another search.</p>
-          <p v-if="favoritesOnly && favoritesReady && !visibleStations.length" class="text-muted">
-            {{ favorites.length ? 'No favorites match your search.' : 'No favorites yet. Star a station to save it.' }}
-          </p>
-          <div class="flex max-h-60 flex-col gap-1 overflow-y-auto">
-            <div v-for="station in visibleStations" :key="station.id" class="flex items-center gap-1">
+          <div
+            role="region"
+            aria-label="Radio stations"
+            :aria-busy="favoritesOnly ? favoritesLoading : loading"
+            class="flex h-60 flex-col gap-1 overflow-y-auto"
+          >
+            <p v-if="!favoritesOnly && error" role="alert" class="text-error">{{ error }}</p>
+            <p v-else-if="!favoritesOnly && searched && !stations.length" class="text-muted">No stations found. Try another search.</p>
+            <p v-if="favoritesOnly && favoritesReady && !visibleStations.length" class="text-muted">
+              {{ favorites.length ? 'No favorites match your search.' : 'No favorites yet. Star a station to save it.' }}
+            </p>
+            <div v-for="station in visibleStations" :key="station.id" class="flex shrink-0 items-center gap-1">
               <UButton
                 color="neutral"
                 variant="ghost"

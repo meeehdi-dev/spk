@@ -1,6 +1,20 @@
 <script setup lang="ts">
+import { pingChart } from '~/utils/ping-chart'
+
 const voice = useVoice()
-const now = useNow({ scheduler: cb => useIntervalFn(cb, 2000) })
+const open = ref(false)
+const reducedMotion = usePreferredReducedMotion()
+const clipId = useId()
+const { now, pause, resume } = useNow({
+  controls: true,
+  scheduler: cb => useRafFn(cb, { immediate: false, fpsLimit: () => (reducedMotion.value === 'reduce' ? 0.5 : null) }),
+})
+watch(open, value => {
+  if (value) {
+    now.value = new Date()
+    resume()
+  } else pause()
+})
 const metrics = computed(() => {
   const d = voice.diagnostics.value
   const format = (value: number | null | undefined, unit: string) => (value == null ? 'Unavailable' : `${value.toFixed(1)} ${unit}`)
@@ -13,39 +27,17 @@ const metrics = computed(() => {
     ['Connection quality', d?.quality && d.quality !== 'unknown' ? d.quality : 'Unavailable'],
   ]
 })
-const chart = computed(() => {
-  const end = now.value.getTime()
-  const history = voice.pingHistory.value.filter(p => p.time >= end - 60_000)
-  const values = history.flatMap(p => (p.ping === null ? [] : [p.ping]))
-  const max = Math.max(100, ...values)
-  let path = ''
-  let gap = true
-  let lastTime = 0
-  for (const point of history) {
-    if (point.ping === null) {
-      gap = true
-      continue
-    }
-    const x = 2 + ((point.time - (end - 60_000)) / 60_000) * 276
-    const y = 62 - (point.ping / max) * 56
-    path += `${gap || point.time - lastTime > 5000 ? 'M' : 'L'}${x},${y} `
-    // A short segment makes a single sample visible too.
-    if (gap) path += `L${x + 0.1},${y} `
-    gap = false
-    lastTime = point.time
-  }
-  return {
-    path,
-    max,
-    summary: values.length
-      ? `Signaling ping over the last 60 seconds: ${Math.min(...values)} to ${Math.max(...values)} milliseconds.`
-      : 'No ping samples available yet.',
-  }
+// Render one sample behind so incoming segments slide into view instead of popping in.
+const sampledChart = computed(() => pingChart(voice.pingHistory.value, now.value.getTime() - 2000))
+const ceiling = useTransition(() => sampledChart.value.max, {
+  duration: 300,
+  disabled: computed(() => !open.value || reducedMotion.value === 'reduce'),
 })
+const chart = computed(() => pingChart(voice.pingHistory.value, now.value.getTime() - 2000, ceiling.value))
 </script>
 
 <template>
-  <UPopover :content="{ align: 'start', side: 'top' }">
+  <UPopover v-model:open="open" :content="{ align: 'start', side: 'top' }">
     <UButton
       color="neutral"
       variant="link"
@@ -68,10 +60,13 @@ const chart = computed(() => {
             <span class="font-medium tabular-nums">{{ voice.ping.value === null ? 'Unavailable' : `${voice.ping.value} ms` }}</span>
           </div>
           <svg viewBox="0 0 280 68" class="mt-2 h-20 w-full text-muted" role="img" :aria-label="chart.summary">
+            <defs>
+              <clipPath :id="clipId"><rect x="2" y="0" width="276" height="68" /></clipPath>
+            </defs>
             <path d="M2 62H278" class="stroke-default" fill="none" />
-            <path :d="chart.path" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <path :d="chart.path" :clip-path="`url(#${clipId})`" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
-          <div class="flex justify-between text-xs text-dimmed"><span>60s ago</span><span>0–{{ chart.max }} ms · now</span></div>
+          <div class="flex justify-between text-xs text-dimmed"><span>60s ago</span><span>0–{{ Math.round(chart.max) }} ms · now</span></div>
         </div>
         <dl class="space-y-2 text-xs">
           <div v-for="[label, value] in metrics" :key="label" class="flex justify-between gap-3">
@@ -79,11 +74,12 @@ const chart = computed(() => {
             <dd class="text-right tabular-nums">{{ value }}</dd>
           </div>
         </dl>
-        <p v-if="voice.audioBlocked.value" class="text-xs text-warning">Audio playback is blocked by your browser.</p>
-        <p v-if="voice.microphone.value === 'unavailable'" class="text-xs text-warning">Microphone unavailable. Check device access and permissions.</p>
-        <p class="text-xs text-dimmed">
-          Updated every 2s. Signaling ping is separate from media latency. Audio metrics depend on active tracks and browser support.
-        </p>
+        <div class="space-y-1 text-xs text-warning" role="status">
+          <p :class="{ invisible: !voice.audioBlocked.value }" :aria-hidden="!voice.audioBlocked.value">Audio playback is blocked by your browser.</p>
+          <p :class="{ invisible: voice.microphone.value !== 'unavailable' }" :aria-hidden="voice.microphone.value !== 'unavailable'">
+            Microphone unavailable. Check device access and permissions.
+          </p>
+        </div>
       </section>
     </template>
   </UPopover>

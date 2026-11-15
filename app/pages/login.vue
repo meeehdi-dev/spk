@@ -1,17 +1,21 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'blank' })
 const state = reactive({ email: '', password: '' })
-const error = ref('')
+const toast = useToast()
 const loading = ref(false)
 
 async function submit() {
   loading.value = true
-  error.value = ''
-  const { error: e } = await authClient.signIn.email(state)
-  loading.value = false
-  if (e) return void (error.value = e.message || 'Sign-in failed')
-  await refreshNuxtData('me')
-  await navigateTo('/')
+  try {
+    const { error } = await authClient.signIn.email(state)
+    if (error) throw error
+    await refreshNuxtData('me')
+    await navigateTo('/')
+  } catch (e) {
+    toast.add({ title: errorText(e, 'Sign-in failed'), color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -27,7 +31,6 @@ async function submit() {
       <UFormField label="Password" name="password">
         <UInput v-model="state.password" type="password" autocomplete="current-password" required class="w-full" />
       </UFormField>
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
       <UButton type="submit" label="Sign in" icon="i-lucide-log-in" :loading="loading" block />
       <p class="text-xs text-muted">No account? You need an invite link from an admin.</p>
     </UForm>

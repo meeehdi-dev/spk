@@ -20,8 +20,10 @@ const playback = await vi.hoisted(async () => {
     mute: vi.fn(),
     stop: vi.fn(),
     select: vi.fn(),
+    toast: vi.fn(),
   }
 })
+mockNuxtImport('useToast', () => () => ({ add: playback.toast }))
 mockNuxtImport('useRadio', () => () => playback)
 mockNuxtImport('useVoice', () => () => ({ channelId: playback.channelId, mute: { value: { deafened: false } } }))
 
@@ -31,25 +33,28 @@ interface State {
   favorites: RadioFavorite[]
   favoritesReady: boolean
   favoritesLoading: boolean
-  favoritesError: string
   visibleStations: RadioFavorite[]
   q: string
   saving: string[]
   toggleFavorite: (station: RadioFavorite) => Promise<void>
+  find: () => Promise<void>
 }
 
 const favorite = { id: 'station', name: 'Jazz', country: 'FR', codec: 'MP3', available: true }
 const list = vi.fn()
 const save = vi.fn()
 const remove = vi.fn()
+const search = vi.fn()
 
 beforeAll(() => {
+  registerEndpoint('/api/radio/stations', () => search())
   registerEndpoint('/api/radio/favorites', () => list())
   registerEndpoint('/api/radio/favorites/station', { method: 'PUT', handler: () => save() })
   registerEndpoint('/api/radio/favorites/station', { method: 'DELETE', handler: () => remove() })
 })
 beforeEach(() => {
-  for (const fn of [list, save, remove, playback.listen, playback.mute, playback.stop, playback.select]) fn.mockReset()
+  for (const fn of [list, save, remove, search, playback.listen, playback.mute, playback.stop, playback.select, playback.toast]) fn.mockReset()
+  playback.commandError.value = ''
   playback.channelId.value = 'channel'
   playback.station.value = null
   playback.enabled.value = true
@@ -64,8 +69,12 @@ beforeEach(() => {
   remove.mockResolvedValue({ ok: true })
 })
 
-async function mountPopover() {
-  const wrapper = await mountInApp(RadioPopover)
+async function mountPopover(renderContent = false) {
+  const wrapper = await mountInApp(
+    RadioPopover,
+    {},
+    renderContent ? { global: { stubs: { UPopover: { template: '<div><slot /><slot name="content" /></div>' } } } } : {},
+  )
   const state = wrapper.findComponent(RadioPopover).vm as unknown as State
   const setOpen = async (open: boolean, settled = true) => {
     state.open = open
@@ -121,6 +130,69 @@ describe('radio split control', () => {
   })
 })
 
+describe('radio results and feedback', () => {
+  it('toasts command errors only from the open popover, without an inline banner or replay on reopen', async () => {
+    await mountPopover()
+    const { wrapper, setOpen } = await mountPopover(true)
+    await setOpen(true)
+    playback.commandError.value = 'Radio controls are offline. Wait for reconnection.'
+    await flushPromises()
+    expect(playback.toast).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: 'radio-command-error', title: playback.commandError.value, color: 'error' }),
+    )
+    expect(wrapper.text()).not.toContain(playback.commandError.value)
+    await setOpen(false)
+    await setOpen(true)
+    expect(playback.toast).toHaveBeenCalledOnce()
+  })
+
+  it('keeps favorites loading and empty states inside the same bounded results area', async () => {
+    let resolve!: (value: unknown) => void
+    list.mockReturnValueOnce(new Promise(r => (resolve = r)))
+    const { wrapper, state, setOpen } = await mountPopover(true)
+    await setOpen(true, false)
+    state.favoritesOnly = true
+    await flushPromises()
+    const results = wrapper.get('[aria-label="Radio stations"]')
+    const form = wrapper.get('form').element
+    const footer = wrapper.get('a[href="https://www.radio-browser.info/"]').element
+    expect(results.classes()).toContain('h-60')
+    expect(results.attributes('aria-busy')).toBe('true')
+    expect(wrapper.text()).not.toContain('Loading favorites')
+    resolve([])
+    await vi.waitFor(() => expect(state.favoritesLoading).toBe(false))
+    expect(results.attributes('aria-busy')).toBe('false')
+    expect(results.text()).toContain('No favorites yet.')
+    expect(wrapper.get('form').element).toBe(form)
+    expect(wrapper.get('a[href="https://www.radio-browser.info/"]').element).toBe(footer)
+  })
+
+  it('keeps validation inline in results and toasts search failures without a false empty state', async () => {
+    const { wrapper, state } = await mountPopover(true)
+    const results = wrapper.get('[aria-label="Radio stations"]')
+    await state.find()
+    await flushPromises()
+    expect(results.get('[role="alert"]').text()).toBe('Enter at least two characters.')
+    expect(playback.toast).not.toHaveBeenCalled()
+    state.q = 'jazz'
+    search.mockRejectedValueOnce(requestError('offline'))
+    await state.find()
+    await flushPromises()
+    expect(playback.toast).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ title: 'Radio search is unavailable. Try again later.', color: 'error' }))
+    expect(results.text()).not.toContain('No stations found')
+    expect(results.find('[role="alert"]').exists()).toBe(false)
+    search.mockResolvedValueOnce([])
+    await state.find()
+    await flushPromises()
+    expect(results.text()).toContain('No stations found')
+    search.mockResolvedValueOnce([{ ...favorite, url: 'https://example.com/radio' }])
+    await state.find()
+    await flushPromises()
+    expect(results.find('[aria-label="Play Jazz for everyone"]').exists()).toBe(true)
+    expect(results.classes()).toContain('h-60')
+  })
+})
+
 describe('radio favorites interaction state', () => {
   it('loads on open, filters favorites by name, and defaults to All on reopen', async () => {
     list.mockResolvedValue([favorite])
@@ -161,11 +233,13 @@ describe('radio favorites interaction state', () => {
     await setOpen(true)
     await state.toggleFavorite(favorite)
     expect(state.favorites).toEqual([favorite])
-    expect(state.favoritesError).toBeTruthy()
+    expect(playback.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Could not update favorites. Try again. You can save up to 50 stations.', color: 'error' }),
+    )
     expect(state.saving).toEqual([])
     await state.toggleFavorite(favorite)
     expect(state.favorites).toEqual([])
-    expect(state.favoritesError).toBe('')
+    expect(playback.toast).toHaveBeenCalledOnce()
   })
 
   it('ignores an older load that finishes after a newer load', async () => {
@@ -192,7 +266,7 @@ describe('radio favorites interaction state', () => {
     await state.toggleFavorite(stored)
     expect(remove).toHaveBeenCalledOnce()
     expect(state.visibleStations).toEqual([])
-    expect(state.favoritesError).toBe('')
+    expect(playback.toast).not.toHaveBeenCalled()
   })
 
   it('keeps saving disabled after a failed load and reloads on reopen', async () => {
@@ -202,10 +276,12 @@ describe('radio favorites interaction state', () => {
     await state.toggleFavorite(favorite)
     expect(save).not.toHaveBeenCalled()
     expect(state.favoritesReady).toBe(false)
-    expect(state.favoritesError).toBeTruthy()
+    expect(playback.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Could not load favorites. Close and reopen Radio to retry.', color: 'error' }),
+    )
     await setOpen(false)
     await setOpen(true)
     expect(state.favoritesReady).toBe(true)
-    expect(state.favoritesError).toBe('')
+    expect(playback.toast).toHaveBeenCalledOnce()
   })
 })

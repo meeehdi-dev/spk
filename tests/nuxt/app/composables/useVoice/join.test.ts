@@ -957,8 +957,9 @@ describe('voice reconnection', () => {
     await flush()
     expect(b.v.ping.value).toBe(42)
     await vi.advanceTimersByTimeAsync(70_000)
-    expect(b.v.pingHistory.value.length).toBeLessThanOrEqual(31)
-    expect(b.v.pingHistory.value.every(p => p.time > Date.now() - 60_000)).toBe(true)
+    expect(b.v.pingHistory.value.length).toBeLessThanOrEqual(33)
+    expect(b.v.pingHistory.value.filter(p => p.time < Date.now() - 62_000)).toHaveLength(1)
+    expect(b.v.pingHistory.value[1]!.time).toBeGreaterThanOrEqual(Date.now() - 62_000)
     const r = media.rooms.at(-1)!
     r.emit('Reconnecting')
     expect(b.v.diagnostics.value).toBeNull()

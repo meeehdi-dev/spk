@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Changelog from '~/components/settings/Changelog.vue'
 import { mountInApp } from '~~/tests/fixtures/app'
 
+const toast = vi.hoisted(() => vi.fn())
+mockNuxtImport('useToast', () => () => ({ add: toast }))
+
 const scroll = vi.hoisted(() => ({
   load: undefined as (() => Promise<void>) | undefined,
   canLoad: undefined as (() => boolean) | undefined,
@@ -27,6 +30,7 @@ let empty: boolean
 let pending: Promise<void> | undefined
 
 beforeEach(() => {
+  toast.mockClear()
   requests.length = 0
   fail = false
   empty = false
@@ -75,19 +79,54 @@ describe('settings changelog', () => {
   it('keeps loaded commits on failure and retries the same page', async () => {
     const wrapper = await mountInApp(Changelog)
     await vi.waitFor(() => expect(wrapper.text()).toContain('feat: first commit'))
+    const footer = wrapper.find('[role="status"]')
+    const button = footer.find('button').element
     fail = true
     await scroll.load?.()
     await flushPromises()
     expect(wrapper.text()).toContain('feat: first commit')
-    expect(wrapper.text()).toContain('Changelog is unavailable.')
+    expect(wrapper.text()).not.toContain('Changelog is unavailable.')
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Changelog is unavailable. Try again later.',
+      color: 'error',
+      icon: 'i-lucide-circle-alert',
+    })
+    expect(footer.classes()).toContain('min-h-8')
+    expect(footer.find('button').element).toBe(button)
+    expect(footer.find('button').text()).toBe('Retry')
     expect(scroll.canLoad?.()).toBe(false)
     fail = false
     await wrapper.find('button').trigger('click')
     await vi.waitFor(() => expect(wrapper.text()).toContain('End of commit history.'))
+    expect(wrapper.find('[role="status"]').element).toBe(footer.element)
+    expect(footer.classes()).toContain('min-h-8')
+    expect(footer.find('button').exists()).toBe(false)
     expect(requests.slice(1)).toEqual([
       { page: '2', head: sha },
       { page: '2', head: sha },
     ])
+  })
+
+  it('offers a retry after the initial request fails without adding an inline error', async () => {
+    fail = true
+    const wrapper = await mountInApp(Changelog)
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledOnce())
+    const footer = wrapper.find('[role="status"]')
+    expect(footer.text()).toBe('Retry')
+    expect(scroll.canLoad?.()).toBe(false)
+    fail = false
+    let release!: () => void
+    pending = new Promise(resolve => {
+      release = resolve
+    })
+    await footer.find('button').trigger('click')
+    expect(footer.text()).toBe('Loading commits…')
+    expect(footer.find('button').attributes('disabled')).toBeDefined()
+    release()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('feat: first commit'))
+    expect(requests).toEqual([{ page: '1' }, { page: '1' }])
+    expect(footer.text()).toBe('Load more')
+    expect(scroll.canLoad?.()).toBe(true)
   })
 
   it('shows the empty state', async () => {
@@ -104,10 +143,18 @@ describe('settings changelog', () => {
     })
     const wrapper = await mountInApp(Changelog)
     await vi.waitFor(() => expect(requests).toHaveLength(1))
-    expect(wrapper.text()).toContain('Loading commits…')
+    const footer = wrapper.find('[role="status"]')
+    const button = footer.find('button')
+    expect(button.text()).toBe('Loading commits…')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(footer.classes()).toContain('min-h-8')
+    await button.trigger('click')
     await scroll.load?.()
     expect(requests).toHaveLength(1)
     release()
     await vi.waitFor(() => expect(wrapper.text()).toContain('feat: first commit'))
+    expect(footer.find('button').element).toBe(button.element)
+    expect(button.text()).toBe('Load more')
+    expect(button.attributes('disabled')).toBeUndefined()
   })
 })

@@ -585,7 +585,8 @@ export function useVoice() {
         ping.value = typeof rtt === 'number' && Number.isFinite(rtt) && rtt >= 0 ? Math.round(rtt) : null
         diagnostics.value = sample
         const time = Date.now()
-        pingHistory.value = [...pingHistory.value.filter(p => p.time > time - 60_000), { time, ping: ping.value }].slice(-31)
+        const boundary = pingHistory.value.findLastIndex(p => p.time < time - 62_000)
+        pingHistory.value = [...pingHistory.value.slice(Math.max(0, boundary)), { time, ping: ping.value }].slice(-33)
       } finally {
         reading = false
       }
@@ -602,7 +603,7 @@ export function useVoice() {
     ping.value = null
     diagnostics.value = null
     if (clearHistory) pingHistory.value = []
-    else pingHistory.value = [...pingHistory.value, { time: Date.now(), ping: null }].slice(-31)
+    else pingHistory.value = [...pingHistory.value, { time: Date.now(), ping: null }].slice(-33)
   }
 
   function clearSpeaking() {

@@ -3,20 +3,24 @@ definePageMeta({ layout: 'blank' })
 const token = String(useRoute().query.invite ?? '')
 const { data: check } = await useFetch('/api/invites/check', { query: { token } })
 const state = reactive({ email: '', password: '' })
-const error = ref('')
+const toast = useToast()
 const loading = ref(false)
 
 async function submit() {
   loading.value = true
-  error.value = ''
-  const { error: e } = await authClient.signUp.email(
-    { email: state.email, password: state.password, name: state.email.split('@')[0]! },
-    { headers: { 'x-invite-token': token } },
-  )
-  loading.value = false
-  if (e) return void (error.value = e.message || 'Sign-up failed')
-  await refreshNuxtData('me')
-  await navigateTo('/')
+  try {
+    const { error } = await authClient.signUp.email(
+      { email: state.email, password: state.password, name: state.email.split('@')[0]! },
+      { headers: { 'x-invite-token': token } },
+    )
+    if (error) throw error
+    await refreshNuxtData('me')
+    await navigateTo('/')
+  } catch (e) {
+    toast.add({ title: errorText(e, 'Sign-up failed'), color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -41,7 +45,6 @@ async function submit() {
       <UFormField label="Password" name="password" hint="At least 8 characters">
         <UInput v-model="state.password" type="password" autocomplete="new-password" minlength="8" required class="w-full" />
       </UFormField>
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
       <UButton type="submit" label="Create account" icon="i-lucide-user-plus" :loading="loading" block />
     </UForm>
   </UCard>
