@@ -222,6 +222,37 @@ describe('message menus and reaction picker', () => {
     expect(component.findComponent({ name: 'UDropdownMenu' }).props('content')).toEqual({ align: 'end', ...state.menuContent })
   })
 
+  it('waits until menus release focus before replying, including nested context-menu items', async () => {
+    const { component, state } = await mountMessage()
+    vi.useFakeTimers()
+    contextMenu(state.root, 120, 240)
+    const directItems = state.items as Item[]
+    contextMenu(component.find('button[aria-label="Profile of Alex"]').element, 120, 240)
+    const nestedItems = (state.items[1] as Array<{ children?: Item[] }>)[0]!.children!
+
+    for (const items of [directItems, nestedItems, state.messageItems()]) {
+      actions.reply.mockClear()
+      items.find(item => item.label === 'Reply')!.onSelect()
+      await nextTick()
+      expect(actions.reply).not.toHaveBeenCalled()
+      const close = new Event('closeAutoFocus', { cancelable: true })
+      state.menuContent.onCloseAutoFocus(close)
+      expect(close.defaultPrevented).toBe(true)
+      expect(actions.reply).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(0)
+      expect(actions.reply).toHaveBeenCalledExactlyOnceWith('m1')
+      const subsequentClose = new Event('closeAutoFocus', { cancelable: true })
+      state.menuContent.onCloseAutoFocus(subsequentClose)
+      vi.advanceTimersByTime(0)
+      expect(subsequentClose.defaultPrevented).toBe(false)
+      expect(actions.reply).toHaveBeenCalledTimes(1)
+    }
+
+    actions.reply.mockClear()
+    await component.find('button[aria-label="Reply"]').trigger('click')
+    expect(actions.reply).toHaveBeenCalledExactlyOnceWith('m1')
+  })
+
   it('keeps context-menu coordinates through closing and reopening, and restores the toolbar anchor', async () => {
     const { component, state } = await mountMessage()
     vi.useFakeTimers()

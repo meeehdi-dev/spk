@@ -130,7 +130,7 @@ const messageItems = (point?: { x: number; y: number }) => [
     icon: 'i-lucide-reply',
     onSelect: () => {
       skipRefocus = true
-      actions.reply(props.message.id)
+      replyAfterClose = true
     },
   },
   {
@@ -174,12 +174,18 @@ const messageItems = (point?: { x: number; y: number }) => [
 ]
 // The closing menu would hand focus back to the message and steal it from the editor.
 let skipRefocus = false
+// Wait for the closing menu to release its focus trap before focusing the reply editor.
+let replyAfterClose = false
 // Opening the picker while the menu is still closing makes the popover dismiss itself, so wait for the close.
 let openPickerAfterClose = false
 const menuContent = {
   onCloseAutoFocus: (e: Event) => {
     if (skipRefocus) e.preventDefault()
     skipRefocus = false
+    if (replyAfterClose) {
+      replyAfterClose = false
+      setTimeout(() => actions.reply(props.message.id))
+    }
     if (openPickerAfterClose) {
       openPickerAfterClose = false
       setTimeout(() => (picker.value = true))
