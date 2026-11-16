@@ -1,6 +1,12 @@
 <script setup lang="ts">
 const shown = ref(false)
 const el = ref<HTMLElement>()
+function reveal(event: Event) {
+  if (shown.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  shown.value = true
+}
 onMounted(() => {
   registerCtx(el.value, {
     kind: 'spoiler',
@@ -20,10 +26,17 @@ onMounted(() => {
 <template>
   <span
     ref="el"
-    class="cursor-pointer rounded bg-elevated px-0.5 transition"
-    :class="shown ? '' : 'blur-sm select-none'"
+    class="relative inline-block max-w-full overflow-hidden rounded bg-elevated px-0.5 align-bottom"
+    :class="shown ? '' : 'cursor-pointer select-none'"
+    :role="shown ? undefined : 'button'"
+    :tabindex="shown ? undefined : 0"
+    :aria-label="shown ? undefined : 'Spoiler: click to reveal'"
     :title="shown ? undefined : 'Spoiler: click to reveal'"
-    @click="shown = !shown"
-    ><slot
-  /></span>
+    @click.capture="reveal"
+    @keydown.enter.capture="reveal"
+    @keydown.space.capture="reveal"
+  >
+    <span :inert="!shown" :class="shown ? '' : 'pointer-events-none inline-block opacity-30 blur-xl'"><slot /></span>
+    <span v-if="!shown" aria-hidden="true" class="pointer-events-none absolute inset-0 bg-default/60" />
+  </span>
 </template>

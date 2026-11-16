@@ -99,7 +99,7 @@ onMounted(() => {
       <button
         type="button"
         class="relative block overflow-hidden rounded-md border border-default"
-        :aria-label="`Open ${file.filename}`"
+        :aria-label="revealed ? `Open ${file.filename}` : 'Spoiler: click to reveal'"
         @click="revealed ? emit('open', file) : (revealed = true)"
       >
         <ChatStillImage
@@ -108,11 +108,11 @@ onMounted(() => {
           :gif="file.mime === 'image/gif'"
           loading="lazy"
           class="max-h-[350px] max-w-full object-contain transition"
-          :class="[revealed ? '' : 'blur-2xl', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-elevated']"
+          :class="[revealed ? '' : 'opacity-30 blur-[48px]', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-elevated']"
           @load="imgLoaded = true"
           @error="imgLoaded = true"
         />
-        <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-default/30 text-xs font-bold">
+        <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-default/60 text-xs font-bold">
           <UIcon name="i-lucide-eye-off" class="mr-1 size-4" /> Spoiler: click to reveal
         </span>
       </button>

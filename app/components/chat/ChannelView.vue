@@ -61,7 +61,7 @@ const replyTarget = computed({
   },
 })
 const editingId = ref<string | null>(null)
-const lightbox = ref<AttachmentDto | null>(null)
+const lightbox = ref<AttachmentDto | string | null>(null)
 const byIdMsg = (id: string) => messages.value.find(m => m.id === id)
 watch(
   () => props.channelId,

@@ -2,6 +2,7 @@
 const props = defineProps<{ href?: string; plain?: boolean }>()
 const href = computed(() => safeHref(props.href))
 const el = ref<HTMLElement>()
+const actions = inject(chatActionsKey, undefined)
 const text = () => el.value?.textContent ?? ''
 const gif = computed(() => !props.plain && !!href.value && isImageUrl(href.value))
 const failed = ref(false)
@@ -33,7 +34,14 @@ onMounted(() => {
 
 <template>
   <ChatInternalLink v-if="href && isInternalLink(href)" :href="href" />
-  <a v-else-if="href && gif && !failed" ref="el" :href="href" target="_blank" rel="noopener noreferrer" class="block w-fit">
+  <button
+    v-else-if="href && gif && !failed"
+    ref="el"
+    type="button"
+    aria-label="Open image"
+    class="block max-w-full cursor-zoom-in"
+    @click="actions?.openImage(href)"
+  >
     <ChatStillImage
       :src="href"
       alt="Image"
@@ -43,7 +51,7 @@ onMounted(() => {
       class="max-h-[300px] max-w-[min(100%,400px)] rounded-md border border-default"
       @error="failed = true"
     />
-  </a>
+  </button>
   <a v-else-if="href" ref="el" :href="href" target="_blank" rel="noopener noreferrer" class="break-all text-primary underline underline-offset-2"><slot /></a>
   <span v-else><slot /></span>
 </template>

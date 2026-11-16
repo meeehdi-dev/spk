@@ -3,6 +3,7 @@ import type { PreviewDto } from '../../../server/db/messages'
 
 const props = defineProps<{ messageId: string; preview: PreviewDto; canRemove: boolean }>()
 const emit = defineEmits<{ remove: [url: string] }>()
+const actions = inject(chatActionsKey, undefined)
 const href = computed(() => safeHref(props.preview.url))
 const host = computed(() => {
   try {
@@ -37,8 +38,9 @@ onMounted(() => {
       <span class="truncate text-xs text-muted"><EmojiText :text="preview.siteName || host" /></span>
       <span v-if="preview.title" class="line-clamp-2 font-bold text-primary"><EmojiText :text="preview.title" /></span>
       <span v-if="preview.description" class="line-clamp-3 text-xs text-toned"><EmojiText :text="preview.description" /></span>
+    </a>
+    <button v-if="preview.image" type="button" aria-label="Open preview image" class="max-w-full cursor-zoom-in px-2 pb-2" @click="actions?.openImage(image)">
       <img
-        v-if="preview.image"
         :src="image"
         alt=""
         loading="lazy"
@@ -47,7 +49,7 @@ onMounted(() => {
         @load="imgLoaded = true"
         @error="imgLoaded = true"
       />
-    </a>
+    </button>
     <UTooltip v-if="canRemove" text="Remove preview">
       <UButton
         class="absolute top-1 right-1 hidden group-focus-within/card:flex group-hover/card:flex"

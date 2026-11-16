@@ -24,6 +24,21 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLMediaElement.prototype, 'setSinkId')
 })
 
+describe('attachment image opening', () => {
+  it.each([false, true])('opens an image after revealing it when spoiler=%s', async spoiler => {
+    const file = { id: 'image', filename: 'image.png', mime: 'image/png', size: 10, spoiler }
+    const wrapper = await mountSuspended(AttachmentView, { props: { file } })
+    const button = wrapper.find('button')
+    if (spoiler) {
+      expect(button.attributes('aria-label')).toBe('Spoiler: click to reveal')
+      await button.trigger('click')
+      expect(wrapper.emitted('open')).toBeUndefined()
+    }
+    await button.trigger('click')
+    expect(wrapper.emitted('open')).toEqual([[file]])
+  })
+})
+
 describe('attachment audio output', () => {
   it.each(['audio/ogg', 'video/mp4'])('routes %s playback to media output and follows changes', async mime => {
     mocks.voice.settings.value.mediaSpeaker = { deviceId: 'media', label: 'Media' }

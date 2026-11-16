@@ -23,6 +23,6 @@ export interface ChatActions {
   /** Scroll to a message, loading its surroundings if needed. */
   jump: (id: string) => void
   removePreview: (id: string, url: string) => Promise<void>
-  openImage: (file: import('../../server/db/messages').AttachmentDto) => void
+  openImage: (file: import('../../server/db/messages').AttachmentDto | string) => void
 }
 export const chatActionsKey: InjectionKey<ChatActions> = Symbol('chatActions')
