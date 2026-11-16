@@ -55,6 +55,9 @@ const channelId = ref<string | null>(null)
 const connecting = ref(false)
 const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalReconnecting'>('disconnected')
 const audioBlocked = ref(false)
+let playbackNeedsRetry = false
+let playbackFailureEpoch = 0
+let microphoneAudioBlocked = false
 const microphone = ref<'idle' | 'starting' | 'ready' | 'unavailable'>('idle')
 let pendingMicrophone: AbortController | undefined
 const retryChannelId = ref<string | null>(null)
@@ -134,6 +137,14 @@ export function useVoice() {
 
   const micTrack = () => room?.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack
   const processing = () => ({ enhanced: settings.value.noise === 'enhanced', thresholdDb: sensitivityToDb(settings.value.sensitivity) })
+  function updateAudioBlocked(r = room) {
+    if (r) audioBlocked.value = playbackNeedsRetry || microphoneAudioBlocked || !r.canPlaybackAudio
+  }
+  function notePlaybackFailure() {
+    playbackNeedsRetry = true
+    playbackFailureEpoch++
+    audioBlocked.value = true
+  }
   const captureOptions = (deviceId?: string) => ({
     deviceId,
     echoCancellation: settings.value.echo,
@@ -191,8 +202,7 @@ export function useVoice() {
   }
 
   function forgetTrackOutput(track: RemoteAudioTrack) {
-    const listener = outputListeners.get(track)
-    if (listener) track.off('unmuted', listener)
+    outputListeners.get(track)?.()
     outputListeners.delete(track)
   }
   function clearOutputListeners() {
@@ -203,7 +213,12 @@ export function useVoice() {
       // Room unmute events can be buffered during signaling recovery; the track event is synchronous.
       const listener = () => applyTrackOutput(track, identity, source)
       track.on('unmuted', listener)
-      outputListeners.set(track, listener)
+      // The room suppresses repeated failures while already blocked; count every track failure during retries.
+      track.on('audioPlaybackFailed', notePlaybackFailure)
+      outputListeners.set(track, () => {
+        track.off('unmuted', listener)
+        track.off('audioPlaybackFailed', notePlaybackFailure)
+      })
     }
     const volume = effectiveVolume(
       mute.value.deafened,
@@ -327,7 +342,12 @@ export function useVoice() {
     const { signal } = attempt
     microphone.value = 'starting'
     let track: LocalAudioTrack | undefined
-    const stop = () => track?.stop()
+    let nextProcessor: MicProcessor | undefined
+    const stop = () => {
+      track?.stop()
+      // LiveKit does not own the processor until setProcessor finishes.
+      void nextProcessor?.destroy().catch(e => console.warn('Could not release microphone processor', e))
+    }
     signal.addEventListener('abort', stop, { once: true })
     try {
       const [error, { MicProcessor }] = await Promise.all([
@@ -346,11 +366,21 @@ export function useVoice() {
       const tracks = await r.localParticipant.createTracks({ audio: captureOptions(mic.deviceId) })
       track = tracks[0] as LocalAudioTrack
       signal.throwIfAborted()
-      const nextProcessor = new MicProcessor(processing())
+      nextProcessor = new MicProcessor(
+        processing(),
+        blocked => {
+          if (processor !== nextProcessor || (pendingMicrophone !== attempt && room !== r)) return
+          microphoneAudioBlocked = blocked
+          updateAudioBlocked(r)
+        },
+        signal,
+      )
+      processor = nextProcessor // Recovery must reach the context even while setProcessor is waiting for activation.
       try {
         await track.setProcessor(nextProcessor)
       } catch (e) {
         await nextProcessor.destroy()
+        if (processor === nextProcessor) processor = undefined
         throw e
       }
       signal.throwIfAborted()
@@ -361,7 +391,6 @@ export function useVoice() {
       signal.throwIfAborted()
       await r.localParticipant.publishTrack(track)
       signal.throwIfAborted()
-      processor = nextProcessor
       microphone.value = 'ready'
       applyMute()
     } catch (e) {
@@ -512,7 +541,7 @@ export function useVoice() {
           if (room !== r) return
           applyOutput()
         })
-        audioBlocked.value = !r.canPlaybackAudio
+        updateAudioBlocked(r)
         socket.send({ type: 'voice:ready', sid })
         lastSent = 0
         pushState()
@@ -520,7 +549,10 @@ export function useVoice() {
         if (recovered) toast.add({ title: 'Voice connection restored', color: 'success', icon: 'i-lucide-wifi' })
       })
       r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (r && room === r) audioBlocked.value = !r.canPlaybackAudio
+        if (!r || room !== r) return
+        // Context-only SDK success can arrive after an element failed; only a successful retry clears the failure.
+        if (!r.canPlaybackAudio) notePlaybackFailure()
+        updateAudioBlocked(r)
       })
       r.on(RoomEvent.Disconnected, reason => {
         if (room === r) {
@@ -564,7 +596,7 @@ export function useVoice() {
       signal.throwIfAborted()
       room = r
       connection.value = 'connected'
-      audioBlocked.value = !r.canPlaybackAudio
+      updateAudioBlocked(r)
       channelId.value = id
       rebuild()
       socket.send({ type: 'voice:ready', sid }) // Listening is ready; the microphone can follow later.
@@ -578,6 +610,8 @@ export function useVoice() {
       pendingMicrophone?.abort()
       pendingMicrophone = undefined
       microphone.value = 'idle'
+      processor = undefined
+      playbackNeedsRetry = microphoneAudioBlocked = audioBlocked.value = false
       if (claimed) socket.send({ type: 'voice:leave', sid })
       pendingJoin = undefined
       clearSpeaking()
@@ -658,13 +692,14 @@ export function useVoice() {
     moveEpoch++
     retryChannelId.value = null
     connection.value = 'disconnected'
-    audioBlocked.value = false
+    playbackNeedsRetry = microphoneAudioBlocked = audioBlocked.value = false
     pendingMicrophone?.abort()
     pendingMicrophone = undefined
     microphone.value = 'idle'
     const pending = pendingJoin
     pending?.abort()
     const r = room
+    processor = undefined
     if (!r && !channelId.value && !pending) return
     screenEpoch++
     for (const s of [screenSession, pendingScreenSession]) {
@@ -682,7 +717,6 @@ export function useVoice() {
     channelId.value = null
     if (was) socket.send({ type: 'voice:leave', sid })
     await r?.disconnect()
-    processor = undefined
     rebuild()
     if (sound) playVoiceSound('leave')
     if (reason) toast.add({ title: reason, color: 'warning', icon: 'i-lucide-phone-off' })
@@ -691,12 +725,16 @@ export function useVoice() {
   async function enableAudio() {
     const r = room
     if (!r) return
+    const failureEpoch = playbackFailureEpoch
     try {
-      await r.startAudio()
-      if (room === r) audioBlocked.value = !r.canPlaybackAudio
+      // Start both resumes before awaiting: mobile browsers require the original tap's activation.
+      await Promise.all([r.startAudio(), processor?.resume()])
+      if (room !== r) return
+      if (playbackFailureEpoch === failureEpoch) playbackNeedsRetry = false
+      updateAudioBlocked(r)
     } catch (e) {
       if (room !== r) return
-      audioBlocked.value = true
+      notePlaybackFailure()
       toast.add({ title: 'Could not enable audio', description: (e as Error).message, color: 'error' })
     }
   }
@@ -1085,7 +1123,7 @@ export function useVoice() {
       if (connecting.value) return 'Connecting…'
       if (connection.value === 'reconnecting') return 'Voice reconnecting…'
       if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
-      if (audioBlocked.value) return 'Audio playback blocked'
+      if (audioBlocked.value) return 'Audio blocked or interrupted'
       if (microphone.value === 'starting') return 'Connected · Setting up microphone…'
       if (microphone.value === 'unavailable') return 'Connected · Microphone unavailable'
       return connection.value === 'connected' ? 'Connected' : 'Not connected'

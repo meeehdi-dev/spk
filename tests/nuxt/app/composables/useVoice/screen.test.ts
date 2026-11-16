@@ -58,7 +58,11 @@ const { media, MockRoom } = vi.hoisted(() => {
   const media = { rooms: [] as MockRoom[], sdk: false }
   return { media, MockRoom }
 })
-vi.mock('~/utils/voice-processor', () => ({ MicProcessor: vi.fn() }))
+vi.mock('~/utils/voice-processor', () => ({
+  MicProcessor: vi.fn(function () {
+    return { resume: vi.fn(async () => {}) }
+  }),
+}))
 vi.mock('livekit-client', async importOriginal => {
   const sdk = await importOriginal<typeof import('livekit-client')>()
   return {

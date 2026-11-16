@@ -96,6 +96,7 @@ const { media, MockRoom } = vi.hoisted(() => {
 })
 vi.mock('~/utils/voice-processor', () => ({
   MicProcessor: class {
+    resume = vi.fn(async () => {})
     destroy = vi.fn(async () => {})
   },
 }))

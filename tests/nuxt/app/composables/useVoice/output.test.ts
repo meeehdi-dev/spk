@@ -19,6 +19,10 @@ const mocks = vi.hoisted(() => ({
   useEventListener: vi.fn(),
   useWakeLock: vi.fn(),
   useSocket: vi.fn(),
+  resumeProcessor: vi.fn(async () => {}),
+  destroyProcessor: vi.fn(async () => {}),
+  processorState: vi.fn<(blocked: boolean) => void>(),
+  prepareProcessor: vi.fn(async () => {}),
 }))
 mockNuxtImport('useLocalStorage', () => mocks.useLocalStorage)
 mockNuxtImport('useVoiceSettings', () => mocks.useVoiceSettings)
@@ -43,7 +47,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       isMuted: false,
       restartTrack: this.restartTrack,
       applyConstraints: vi.fn(async () => {}),
-      setProcessor: vi.fn(async () => {}),
+      setProcessor: vi.fn(() => mocks.prepareProcessor()),
       mute: vi.fn(async () => {
         this.mic.isMuted = true
       }),
@@ -87,6 +91,11 @@ const { media, MockRoom } = vi.hoisted(() => {
 })
 vi.mock('~/utils/voice-processor', () => ({
   MicProcessor: class {
+    constructor(_cfg: unknown, onAudioBlocked: (blocked: boolean) => void) {
+      mocks.processorState.mockImplementation(onAudioBlocked)
+    }
+    resume = mocks.resumeProcessor
+    destroy = mocks.destroyProcessor
     update() {}
   },
 }))
@@ -159,6 +168,10 @@ beforeEach(() => {
   media.rooms = []
   media.connect = undefined
   toast.mockClear()
+  mocks.resumeProcessor.mockReset().mockResolvedValue()
+  mocks.destroyProcessor.mockReset().mockResolvedValue()
+  mocks.prepareProcessor.mockReset().mockResolvedValue()
+  mocks.processorState.mockReset()
   available = [device('voice'), device('screen'), device('other')]
   settings = ref({ speaker: device('voice'), mediaSpeaker: device('screen'), noise: 'standard', sensitivity: 50, outputVolume: 0.8 })
   mocks.useLocalStorage.mockImplementation((_: string, value: unknown) => ref(value))
@@ -812,6 +825,152 @@ describe('audio recovery', () => {
     expect(document.querySelectorAll('audio')).toHaveLength(0)
   })
 
+  it('keeps an element playback failure visible after a delayed context-only success', async () => {
+    const r = await setup()
+    r.startAudio.mockRejectedValueOnce(new Error('Gesture required'))
+    await voice.enableAudio()
+    r.canPlaybackAudio = true
+    r.emit('audioPlaybackChanged')
+    expect(voice.audioBlocked.value).toBe(true)
+    r.emit('reconnected')
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('counts track failures even when the already-blocked room suppresses another status event', async () => {
+    const r = await setup()
+    const audio = track('microphone')
+    const p = participant('one', [audio])
+    r.remoteParticipants.set('one', p)
+    r.emit('subscribed', audio, p.audioTrackPublications.get(0), p)
+    r.canPlaybackAudio = false
+    r.emit('audioPlaybackChanged')
+    let played!: () => void
+    r.startAudio.mockImplementationOnce(() => new Promise<void>(resolve => (played = resolve)))
+    const retry = voice.enableAudio()
+    audio.emit('audioPlaybackFailed', new Error('Gesture required'))
+    r.canPlaybackAudio = true
+    played()
+    await retry
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(false)
+    await voice.leave(false)
+    expect(audio.listenerCount('audioPlaybackFailed')).toBe(0)
+    audio.emit('audioPlaybackFailed', new Error('Stale failure'))
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('does not let an older retry clear a newer subscription playback failure', async () => {
+    const r = await setup()
+    let played!: () => void
+    r.startAudio.mockImplementationOnce(() => new Promise<void>(resolve => (played = resolve)))
+    const retry = voice.enableAudio()
+    r.canPlaybackAudio = false
+    r.emit('audioPlaybackChanged')
+    r.canPlaybackAudio = true
+    played()
+    await retry
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('retains subscription playback failures until a successful retry', async () => {
+    const r = await setup()
+    r.canPlaybackAudio = false
+    r.emit('audioPlaybackChanged')
+    r.canPlaybackAudio = true
+    r.emit('audioPlaybackChanged')
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('resumes room and processor audio synchronously from the same recovery gesture', async () => {
+    const r = await setup()
+    mocks.processorState!(true)
+    expect(voice.audioBlocked.value).toBe(true)
+    let resumed!: () => void
+    r.startAudio.mockImplementationOnce(() => new Promise<void>(resolve => (resumed = resolve)))
+    mocks.resumeProcessor.mockClear()
+    const retry = voice.enableAudio()
+    expect(mocks.resumeProcessor).toHaveBeenCalledOnce()
+    mocks.processorState!(false)
+    resumed()
+    await retry
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('makes processor recovery available while microphone initialization is still pending', async () => {
+    let prepared!: () => void
+    mocks.prepareProcessor.mockImplementationOnce(() => {
+      mocks.processorState!(true)
+      return new Promise<void>(resolve => (prepared = resolve))
+    })
+    const mod = await import('~/composables/useVoice')
+    mod.useVoiceLive()
+    voice = mod.useVoice()
+    await voice.join('channel')
+    await vi.waitFor(() => expect(mocks.prepareProcessor).toHaveBeenCalled())
+    expect(voice.microphone.value).toBe('starting')
+    expect(voice.audioBlocked.value).toBe(true)
+    mocks.resumeProcessor.mockImplementationOnce(async () => {
+      mocks.processorState!(false)
+      prepared()
+    })
+    await voice.enableAudio()
+    await vi.waitFor(() => expect(voice.microphone.value).toBe('ready'))
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
+  it('destroys a processor cancelled before LiveKit has adopted it', async () => {
+    let prepared!: () => void
+    mocks.prepareProcessor.mockImplementationOnce(() => {
+      mocks.processorState!(true)
+      return new Promise<void>(resolve => (prepared = resolve))
+    })
+    const mod = await import('~/composables/useVoice')
+    mod.useVoiceLive()
+    voice = mod.useVoice()
+    await voice.join('channel')
+    await vi.waitFor(() => expect(mocks.prepareProcessor).toHaveBeenCalled())
+    await voice.leave(false)
+    expect(mocks.destroyProcessor).toHaveBeenCalledOnce()
+    prepared()
+    await vi.waitFor(() => expect(media.rooms[0]!.mic.stop).toHaveBeenCalled())
+    expect(voice.microphone.value).toBe('idle')
+  })
+
+  it('preserves a new processor when the previous room finishes disconnecting', async () => {
+    const r = await setup()
+    let disconnected!: () => void
+    r.disconnect.mockImplementationOnce(() => new Promise<void>(resolve => (disconnected = resolve)))
+    const leaving = voice.leave(false)
+    await voice.join('next')
+    await vi.waitFor(() => expect(voice.microphone.value).toBe('ready'))
+    disconnected()
+    await leaving
+    mocks.processorState!(true)
+    mocks.resumeProcessor.mockClear()
+    await voice.enableAudio()
+    expect(mocks.resumeProcessor).toHaveBeenCalledOnce()
+  })
+
+  it('ignores recovery and processor state from a room that was left', async () => {
+    await setup()
+    const report = mocks.processorState!
+    let resumed!: () => void
+    mocks.resumeProcessor.mockImplementationOnce(() => new Promise<void>(resolve => (resumed = resolve)))
+    const retry = voice.enableAudio()
+    await voice.leave(false)
+    report(true)
+    resumed()
+    await retry
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+
   it('exposes initial and later playback failures and retries audio on demand', async () => {
     media.connect = () => {
       const r = media.rooms.at(-1)!
@@ -820,7 +979,7 @@ describe('audio recovery', () => {
     }
     const r = await setup()
     expect(voice.audioBlocked.value).toBe(true)
-    expect(voice.connectionLabel.value).toBe('Audio playback blocked')
+    expect(voice.connectionLabel.value).toBe('Audio blocked or interrupted')
     r.startAudio.mockRejectedValueOnce(new Error('Still blocked'))
     await voice.enableAudio()
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not enable audio' }))

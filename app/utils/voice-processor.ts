@@ -50,32 +50,57 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
   private dfn?: DeepFilterNetAudioWorkletHandle
   private token = 0 // bumped to cancel a pending model load
   private pending = 0 // token of the load in flight, 0 = none
+  private overloaded = false
 
-  constructor(private cfg: MicProcessing) {}
+  constructor(
+    private cfg: MicProcessing,
+    private onAudioBlocked?: (blocked: boolean) => void,
+    private signal?: AbortSignal,
+  ) {}
 
   async init(opts: AudioProcessorOptions) {
+    this.signal?.throwIfAborted() // setProcessor may acquire its SDK lock only after the join was cancelled.
     const ctx = (this.ctx = new AudioContext({ sampleRate: DEEPFILTERNET_SAMPLE_RATE, latencyHint: 'interactive' }))
+    const reportState = () => {
+      if (this.ctx === ctx) this.onAudioBlocked?.(ctx.state !== 'running' && ctx.state !== 'closed')
+    }
+    ctx.onstatechange = reportState
+    reportState()
     const url = URL.createObjectURL(new Blob([gateSource], { type: 'text/javascript' }))
     try {
       await ctx.audioWorklet.addModule(url)
+      if (this.ctx !== ctx) return
+      await this.resume()
+      if (this.ctx !== ctx) return
+      this.src = ctx.createMediaStreamSource(new MediaStream([opts.track]))
+      this.gate = new AudioWorkletNode(ctx, 'spk-gate')
+      this.dest = ctx.createMediaStreamDestination()
+      this.src.connect(this.gate)
+      this.gate.connect(this.dest)
+      this.processedTrack = this.dest.stream.getAudioTracks()[0]
+      this.update(this.cfg) // not awaited: join must not wait for the model download
+    } catch (error) {
+      if (this.ctx === ctx) await this.destroy()
+      throw error
     } finally {
       URL.revokeObjectURL(url)
     }
-    if (ctx.state === 'suspended') await ctx.resume()
-    this.src = ctx.createMediaStreamSource(new MediaStream([opts.track]))
-    this.gate = new AudioWorkletNode(ctx, 'spk-gate')
-    this.dest = ctx.createMediaStreamDestination()
-    this.src.connect(this.gate)
-    this.gate.connect(this.dest)
-    this.processedTrack = this.dest.stream.getAudioTracks()[0]
-    this.update(this.cfg) // not awaited: join must not wait for the model download
+  }
+
+  /** Call directly from a user gesture, even when init is already waiting for browser activation. */
+  resume(): Promise<void> {
+    const ctx = this.ctx
+    return ctx && ctx.state !== 'running' && ctx.state !== 'closed' ? ctx.resume() : Promise.resolve()
   }
 
   /** LiveKit restarts after a setting change or device switch: only the source node is swapped, the rest of the chain stays. */
   async restart(opts: AudioProcessorOptions) {
     if (!this.ctx || !this.src) return this.init(opts)
+    const ctx = this.ctx
+    await this.resume()
+    if (this.ctx !== ctx) return
     this.src.disconnect()
-    this.src = this.ctx.createMediaStreamSource(new MediaStream([opts.track]))
+    this.src = ctx.createMediaStreamSource(new MediaStream([opts.track]))
     this.src.connect(this.dfn?.node ?? this.gate!)
   }
 
@@ -88,7 +113,7 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
       this.token++
       this.pending = 0
       if (this.dfn) this.removeDfn()
-    } else if (!this.dfn && !this.pending) void this.load(this.ctx, this.gate)
+    } else if (!this.overloaded && !this.dfn && !this.pending) void this.load(this.ctx, this.gate)
   }
 
   private async load(ctx: AudioContext, gate: AudioWorkletNode) {
@@ -96,7 +121,16 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
     const live = () => this.token === mine
     let dfn: DeepFilterNetAudioWorkletHandle | undefined
     try {
-      dfn = await createDeepFilterNetAudioWorklet(ctx) // package defaults; passes the mic through while loading
+      dfn = await createDeepFilterNetAudioWorklet(ctx, {
+        onOverload: () => {
+          if (!live()) return
+          this.overloaded = true
+          this.token++
+          this.pending = 0
+          if (this.dfn) this.removeDfn()
+          useToast().add({ title: 'Enhanced noise suppression is too slow on this device', icon: 'i-lucide-triangle-alert', color: 'warning' })
+        },
+      }) // package defaults; passes the mic through while loading
       if (!live()) return dfn.dispose()
       this.dfn = dfn
       this.src!.disconnect()
@@ -132,7 +166,12 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
     this.dfn = undefined
     this.processedTrack?.stop()
     this.src?.disconnect()
-    await this.ctx?.close()
+    const ctx = this.ctx
     this.ctx = this.src = this.gate = this.dest = this.processedTrack = undefined
+    if (ctx) {
+      ctx.onstatechange = null
+      this.onAudioBlocked?.(false)
+      await ctx.close()
+    }
   }
 }

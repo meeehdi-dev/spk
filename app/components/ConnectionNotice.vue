@@ -17,7 +17,7 @@ const message = computed(() => {
   if (socket.offline.value) parts.push('Offline. Waiting for your network to return.')
   if (v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
   else if (v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
-  if (v.audioBlocked.value) parts.push('Audio playback is blocked. Enable audio to hear the call.')
+  if (v.audioBlocked.value) parts.push('Audio is blocked or interrupted. Enable audio to recover the call.')
   if (v.channelId.value && v.microphone.value === 'unavailable') parts.push('Your microphone is unavailable. You can still listen.')
   if (v.retryChannelId.value) parts.push('Voice disconnected. Rejoin when you are ready.')
   return parts.join(' ')
