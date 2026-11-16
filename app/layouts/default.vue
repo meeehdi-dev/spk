@@ -47,6 +47,7 @@ const { of: unreadOf, counts } = useUnread()
 const unreadTotal = computed(() => Object.values(counts.value).reduce((total, state) => total + state.unread, 0))
 useHead({
   title: () => `${title.value || 'spk'}${unreadTotal.value ? ` (${unreadTotal.value})` : ''}${title.value ? ' | spk' : ''}`,
+  meta: [{ name: 'spk-unread', content: () => String(unreadTotal.value) }],
 })
 const switcher = ref(false)
 const shortcutsOpen = useShortcutsOverlay()

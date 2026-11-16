@@ -1,0 +1,14 @@
+{
+  "name": "spk",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "https://github.com/meeehdi-dev/spk",
+  "type": "commonjs",
+  "config": {
+    "hasCustomUrl": true,
+    "hasNotificationSound": true,
+    "message": "Enter your spk server URL, e.g. https://chat.example.com.",
+    "serviceURL": ""
+  },
+  "id": "spk"
+}

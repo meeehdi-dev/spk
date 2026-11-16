@@ -57,6 +57,10 @@ The production app supports browser installation and push notifications without 
 
 Push subscriptions must use HTTPS on port 443 with no credentials or fragment. Supported destinations are `fcm.googleapis.com` (Chrome), `updates.push.services.mozilla.com` (Firefox), subdomains of `push.apple.com` (Safari), and subdomains of `notify.windows.com` (Microsoft Edge on Windows). Custom push services are not supported. Invalid stored subscriptions are removed before delivery. Delivery uses a five-second socket inactivity timeout; this is not a total request deadline.
 
+### Ferdium
+
+Use the [local Ferdium recipe](integrations/ferdium/README.md) to add your spk server as a custom service with unread badges. Copy one folder, reload Ferdium, and enter your server URL; no build or dependency installation is needed.
+
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.

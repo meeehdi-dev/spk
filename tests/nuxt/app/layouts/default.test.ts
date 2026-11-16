@@ -34,10 +34,13 @@ it('follows the current text channel, voice channel and DM, and updates the tota
   const router = useRouter()
   const unread = useUnread()
   await vi.waitFor(() => expect(document.title).toBe('general | spk'))
+  const unreadMetadata = () => document.querySelector('meta[name="spk-unread"]')?.getAttribute('content')
+  await vi.waitFor(() => expect(unreadMetadata()).toBe('0'))
 
   unread.set('text', { unread: 2, mentions: 1 })
   unread.set('dm', { unread: 3, mentions: 0 })
   await vi.waitFor(() => expect(document.title).toBe('general (5) | spk'))
+  await vi.waitFor(() => expect(unreadMetadata()).toBe('5'))
 
   await router.push('/c/voice')
   await vi.waitFor(() => expect(document.title).toBe('Lounge (5) | spk'))
@@ -50,8 +53,10 @@ it('follows the current text channel, voice channel and DM, and updates the tota
   unread.set('text', { unread: 0, mentions: 0 })
   unread.set('dm', { unread: 0, mentions: 0 })
   await vi.waitFor(() => expect(document.title).toBe('@Alexandra | spk'))
+  await vi.waitFor(() => expect(unreadMetadata()).toBe('0'))
 
   await router.push('/c/missing')
   await vi.waitFor(() => expect(document.title).toBe('spk'))
   wrapper.unmount()
+  await vi.waitFor(() => expect(unreadMetadata()).toBeUndefined())
 })
