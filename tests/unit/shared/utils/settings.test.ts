@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { settingsTabFromPath } from '#shared/utils/settings'
+import { SETTINGS_TABS, settingsTabFromPath } from '#shared/utils/settings'
+
+describe('SETTINGS_TABS', () => {
+  it('keeps changelog last for admins and non-admins', () => {
+    expect(SETTINGS_TABS.at(-1)?.id).toBe('changelog')
+    expect(SETTINGS_TABS.filter(tab => !('admin' in tab)).at(-1)?.id).toBe('changelog')
+  })
+})
 
 describe('settingsTabFromPath', () => {
   it('maps deep links to tabs', () => {

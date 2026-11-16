@@ -4,10 +4,10 @@ export const SETTINGS_TABS = [
   { id: 'voice', label: 'Voice & Video', icon: 'i-lucide-mic' },
   { id: 'notifications', label: 'Notifications', icon: 'i-lucide-bell' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'i-lucide-keyboard' },
-  { id: 'changelog', label: 'Changelog', icon: 'i-lucide-history' },
   { id: 'soundboard', label: 'Soundboard', icon: 'i-lucide-megaphone', admin: true },
   { id: 'invites', label: 'Invites', icon: 'i-lucide-mail-plus', admin: true },
   { id: 'users', label: 'Users', icon: 'i-lucide-users', admin: true },
+  { id: 'changelog', label: 'Changelog', icon: 'i-lucide-history' },
 ] as const
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
