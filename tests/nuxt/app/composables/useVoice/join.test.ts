@@ -235,9 +235,106 @@ afterEach(async () => {
   for (const c of clients) sessions.dropVoiceOwner(c.owner)
   db.$client.close()
   vi.useRealTimers()
+  Reflect.deleteProperty(navigator, 'audioSession')
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   for (const mock of Object.values(mocks)) mock.mockReset()
+})
+
+describe('call audio intent', () => {
+  function audioSession(type = 'auto') {
+    const session = {
+      get type() {
+        return type
+      },
+      set type(value: string) {
+        type = value
+      },
+    }
+    Object.defineProperty(navigator, 'audioSession', { configurable: true, value: session })
+    return session
+  }
+
+  it('sets intent before capture, keeps it while muted and reconnecting, and restores the previous type on leave', async () => {
+    const session = audioSession('playback')
+    vi.spyOn(navigator.mediaDevices, 'getUserMedia').mockImplementation(async () => {
+      expect(session.type).toBe('play-and-record')
+      return { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream
+    })
+    const b = await browser('audio-intent')
+    expect(session.type).toBe('playback')
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    b.v.toggleMic()
+    b.v.toggleHeadphones()
+    media.rooms[0]!.emit('Reconnecting')
+    expect(session.type).toBe('play-and-record')
+    media.rooms[0]!.emit('Reconnected')
+    expect(session.type).toBe('play-and-record')
+    await b.v.leave(false)
+    expect(session.type).toBe('playback')
+  })
+
+  it('keeps call intent when microphone permission is denied', async () => {
+    const session = audioSession()
+    vi.spyOn(navigator.mediaDevices, 'getUserMedia').mockRejectedValue(new Error('Denied'))
+    const b = await browser('audio-listen-only')
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('unavailable'))
+    expect(session.type).toBe('play-and-record')
+    await b.v.leave(false)
+    expect(session.type).toBe('auto')
+  })
+
+  it('restores intent when joining fails', async () => {
+    const session = audioSession()
+    media.connect = async () => {
+      throw new Error('Connection failed')
+    }
+    const b = await browser('audio-failed')
+    await b.v.join('c1')
+    expect(session.type).toBe('auto')
+    expect(b.v.channelId.value).toBeNull()
+  })
+
+  it('restores intent only once on cancellation and supports a subsequent join', async () => {
+    const session = audioSession()
+    const setType = vi.spyOn(session, 'type', 'set')
+    media.connect = () => new Promise<void>(() => {})
+    const b = await browser('audio-cancelled')
+    const joining = b.v.join('c1')
+    await vi.waitFor(() => expect(media.rooms[0]?.connect).toHaveBeenCalled())
+    expect(session.type).toBe('play-and-record')
+    await b.v.leave(false)
+    await joining
+    expect(session.type).toBe('auto')
+    expect(setType.mock.calls).toEqual([['play-and-record'], ['auto']])
+    media.connect = undefined
+    await b.v.join('c2')
+    expect(session.type).toBe('play-and-record')
+    await b.v.leave(false)
+    expect(session.type).toBe('auto')
+  })
+
+  it('joins normally without Audio Session support', async () => {
+    const b = await browser('audio-unsupported')
+    await b.v.join('c1')
+    expect(b.v.channelId.value).toBe('c1')
+    await b.v.leave(false)
+  })
+
+  it('does not prevent joining when the browser rejects the session type', async () => {
+    const session = audioSession()
+    vi.spyOn(session, 'type', 'set').mockImplementation(() => {
+      throw new Error('Unsupported')
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const b = await browser('audio-rejected')
+    await b.v.join('c1')
+    expect(b.v.channelId.value).toBe('c1')
+    expect(warn).toHaveBeenCalledWith('Could not set call audio intent', expect.any(Error))
+    await b.v.leave(false)
+  })
 })
 
 describe('acknowledged voice join', () => {

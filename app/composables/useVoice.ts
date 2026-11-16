@@ -115,6 +115,30 @@ let pendingJoinDone: Promise<void> | undefined
 let moveEpoch = 0
 const updateVoiceKey = 'spk:update-voice'
 let reloadingForUpdate = false
+let restoreAudioSession: (() => void) | undefined
+
+function startCallAudioSession() {
+  // Audio Session is not yet in TypeScript's DOM types; intent applies to the whole page.
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
+  if (!session) return
+  const previous = session.type
+  try {
+    session.type = 'play-and-record'
+  } catch (e) {
+    console.warn('Could not set call audio intent', e)
+    return
+  }
+  let restored = false
+  return () => {
+    if (restored) return
+    restored = true
+    try {
+      session.type = previous
+    } catch (e) {
+      console.warn('Could not restore audio intent', e)
+    }
+  }
+}
 
 const asSaved = (d: SavedDevice): SavedDevice => ({ deviceId: d.deviceId, label: d.label })
 
@@ -435,6 +459,8 @@ export function useVoice() {
       void r?.disconnect()
     }
     signal.addEventListener('abort', cancel, { once: true })
+    const restoreSession = startCallAudioSession()
+    restoreAudioSession = restoreSession
     try {
       // Permission must not block listening. Keep its error handled until microphone setup can use it.
       const permission = allowMicrophone().then(
@@ -606,6 +632,7 @@ export function useVoice() {
       playVoiceSound('join')
       void enableAudio()
     } catch (e) {
+      restoreSession?.()
       clearOutputListeners()
       pendingMicrophone?.abort()
       pendingMicrophone = undefined
@@ -698,6 +725,8 @@ export function useVoice() {
     microphone.value = 'idle'
     const pending = pendingJoin
     pending?.abort()
+    restoreAudioSession?.()
+    restoreAudioSession = undefined
     const r = room
     processor = undefined
     if (!r && !channelId.value && !pending) return
