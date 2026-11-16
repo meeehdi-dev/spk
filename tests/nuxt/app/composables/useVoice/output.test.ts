@@ -2,6 +2,8 @@ import type { Ref } from 'vue'
 
 import type { VoiceSettings } from '~/composables/useVoiceSettings'
 
+import { EventEmitter } from 'node:events'
+
 import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -69,7 +71,10 @@ const { media, MockRoom } = vi.hoisted(() => {
     connect = vi.fn(async () => {
       media.connect?.()
     })
-    startAudio = vi.fn(async () => {})
+    startAudio = vi.fn(async () => {
+      for (const p of this.remoteParticipants.values())
+        for (const pub of p.audioTrackPublications.values()) for (const element of pub.track?.attachedElements ?? []) element.muted = false
+    })
     disconnect = vi.fn(async () => {})
     switchActiveDevice = vi.fn(async () => {})
     getActiveDevice = vi.fn(() => 'default')
@@ -98,6 +103,12 @@ vi.mock('livekit-client', () => ({
     AudioPlaybackStatusChanged: 'audioPlaybackChanged',
     ParticipantDisconnected: 'participantDisconnected',
     TrackUnpublished: 'trackUnpublished',
+    TrackPublished: 'trackPublished',
+    TrackMuted: 'trackMuted',
+    TrackUnmuted: 'trackUnmuted',
+    LocalTrackPublished: 'localTrackPublished',
+    LocalTrackUnpublished: 'localTrackUnpublished',
+    ParticipantConnected: 'participantConnected',
     ActiveSpeakersChanged: 'speakers',
   },
   Room: MockRoom,
@@ -114,15 +125,18 @@ let voice: ReturnType<typeof import('~/composables/useVoice').useVoice>
 
 function track(source: string) {
   const element = document.createElement('audio')
-  return {
+  return Object.assign(new EventEmitter(), {
     source,
     kind: 'audio',
+    mediaStreamTrack: { enabled: true },
+    isMuted: false,
     attachedElements: [element],
-    attach: () => element,
+    attach: vi.fn(() => element),
     detach: () => [element],
     setSinkId: vi.fn(async (_id: string) => {}),
+    // Deliberately ignore volume writes, as on iOS: silence must come from the native track.
     setVolume: vi.fn(),
-  }
+  })
 }
 function participant(id: string, tracks: ReturnType<typeof track>[]) {
   const pubs = new Map(tracks.map((t, i) => [i, { source: t.source, track: t, audioTrack: t, isDesired: true, setSubscribed: vi.fn() }]))
@@ -280,8 +294,8 @@ describe('independent remote audio outputs', () => {
       screen = track('screen_share_audio')
     media.connect = () => {
       const r = media.rooms.at(-1)!
-      r.emit('subscribed', mic)
-      r.emit('subscribed', screen)
+      r.emit('subscribed', mic, { source: mic.source, track: mic }, { identity: 'one' })
+      r.emit('subscribed', screen, { source: screen.source, track: screen }, { identity: 'one' })
     }
     await setup()
     expect(mic.setSinkId).toHaveBeenLastCalledWith(savedVoice ? 'voice' : '')
@@ -296,19 +310,19 @@ describe('independent remote audio outputs', () => {
     media.connect = () => {
       const r = media.rooms.at(-1)!
       expect(voice.activeRoom()).toBeUndefined()
-      r.emit('subscribed', mic)
-      r.emit('subscribed', screen)
+      r.emit('subscribed', mic, { source: mic.source, track: mic }, { identity: 'one' })
+      r.emit('subscribed', screen, { source: screen.source, track: screen }, { identity: 'one' })
     }
     const r = await setup()
     expect(r.options.audioOutput).toBeUndefined()
     expect(mic.setSinkId).toHaveBeenLastCalledWith('voice')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('screen')
     const later = track('screen_share_audio')
-    r.emit('subscribed', later)
+    r.emit('subscribed', later, { source: later.source, track: later }, { identity: 'one' })
     expect(later.setSinkId).toHaveBeenLastCalledWith('screen')
     r.emit('unsubscribed', later)
     expect(document.body.contains(later.attach())).toBe(false)
-    r.emit('subscribed', later)
+    r.emit('subscribed', later, { source: later.source, track: later }, { identity: 'one' })
     expect(later.setSinkId).toHaveBeenCalledTimes(2)
     await voice.leave(false)
     settings.value.mediaSpeaker = undefined
@@ -352,7 +366,7 @@ describe('independent remote audio outputs', () => {
     const r = await setup(false)
     const screen = track('screen_share_audio')
     r.remoteParticipants.set('one', participant('one', [screen]))
-    r.emit('subscribed', screen)
+    r.emit('subscribed', screen, { source: screen.source, track: screen }, { identity: 'one' })
     await voice.pickDevice('mediaSpeaker', device('other'))
     expect(voice.canPickOutput).toBe(false)
     expect(screen.setSinkId).not.toHaveBeenCalled()
@@ -364,7 +378,7 @@ describe('independent remote audio outputs', () => {
     const screen = track('screen_share_audio')
     screen.setSinkId.mockRejectedValue(new Error('Denied'))
     r.remoteParticipants.set('one', participant('one', [screen]))
-    r.emit('subscribed', screen)
+    r.emit('subscribed', screen, { source: screen.source, track: screen }, { identity: 'one' })
     await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not switch device', description: 'Denied' })))
     toast.mockClear()
     await voice.pickDevice('mediaSpeaker', device('other'))
@@ -419,17 +433,340 @@ describe('independent remote audio outputs', () => {
   })
 })
 
-describe('audio recovery', () => {
-  it('restores subscriptions, attachments, independent outputs and deafen without duplicate elements', async () => {
+describe('remote audio silence gate', () => {
+  it.each([
+    { name: 'deafen', deafened: true, saved: { mic: 0.5, screen: 0.25 }, expected: [0, 0] },
+    { name: 'mute for me', deafened: false, saved: { muted: true }, expected: [0, 0] },
+    { name: 'independent saved volumes', deafened: false, saved: { mic: 0.5, screen: 0.25 }, expected: [0.4, 0.2] },
+    { name: 'zero mic volume', deafened: false, saved: { mic: 0, screen: 0.25 }, expected: [0, 0.2] },
+  ])('applies $name before attachment during a pending join', async ({ deafened, saved, expected }) => {
+    const mod = await import('~/composables/useVoice')
+    voice = mod.useVoice()
+    voice.setVolume('one', saved)
+    if (deafened) voice.toggleHeadphones()
+    const tracks = [track('microphone'), track('screen_share_audio')]
+    media.connect = () => {
+      const r = media.rooms.at(-1)!
+      const p = participant('one', tracks)
+      r.remoteParticipants.set('one', p)
+      expect(voice.activeRoom()).toBeUndefined()
+      for (const [i, pub] of p.audioTrackPublications) {
+        const t = pub.track
+        const element = t.attachedElements[0]!
+        t.attach.mockImplementation(() => {
+          expect(t.mediaStreamTrack.enabled).toBe(expected[i]! > 0)
+          expect(t.setVolume).toHaveBeenLastCalledWith(expected[i])
+          return element
+        })
+        r.emit('subscribed', t, pub, p)
+        expect(t.attach).toHaveBeenCalledOnce()
+      }
+    }
+    await voice.join('channel')
+    expect(voice.channelId.value).toBe('channel')
+    expect(voice.mute.value.deafened).toBe(deafened)
+    expect(voice.volumes.value.one).toEqual(saved)
+  })
+
+  it.each(['microphone', 'screen_share_audio'])('gates %s after remote unmute and replacement subscription while deafened', async source => {
     const r = await setup()
-    const mic = track('microphone')
-    const screen = track('screen_share_audio')
-    const p = { ...participant('one', [mic, screen]), getTrackPublication: (source: string) => (source === 'screen_share' ? { isMuted: false } : undefined) }
+    const original = track(source)
+    const p = participant('one', [original])
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    expect(original.mediaStreamTrack.enabled).toBe(true)
+    voice.toggleHeadphones()
+    expect(original.mediaStreamTrack.enabled).toBe(false)
+    const pub = p.audioTrackPublications.get(0)!
+    original.isMuted = true
+    original.mediaStreamTrack.enabled = false
+    r.emit('trackMuted', pub, p)
+    // LiveKit reenables the native track before forwarding the unmute event.
+    original.isMuted = false
+    original.mediaStreamTrack.enabled = true
+    r.emit('trackUnmuted', pub, p)
+    expect(original.mediaStreamTrack.enabled).toBe(false)
+    expect(voice.mute.value.deafened).toBe(true)
+
+    const replacement = track(source)
+    const element = replacement.attachedElements[0]!
+    replacement.attach.mockImplementation(() => {
+      expect(replacement.mediaStreamTrack.enabled).toBe(false)
+      return element
+    })
+    pub.track = pub.audioTrack = replacement
+    r.emit('subscribed', replacement, pub, p)
+    r.emit('subscribed', replacement, pub, p)
+    expect(replacement.attach).toHaveBeenCalledOnce()
+    expect(replacement.mediaStreamTrack.enabled).toBe(false)
+    expect(element.volume).toBe(1)
+    expect(voice.mute.value.deafened).toBe(true)
+  })
+
+  it.each(['microphone', 'screen_share_audio'])('synchronously re-gates retained %s during signaling recovery and cleans up listeners', async source => {
+    const r = await setup()
+    const t = track(source)
+    const p = participant('one', [t])
+    const pub = p.audioTrackPublications.get(0)!
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    r.emit('subscribed', t, pub, p)
+    voice.toggleHeadphones()
+    r.emit('signalReconnecting')
+    r.emit('subscribed', t, pub, p)
+    voice.applyOutput()
+    expect(t.listenerCount('unmuted')).toBe(1)
+    expect(t.attach).toHaveBeenCalledOnce()
+    expect(t.attachedElements[0]!.isConnected).toBe(true)
+    const roomUnmuted = vi.fn()
+    r.on('trackUnmuted', roomUnmuted)
+    t.isMuted = true
+    t.mediaStreamTrack.enabled = false
+    r.emit('trackMuted', pub, p)
+    t.setVolume.mockClear()
+    // SDK native reenabling and track notification happen now; the room notification is withheld until recovery.
+    t.isMuted = false
+    t.mediaStreamTrack.enabled = true
+    t.emit('unmuted', t)
+    expect(t.mediaStreamTrack.enabled).toBe(false)
+    expect(t.setVolume).toHaveBeenCalledExactlyOnceWith(0)
+    expect(t.attachedElements[0]!.volume).toBe(1)
+    expect(t.attachedElements[0]!.isConnected).toBe(true)
+    expect(roomUnmuted).not.toHaveBeenCalled()
+    expect(voice.connection.value).toBe('signalReconnecting')
+    expect(voice.mute.value.deafened).toBe(true)
+    r.emit('reconnected')
+    r.emit('trackUnmuted', pub, p)
+    expect(t.listenerCount('unmuted')).toBe(1)
+    expect(t.mediaStreamTrack.enabled).toBe(false)
+    // LiveKit emits unsubscribe while the publication still points to the old track.
+    r.emit('unsubscribed', t, pub, p)
+    expect(t.listenerCount('unmuted')).toBe(0)
+    Reflect.deleteProperty(pub, 'track')
+    Reflect.deleteProperty(pub, 'audioTrack')
+    await Promise.resolve()
+    expect(t.listenerCount('unmuted')).toBe(0)
+    expect(t.attachedElements[0]!.isConnected).toBe(false)
+    pub.track = pub.audioTrack = t
+    r.emit('subscribed', t, pub, p)
+    expect(t.listenerCount('unmuted')).toBe(1)
+    voice.toggleHeadphones()
+    expect(t.mediaStreamTrack.enabled).toBe(true)
+    await voice.leave(false)
+    expect(t.listenerCount('unmuted')).toBe(0)
+    expect(t.attachedElements[0]!.isConnected).toBe(false)
+    t.setVolume.mockClear()
+    t.emit('unmuted', t)
+    expect(t.setVolume).not.toHaveBeenCalled()
+  })
+
+  it.each(['microphone', 'screen_share_audio'])('does not retain obsolete %s listeners through subscription churn', async source => {
+    const r = await setup()
+    const first = track(source)
+    const p = participant('one', [first])
+    const pub = p.audioTrackPublications.get(0)!
+    const retired = [] as ReturnType<typeof track>[]
     r.remoteParticipants.set('one', p)
     voice.watch('one', true)
     voice.toggleHeadphones()
-    r.emit('subscribed', mic)
-    r.emit('subscribed', mic)
+    r.emit('subscribed', first, pub, p)
+
+    for (const mode of ['unsubscribe', 'replacement', 'unpublish', 'replacement'] as const) {
+      const old = pub.track
+      retired.push(old)
+      // RemoteTrackPublication.setTrack emits before clearing/replacing track; unpublish removes maps afterward too.
+      r.emit('unsubscribed', old, pub, p)
+      expect(old.listenerCount('unmuted')).toBe(0)
+      expect(old.attachedElements[0]!.isConnected).toBe(false)
+      Reflect.deleteProperty(pub, 'track')
+      Reflect.deleteProperty(pub, 'audioTrack')
+      if (mode === 'unpublish') {
+        p.audioTrackPublications.delete(0)
+        r.emit('trackUnpublished', pub, p)
+      }
+      const next = track(source)
+      const element = next.attachedElements[0]!
+      next.attach.mockImplementation(() => {
+        expect(next.mediaStreamTrack.enabled).toBe(false)
+        return element
+      })
+      if (mode !== 'replacement') {
+        await Promise.resolve()
+        voice.applyOutput()
+        for (const t of retired) expect(t.listenerCount('unmuted')).toBe(0)
+      }
+      pub.track = pub.audioTrack = next
+      p.audioTrackPublications.set(0, pub)
+      r.emit('subscribed', next, pub, p)
+      await Promise.resolve()
+      voice.applyOutput()
+      for (const t of retired) {
+        expect(t.listenerCount('unmuted')).toBe(0)
+        t.setVolume.mockClear()
+        t.emit('unmuted', t)
+        expect(t.setVolume).not.toHaveBeenCalled()
+      }
+      expect(next.listenerCount('unmuted')).toBe(1)
+      expect(next.attach).toHaveBeenCalledOnce()
+      expect(next.mediaStreamTrack.enabled).toBe(false)
+    }
+
+    // A queued old-room rebuild must not register listeners after leave or in a new session.
+    const last = pub.track
+    r.emit('unsubscribed', last, pub, p)
+    await voice.leave(false)
+    await voice.join('other-channel')
+    r.emit('unsubscribed', last, pub, p)
+    await Promise.resolve()
+    voice.applyOutput()
+    for (const t of [...retired, last]) expect(t.listenerCount('unmuted')).toBe(0)
+  })
+
+  it.each([
+    ['microphone', 'removed'],
+    ['microphone', 'replaced'],
+    ['screen_share_audio', 'removed'],
+    ['screen_share_audio', 'replaced'],
+  ])('ignores buffered obsolete %s subscriptions when %s during recovery', async (source, mode) => {
+    const r = await setup()
+    const retired = track(source)
+    const p = participant('one', [retired])
+    const pub = p.audioTrackPublications.get(0)!
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    voice.toggleHeadphones()
+    r.emit('signalReconnecting')
+    // LiveKit buffers subscription with the mutable publication, but forwards unsubscribe immediately.
+    const replay = () => r.emit('subscribed', retired, pub, p)
+    r.emit('unsubscribed', retired, pub, p)
+    expect(retired.listenerCount('unmuted')).toBe(0)
+    Reflect.deleteProperty(pub, 'track')
+    Reflect.deleteProperty(pub, 'audioTrack')
+    const replacement = track(source)
+    if (mode === 'removed') {
+      p.audioTrackPublications.delete(0)
+    } else {
+      pub.track = pub.audioTrack = replacement
+      const element = replacement.attachedElements[0]!
+      replacement.attach.mockImplementation(() => {
+        expect(replacement.mediaStreamTrack.enabled).toBe(false)
+        return element
+      })
+    }
+    await Promise.resolve()
+    retired.setVolume.mockClear()
+    expect(retired.listenerCount('unmuted')).toBe(0)
+    // Reconnected is emitted before the SDK flushes buffered subscription events.
+    r.emit('reconnected')
+    replay()
+    replay()
+    if (mode === 'replaced') {
+      r.emit('subscribed', replacement, pub, p)
+      r.emit('subscribed', replacement, pub, p)
+      expect(replacement.listenerCount('unmuted')).toBe(1)
+      expect(replacement.attach).toHaveBeenCalledOnce()
+      expect(replacement.mediaStreamTrack.enabled).toBe(false)
+    }
+    await Promise.resolve()
+    expect(retired.listenerCount('unmuted')).toBe(0)
+    expect(retired.attach).not.toHaveBeenCalled()
+    expect(retired.setSinkId).not.toHaveBeenCalled()
+    expect(retired.attachedElements[0]!.isConnected).toBe(false)
+    retired.emit('unmuted', retired)
+    expect(retired.setVolume).not.toHaveBeenCalled()
+    expect(voice.mute.value.deafened).toBe(true)
+  })
+
+  it.each(['fails', 'is cancelled'])('removes pending-join output listeners when connection %s', async outcome => {
+    const t = track('microphone')
+    media.connect = () => {
+      const r = media.rooms.at(-1)!
+      r.emit('subscribed', t, { source: t.source, track: t }, { identity: 'one' })
+      expect(t.listenerCount('unmuted')).toBe(1)
+      if (outcome === 'fails') throw new Error('Connection failed')
+      void voice.leave(false)
+      expect(t.listenerCount('unmuted')).toBe(0)
+    }
+    const mod = await import('~/composables/useVoice')
+    voice = mod.useVoice()
+    await voice.join('channel')
+    expect(voice.channelId.value).toBeNull()
+    expect(t.listenerCount('unmuted')).toBe(0)
+  })
+
+  it.each([false, true])('restores allowed mic/screen output and the prior local mute state (%s)', async initiallyMuted => {
+    const r = await setup()
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
+    const remoteMuted = track('microphone'),
+      userMuted = track('microphone'),
+      zero = track('screen_share_audio')
+    remoteMuted.isMuted = true
+    r.remoteParticipants.set('one', participant('one', [mic, screen]))
+    r.remoteParticipants.set('remote-muted', participant('remote-muted', [remoteMuted]))
+    r.remoteParticipants.set('user-muted', participant('user-muted', [userMuted]))
+    r.remoteParticipants.set('zero', participant('zero', [zero]))
+    voice.watch('one', true)
+    voice.setVolume('one', { mic: 0.5, screen: 0.25 })
+    voice.setVolume('user-muted', { muted: true })
+    voice.setVolume('zero', { screen: 0 })
+    const saved = { ...voice.volumes.value }
+    if (initiallyMuted) voice.toggleMic()
+    voice.toggleHeadphones()
+    for (const t of [mic, screen, remoteMuted, userMuted, zero]) expect(t.mediaStreamTrack.enabled).toBe(false)
+    expect(r.mic.isMuted).toBe(true)
+    voice.toggleHeadphones()
+    expect(mic.mediaStreamTrack.enabled).toBe(true)
+    expect(screen.mediaStreamTrack.enabled).toBe(true)
+    expect(mic.setVolume).toHaveBeenLastCalledWith(0.4)
+    expect(screen.setVolume).toHaveBeenLastCalledWith(0.2)
+    for (const t of [remoteMuted, userMuted, zero]) expect(t.mediaStreamTrack.enabled).toBe(false)
+    expect(r.mic.isMuted).toBe(initiallyMuted)
+    expect(voice.volumes.value).toEqual(saved)
+    expect(settings.value.outputVolume).toBe(0.8)
+    settings.value.outputVolume = 0
+    voice.applyOutput()
+    expect(mic.mediaStreamTrack.enabled).toBe(false)
+    expect(screen.mediaStreamTrack.enabled).toBe(false)
+    settings.value.outputVolume = 0.8
+    voice.applyOutput()
+    expect(mic.mediaStreamTrack.enabled).toBe(true)
+    expect(screen.mediaStreamTrack.enabled).toBe(true)
+  })
+
+  it('keeps native audio silent when playback retry unmutes the HTML elements', async () => {
+    const r = await setup()
+    const tracks = [track('microphone'), track('screen_share_audio')]
+    const p = participant('one', tracks)
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    voice.toggleHeadphones()
+    for (const pub of p.audioTrackPublications.values()) {
+      r.emit('subscribed', pub.track, pub, p)
+      pub.track.attachedElements[0]!.muted = true
+    }
+    await voice.enableAudio()
+    for (const t of tracks) {
+      expect(t.attachedElements[0]!.muted).toBe(false)
+      expect(t.attachedElements[0]!.volume).toBe(1)
+      expect(t.mediaStreamTrack.enabled).toBe(false)
+    }
+    expect(voice.mute.value.deafened).toBe(true)
+    expect(voice.audioBlocked.value).toBe(false)
+  })
+})
+
+describe('audio recovery', () => {
+  it('restores subscriptions, attachments, independent outputs and deafen without duplicate elements', async () => {
+    const r = await setup()
+    let mic = track('microphone')
+    let screen = track('screen_share_audio')
+    let p = { ...participant('one', [mic, screen]), getTrackPublication: (source: string) => (source === 'screen_share' ? { isMuted: false } : undefined) }
+    r.remoteParticipants.set('one', p)
+    voice.watch('one', true)
+    voice.toggleHeadphones()
+    r.emit('subscribed', mic, p.audioTrackPublications.get(0), p)
+    r.emit('subscribed', mic, p.audioTrackPublications.get(0), p)
     expect(document.querySelectorAll('audio')).toHaveLength(1)
     // Full restart removes participants before emitting Reconnecting.
     r.remoteParticipants.delete('one')
@@ -438,15 +775,36 @@ describe('audio recovery', () => {
     await Promise.resolve()
     expect(voice.watching.value).toEqual(['one'])
     expect(voice.theater.value).toBe('one')
+    r.emit('unsubscribed', mic)
+    mic = track('microphone')
+    screen = track('screen_share_audio')
+    p = { ...participant('one', [mic, screen]), getTrackPublication: p.getTrackPublication }
+    let routed!: () => void
+    const routing = new Promise<void>(resolve => {
+      routed = resolve
+    })
+    for (const t of [mic, screen]) {
+      const element = t.attachedElements[0]!
+      t.attach.mockImplementation(() => {
+        expect(t.mediaStreamTrack.enabled).toBe(false)
+        return element
+      })
+      t.setSinkId.mockImplementation(() => routing)
+    }
     r.remoteParticipants.set('one', p)
     p.trackPublications.get(0)!.isDesired = false
     r.emit('reconnected')
-    await Promise.resolve()
+    expect(mic.mediaStreamTrack.enabled).toBe(false)
+    expect(screen.mediaStreamTrack.enabled).toBe(false)
+    routed()
+    await routing
     expect(p.trackPublications.get(0)!.setSubscribed).toHaveBeenCalledWith(true)
     expect(mic.setSinkId).toHaveBeenLastCalledWith('voice')
     expect(screen.setSinkId).toHaveBeenLastCalledWith('screen')
     expect(mic.setVolume).toHaveBeenLastCalledWith(0)
     expect(screen.setVolume).toHaveBeenLastCalledWith(0)
+    expect(voice.watching.value).toEqual(['one'])
+    expect(voice.theater.value).toBe('one')
     expect(document.querySelectorAll('audio')).toHaveLength(2)
     r.emit('reconnected')
     expect(document.querySelectorAll('audio')).toHaveLength(2)

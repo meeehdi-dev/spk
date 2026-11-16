@@ -100,6 +100,7 @@ let pendingScreenSession: ScreenSession | undefined
 const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
+const outputListeners = new Map<RemoteAudioTrack, () => void>()
 let appliedCameraResolution: CameraResolution = 'auto'
 // Speaking turns on at once but off only after this hold, so pauses between words don't flicker the ring.
 export const SPEAKING_HOLD_MS = 500
@@ -189,14 +190,36 @@ export function useVoice() {
     if (device !== (matchDevice(settings.value[kind], devices.value.speakers).deviceId ?? '')) await routeOutput(track, kind)
   }
 
+  function forgetTrackOutput(track: RemoteAudioTrack) {
+    const listener = outputListeners.get(track)
+    if (listener) track.off('unmuted', listener)
+    outputListeners.delete(track)
+  }
+  function clearOutputListeners() {
+    for (const track of outputListeners.keys()) forgetTrackOutput(track)
+  }
+  function applyTrackOutput(track: RemoteAudioTrack, identity: string, source: Track.Source) {
+    if (!outputListeners.has(track)) {
+      // Room unmute events can be buffered during signaling recovery; the track event is synchronous.
+      const listener = () => applyTrackOutput(track, identity, source)
+      track.on('unmuted', listener)
+      outputListeners.set(track, listener)
+    }
+    const volume = effectiveVolume(
+      mute.value.deafened,
+      userVolume(volumes.value, identity),
+      source === 'screen_share_audio' ? 'screen' : 'mic',
+      settings.value.outputVolume,
+    )
+    // Element volume is ignored on some browsers (notably iOS); gate the received audio itself.
+    track.mediaStreamTrack.enabled = volume > 0 && !track.isMuted
+    track.setVolume(volume)
+  }
   function applyOutput() {
     if (!room) return
     for (const p of room.remoteParticipants.values()) {
-      const vol = userVolume(volumes.value, p.identity)
       for (const pub of p.audioTrackPublications.values()) {
-        ;(pub.track as RemoteAudioTrack | undefined)?.setVolume(
-          effectiveVolume(mute.value.deafened, vol, pub.source === ('screen_share_audio' as Track.Source) ? 'screen' : 'mic', settings.value.outputVolume),
-        )
+        if (pub.track) applyTrackOutput(pub.track as RemoteAudioTrack, p.identity, pub.source)
       }
     }
   }
@@ -378,6 +401,7 @@ export function useVoice() {
       { flush: 'sync' },
     )
     const cancel = () => {
+      clearOutputListeners()
       if (claimed) socket.send({ type: 'voice:leave', sid })
       void r?.disconnect()
     }
@@ -401,11 +425,11 @@ export function useVoice() {
         videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
         audioCaptureDefaults: captureOptions(),
       })
-      r.on(RoomEvent.TrackSubscribed, track => {
-        if (signal.aborted || (room !== r && pendingJoin !== attempt) || track.kind !== Track.Kind.Audio) return
+      r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        if (signal.aborted || (room !== r && pendingJoin !== attempt) || track.kind !== Track.Kind.Audio || publication.track !== track) return
+        applyTrackOutput(track as RemoteAudioTrack, participant.identity, publication.source)
         attachAudio(track as RemoteAudioTrack) // remote audio only plays while attached to an element
         void routeOutput(track as RemoteAudioTrack)
-        applyOutput()
       })
       // Firefox: LiveKit's own default-device pick sets every remote sink on devicechange; restore ours.
       r.on(RoomEvent.ActiveDeviceChanged, kind => {
@@ -415,7 +439,14 @@ export function useVoice() {
           void routeOutputs('mediaSpeaker')
         }
       })
-      r.on(RoomEvent.TrackUnsubscribed, track => track.detach().forEach(e => e.remove()))
+      r.on(RoomEvent.TrackUnsubscribed, track => {
+        if (track.kind === Track.Kind.Audio) forgetTrackOutput(track as RemoteAudioTrack)
+        track.detach().forEach(e => e.remove())
+        // LiveKit clears/replaces publication.track only after emitting unsubscribe.
+        queueMicrotask(() => {
+          if (!signal.aborted && (room === r || pendingJoin === attempt)) rebuild()
+        })
+      })
       r.on(RoomEvent.ActiveSpeakersChanged, list => {
         if (signal.aborted || (room !== r && pendingJoin !== attempt)) return
         const active = new Set(list.map(p => p.identity))
@@ -443,7 +474,6 @@ export function useVoice() {
         RoomEvent.TrackPublished,
         RoomEvent.TrackUnpublished,
         RoomEvent.TrackSubscribed,
-        RoomEvent.TrackUnsubscribed,
         RoomEvent.TrackMuted,
         RoomEvent.TrackUnmuted,
         RoomEvent.LocalTrackPublished,
@@ -544,6 +574,7 @@ export function useVoice() {
       playVoiceSound('join')
       void enableAudio()
     } catch (e) {
+      clearOutputListeners()
       pendingMicrophone?.abort()
       pendingMicrophone = undefined
       microphone.value = 'idle'
@@ -641,6 +672,7 @@ export function useVoice() {
     }
     screenSession = pendingScreenSession = undefined
     room = undefined
+    clearOutputListeners()
     for (const p of r?.remoteParticipants.values() ?? []) for (const pub of p.audioTrackPublications.values()) pub.audioTrack?.detach().forEach(e => e.remove())
     clearSpeaking()
     watching.value = []
