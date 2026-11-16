@@ -101,7 +101,7 @@ const onDrop = (channelId: string) => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div class="@container/sidebar flex h-full flex-col">
     <nav class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2 compact:gap-1">
       <div class="px-2 py-2 text-center text-2xl font-bold text-primary">spk</div>
 
@@ -321,7 +321,7 @@ const onDrop = (channelId: string) => {
       </section>
     </nav>
 
-    <div v-if="voice.channelId.value || voice.connecting.value" class="mx-2 mb-2 flex items-center gap-1 rounded-lg bg-elevated/50 p-2">
+    <div v-if="voice.channelId.value || voice.connecting.value" class="mx-2 mb-2 flex shrink-0 items-center gap-1 rounded-lg bg-elevated/50 p-2">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 text-sm font-medium">
           <UIcon
@@ -336,11 +336,17 @@ const onDrop = (channelId: string) => {
         </div>
         <VoiceConnectionPopover />
       </div>
-      <VoiceControl kind="camera" />
-      <VoiceControl kind="screen" />
-      <RadioPopover />
-      <SoundboardPopover />
-      <VoiceControl kind="leave" />
+      <div role="group" aria-label="Voice actions" class="flex shrink-0 flex-col items-end gap-1 @min-[360px]/sidebar:flex-row">
+        <div role="group" aria-label="Video actions" class="flex shrink-0 items-center gap-1">
+          <VoiceControl kind="camera" />
+          <VoiceControl kind="screen" />
+        </div>
+        <div role="group" aria-label="Audio and leave actions" class="flex shrink-0 items-center gap-1">
+          <RadioPopover />
+          <SoundboardPopover />
+          <VoiceControl kind="leave" />
+        </div>
+      </div>
     </div>
 
     <div v-if="me" class="mx-2 mb-2 flex shrink-0 items-center gap-1 rounded-lg bg-elevated/50 p-2">

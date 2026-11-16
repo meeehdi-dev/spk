@@ -30,7 +30,10 @@ beforeEach(() => {
   Object.assign(member, { radioListening: false, cam: false, screen: false })
   useUnread().counts.value = {}
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  useVoice().channelId.value = null
+  vi.restoreAllMocks()
+})
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 50))
 
@@ -92,6 +95,21 @@ it('shows a non-actionable radio indicator matching the camera control only whil
   member.radioListening = false
   await nextTick()
   expect(indicator().exists()).toBe(false)
+})
+
+it('groups camera and screen before radio, soundboard, and leave for the narrow layout', async () => {
+  useVoice().channelId.value = 'source'
+  const wrapper = await mountInApp(AppSidebar)
+  const actions = wrapper.find('[role="group"][aria-label="Voice actions"]')
+  const groups = actions.findAll(':scope > [role="group"]')
+  expect(groups).toHaveLength(2)
+  expect(groups[0]!.findAll('button').map(button => button.attributes('aria-label'))).toEqual([
+    'Turn camera on',
+    'Camera options',
+    'Share screen',
+    'Screen share options',
+  ])
+  expect(groups[1]!.findAll('button').map(button => button.attributes('aria-label'))).toEqual(['Radio settings', 'Radio options', 'Soundboard', 'Leave voice'])
 })
 
 describe('voice member dragging', () => {

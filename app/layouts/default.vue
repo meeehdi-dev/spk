@@ -114,7 +114,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       :default-size="288"
       :menu="{ description: 'Channels and direct messages' }"
       :ui="{
-        root: 'min-w-0 data-[collapsed=true]:invisible data-[collapsed=true]:border-0',
+        root: 'min-w-0 data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56',
         body: 'gap-0 p-0 sm:p-0',
       }"
     >
