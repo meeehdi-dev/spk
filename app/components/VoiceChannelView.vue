@@ -86,9 +86,11 @@ const toggleTheater = (id: string) => {
         <VoiceControl kind="screen" labeled />
         <RadioPopover labeled />
         <SoundboardPopover labeled />
+        <VoiceControl kind="leave" labeled />
         <UTooltip v-if="focused" :text="participantsLabel">
           <UButton
             :icon="participantsHidden ? 'i-lucide-panel-bottom-open' : 'i-lucide-panel-bottom-close'"
+            :label="participantsLabel"
             color="neutral"
             variant="ghost"
             :aria-label="participantsLabel"
@@ -97,7 +99,6 @@ const toggleTheater = (id: string) => {
             @click="participantsHidden = !participantsHidden"
           />
         </UTooltip>
-        <VoiceControl kind="leave" labeled />
       </template>
     </div>
   </div>
