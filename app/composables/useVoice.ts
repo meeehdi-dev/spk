@@ -53,6 +53,7 @@ export interface VoiceMember {
 const sid = import.meta.client ? crypto.randomUUID() : ''
 const channelId = ref<string | null>(null)
 const connecting = ref(false)
+const pendingChannelId = ref<string | null>(null)
 const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalReconnecting'>('disconnected')
 const audioBlocked = ref(false)
 let playbackNeedsRetry = false
@@ -434,15 +435,23 @@ export function useVoice() {
   async function join(id: string) {
     if (channelId.value === id || connecting.value) return
     connecting.value = true
-    moveEpoch++
-    if (channelId.value) await leave(false)
-    retryChannelId.value = null
-    const attempt = new AbortController()
-    pendingJoin = attempt
+    const leaving = channelId.value ? leave(false) : undefined
+    const epoch = ++moveEpoch
+    pendingChannelId.value = id
     let settled!: () => void
     pendingJoinDone = new Promise(resolve => {
       settled = resolve
     })
+    if (leaving) await leaving
+    if (epoch !== moveEpoch) {
+      pendingJoinDone = undefined
+      connecting.value = false
+      settled()
+      return
+    }
+    retryChannelId.value = null
+    const attempt = new AbortController()
+    pendingJoin = attempt
     const signal = attempt.signal
     let r: Room | undefined
     let claimed = false
@@ -454,6 +463,7 @@ export function useVoice() {
       { flush: 'sync' },
     )
     const cancel = () => {
+      pendingChannelId.value = null
       clearOutputListeners()
       if (claimed) socket.send({ type: 'voice:leave', sid })
       void r?.disconnect()
@@ -624,6 +634,7 @@ export function useVoice() {
       connection.value = 'connected'
       updateAudioBlocked(r)
       channelId.value = id
+      pendingChannelId.value = null
       rebuild()
       socket.send({ type: 'voice:ready', sid }) // Listening is ready; the microphone can follow later.
       lastSent = 0
@@ -632,6 +643,7 @@ export function useVoice() {
       playVoiceSound('join')
       void enableAudio()
     } catch (e) {
+      pendingChannelId.value = null
       restoreSession?.()
       clearOutputListeners()
       pendingMicrophone?.abort()
@@ -656,6 +668,7 @@ export function useVoice() {
       signal.removeEventListener('abort', cancel)
       pendingJoin = undefined
       pendingJoinDone = undefined
+      pendingChannelId.value = null
       connecting.value = false
       settled()
     }
@@ -706,17 +719,17 @@ export function useVoice() {
 
   async function move(id: string) {
     const epoch = ++moveEpoch
-    if (pendingJoin) {
-      const done = pendingJoinDone
-      pendingJoin.abort()
-      await done
-    }
+    const done = pendingJoinDone
+    pendingChannelId.value = null
+    pendingJoin?.abort()
+    if (done) await done
     if (epoch !== moveEpoch) return
     await join(id)
   }
 
   async function leave(sound = true, reason?: string) {
     moveEpoch++
+    pendingChannelId.value = null
     retryChannelId.value = null
     connection.value = 'disconnected'
     playbackNeedsRetry = microphoneAudioBlocked = audioBlocked.value = false
@@ -1143,6 +1156,7 @@ export function useVoice() {
     me,
     sid,
     channelId,
+    pendingChannelId,
     connecting,
     connection,
     audioBlocked,
@@ -1260,6 +1274,28 @@ export const voiceMembers = (id: string) =>
   Object.entries(presence.value)
     .filter(([, m]) => m.channelId === id)
     .map(([userId, m]) => ({ userId, ...m }))
+
+/** Display only: never use optimistic membership for media or server actions. */
+export function voiceDisplayMembers(id: string, selfId?: string) {
+  const members = voiceMembers(id).map(m => ({ ...m, pending: false }))
+  if (pendingChannelId.value !== id || !selfId) return members
+  const pending = {
+    userId: selfId,
+    channelId: id,
+    pending: true,
+    muted: false,
+    deafened: false,
+    speaking: false,
+    cam: false,
+    screen: false,
+    radioListening: false,
+    watching: [] as string[],
+  }
+  const index = members.findIndex(m => m.userId === selfId)
+  if (index === -1) members.push(pending)
+  else members[index] = pending
+  return members
+}
 
 /** Layout only: keeps the presence map live, handles being kicked by another tab, plays others' join/leave sounds, warns before unload, keeps the screen awake in a call, follows device changes. */
 export function useVoiceLive() {

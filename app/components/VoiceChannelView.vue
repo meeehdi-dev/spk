@@ -2,7 +2,8 @@
 const props = defineProps<{ channelId: string }>()
 const v = useVoice()
 const { data: users, byId } = useUsers()
-const members = computed(() => voiceMembers(props.channelId))
+const members = computed(() => voiceDisplayMembers(props.channelId, v.me.value?.id))
+const pending = computed(() => v.pendingChannelId.value === props.channelId)
 const here = computed(() => v.channelId.value === props.channelId)
 void users.value
 const theater = v.theater
@@ -51,7 +52,12 @@ const toggleTheater = (id: string) => {
         </div>
 
         <ul v-else class="flex flex-wrap justify-center gap-4">
-          <li v-for="m in members" :key="m.userId" class="relative flex w-36 flex-col items-center gap-2 rounded-lg border border-default p-4">
+          <li
+            v-for="m in members"
+            :key="m.userId"
+            class="relative flex w-36 flex-col items-center gap-2 rounded-lg border border-default p-4"
+            :class="m.pending && 'opacity-50'"
+          >
             <UAvatar
               :src="avatarSrc(byId.get(m.userId))"
               :alt="byId.get(m.userId)?.displayName ?? ''"
@@ -64,6 +70,7 @@ const toggleTheater = (id: string) => {
               <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-4 shrink-0 text-error" aria-label="Deafened" />
               <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-4 shrink-0 text-error" aria-label="Muted" />
             </span>
+            <span v-if="m.pending" role="status" class="text-sm text-muted">Connecting…</span>
             <Transition leave-active-class="transition-opacity duration-300 motion-reduce:transition-none" leave-to-class="opacity-0">
               <div v-if="v.playing.value[m.userId]" class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-default/70">
                 <UIcon :name="v.playing.value[m.userId]!" class="size-12 text-primary" />
@@ -78,7 +85,8 @@ const toggleTheater = (id: string) => {
       class="mx-2 mb-2 flex w-fit max-w-[calc(100%_-_1rem)] shrink-0 flex-wrap items-center justify-center gap-2 self-center"
       :class="here && 'rounded-lg bg-elevated/50 p-2'"
     >
-      <UButton v-if="!here" label="Join voice" icon="i-lucide-phone" :loading="v.connecting.value" @click="v.join(channelId)" />
+      <UButton v-if="pending" label="Cancel" color="neutral" variant="outline" @click="v.leave(false)" />
+      <UButton v-else-if="!here" label="Join voice" icon="i-lucide-phone" :loading="v.connecting.value" @click="v.join(channelId)" />
       <template v-else>
         <VoiceControl kind="mic" labeled />
         <VoiceControl kind="deafen" labeled />

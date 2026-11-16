@@ -10,6 +10,10 @@ const voice = await vi.hoisted(async () => {
   return {
     channelId: ref('voice'),
     connecting: ref(false),
+    pendingChannelId: ref<string | null>(null),
+    me: ref({ id: 'self' }),
+    playing: ref({}),
+    leave: vi.fn(),
     connectionLabel: ref('Connected'),
     theater: ref<string | null>('streamer'),
     tiles: ref([{ userId: 'streamer' }, { userId: 'participant' }]),
@@ -17,7 +21,35 @@ const voice = await vi.hoisted(async () => {
 })
 mockNuxtImport('useVoice', () => () => voice)
 mockNuxtImport('useUsers', () => () => ({ data: { value: [] }, byId: new Map() }))
-mockNuxtImport('voiceMembers', () => () => [{ userId: 'streamer' }, { userId: 'participant' }])
+mockNuxtImport(
+  'voiceDisplayMembers',
+  () => () =>
+    voice.pendingChannelId.value
+      ? [{ userId: 'self', pending: true }]
+      : [
+          { userId: 'streamer', pending: false },
+          { userId: 'participant', pending: false },
+        ],
+)
+
+it('shows pending self with connecting status and cancel, but no media controls', async () => {
+  voice.channelId.value = ''
+  voice.pendingChannelId.value = 'voice'
+  voice.connecting.value = true
+  const wrapper = await mountInApp(VoiceChannelView, { channelId: 'voice' })
+  expect(wrapper.get('li').classes()).toContain('opacity-50')
+  expect(wrapper.get('[role="status"]').text()).toBe('Connecting…')
+  expect(wrapper.text()).not.toContain('Nobody is here yet')
+  expect(wrapper.findComponent({ name: 'VoiceControl' }).exists()).toBe(false)
+  expect(wrapper.findComponent({ name: 'VoiceTile' }).exists()).toBe(false)
+  expect(wrapper.findAll('button').map(b => b.text())).toEqual(['Cancel'])
+  await wrapper.get('button').trigger('click')
+  expect(voice.leave).toHaveBeenCalledWith(false)
+  wrapper.unmount()
+  voice.channelId.value = 'voice'
+  voice.pendingChannelId.value = null
+  voice.connecting.value = false
+})
 
 it('collapses the theater strip without unmounting tiles and resets when theater mode ends', async () => {
   const wrapper = await mountInApp(

@@ -83,7 +83,7 @@ sortable(voiceList, 'voice')
 const dragged = ref<{ id: string; from: string }>()
 const dropTarget = ref<string>()
 const onMemberDragStart = (event: DragEvent, id: string, from: string) => {
-  if (!admin.isAdmin.value) {
+  if (!admin.isAdmin.value || (id === me.value?.id && from === voice.pendingChannelId.value)) {
     event.preventDefault()
     return
   }
@@ -257,6 +257,9 @@ const onDrop = (channelId: string) => {
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>
+              <UTooltip v-else-if="voice.pendingChannelId.value === c.id" text="Cancel voice join">
+                <UButton icon="i-lucide-x" color="neutral" variant="link" aria-label="Cancel voice join" @click="voice.leave(false)" />
+              </UTooltip>
               <UTooltip v-else :text="`Join ${c.name}`">
                 <template #content="{ ui }"><EmojiText :text="`Join ${c.name}`" :class="ui.text()" /></template>
                 <UButton
@@ -271,11 +274,12 @@ const onDrop = (channelId: string) => {
               </UTooltip>
             </div>
             <ul class="ml-6">
-              <UserContext v-for="m in voiceMembers(c.id)" :key="m.userId" :user-id="m.userId">
+              <UserContext v-for="m in voiceDisplayMembers(c.id, me?.id)" :key="m.userId" :user-id="m.userId" :disabled="m.pending">
                 <li
                   class="flex items-center gap-2 py-0.5 text-sm text-muted"
                   data-member
-                  :draggable="admin.isAdmin.value"
+                  :class="m.pending && 'opacity-50'"
+                  :draggable="admin.isAdmin.value && !m.pending"
                   @dragstart="onMemberDragStart($event, m.userId, c.id)"
                   @dragend="dragged = dropTarget = undefined"
                 >
@@ -288,6 +292,7 @@ const onDrop = (channelId: string) => {
                     :class="m.speaking ? 'ring-success' : 'ring-transparent'"
                   />
                   <span class="truncate"><EmojiText :text="nameOf(m.userId)" /></span>
+                  <span v-if="m.pending" role="status" class="text-xs">Connecting…</span>
                   <UTooltip v-if="m.screen" :text="`Watch ${nameOf(m.userId)}'s stream`" class="ml-auto">
                     <template #content="{ ui }"><EmojiText :text="`Watch ${nameOf(m.userId)}'s stream`" :class="ui.text()" /></template>
                     <UButton
@@ -336,7 +341,8 @@ const onDrop = (channelId: string) => {
         </div>
         <VoiceConnectionPopover />
       </div>
-      <div role="group" aria-label="Voice actions" class="flex shrink-0 flex-col items-end gap-1 @min-[360px]/sidebar:flex-row">
+      <UButton v-if="voice.connecting.value" label="Cancel" color="neutral" variant="outline" @click="voice.leave(false)" />
+      <div v-else role="group" aria-label="Voice actions" class="flex shrink-0 flex-col items-end gap-1 @min-[360px]/sidebar:flex-row">
         <div role="group" aria-label="Video actions" class="flex shrink-0 items-center gap-1">
           <VoiceControl kind="camera" />
           <VoiceControl kind="screen" />

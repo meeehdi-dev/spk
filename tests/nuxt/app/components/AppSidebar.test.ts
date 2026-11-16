@@ -8,10 +8,10 @@ import { mountInApp } from '~~/tests/fixtures/app'
 const role = vi.hoisted(() => ({ value: 'user' }))
 const member = await vi.hoisted(async () => {
   const { reactive } = await import('vue')
-  return reactive({ userId: 'user', channelId: 'source', radioListening: false, cam: false, screen: false })
+  return reactive({ userId: 'user', channelId: 'source', radioListening: false, cam: false, screen: false, pending: false })
 })
 const move = vi.fn()
-mockNuxtImport('voiceMembers', () => (id: string) => (id === 'source' ? [member] : []))
+mockNuxtImport('voiceDisplayMembers', () => (id: string) => (id === 'source' ? [member] : []))
 
 beforeAll(() => {
   registerEndpoint('/api/profile/me', () => ({ id: 'me', email: 'me@x.dev', role: role.value, displayName: 'Me', avatarKey: null }))
@@ -27,11 +27,13 @@ beforeAll(() => {
 beforeEach(() => {
   clearNuxtData()
   move.mockReset()
-  Object.assign(member, { radioListening: false, cam: false, screen: false })
+  Object.assign(member, { userId: 'user', radioListening: false, cam: false, screen: false, pending: false })
   useUnread().counts.value = {}
 })
 afterEach(() => {
   useVoice().channelId.value = null
+  useVoice().pendingChannelId.value = null
+  useVoice().connecting.value = false
   vi.restoreAllMocks()
 })
 
@@ -110,6 +112,27 @@ it('groups camera and screen before radio, soundboard, and leave for the narrow 
     'Screen share options',
   ])
   expect(groups[1]!.findAll('button').map(button => button.attributes('aria-label'))).toEqual(['Radio settings', 'Radio options', 'Soundboard', 'Leave voice'])
+})
+
+it('dims pending self, prevents admin dragging, and offers cancel instead of media controls', async () => {
+  const voice = useVoice()
+  voice.pendingChannelId.value = 'source'
+  voice.connecting.value = true
+  member.userId = 'me'
+  member.pending = true
+  const { row, avatar, target, fire } = await mountSidebar(true)
+  expect(row.classList.contains('opacity-50')).toBe(true)
+  expect(row.getAttribute('draggable')).toBe('false')
+  expect(row.querySelector('[role="status"]')?.textContent).toBe('Connecting…')
+  expect(fire(avatar, 'dragstart')).toBe(true)
+  expect(fire(target, 'dragover')).toBe(false)
+  const wrapper = row.closest('nav')!.parentElement!
+  expect(wrapper.querySelector('[aria-label="Video actions"]')).toBeNull()
+  const cancel = [...wrapper.querySelectorAll('button')].find(b => b.textContent === 'Cancel')!
+  cancel.click()
+  await nextTick()
+  expect(voice.pendingChannelId.value).toBeNull()
+  expect(move).not.toHaveBeenCalled()
 })
 
 describe('voice member dragging', () => {

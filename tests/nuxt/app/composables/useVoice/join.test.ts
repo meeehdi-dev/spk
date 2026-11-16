@@ -337,6 +337,90 @@ describe('call audio intent', () => {
   })
 })
 
+describe('optimistic voice display', () => {
+  it('shows self immediately during a delayed token request, not to observers, then deduplicates confirmation', async () => {
+    let authorize!: (token: { token: string; url: string }) => void
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn(
+        () =>
+          new Promise(resolve => {
+            authorize = resolve
+          }),
+      ),
+    )
+    const observer = await browser('observer')
+    const b = await browser('self')
+    const joining = b.v.join('c1')
+    expect(b.v.pendingChannelId.value).toBe('c1')
+    expect(b.v.channelId.value).toBeNull()
+    expect(b.voiceDisplayMembers('c1', 'self')).toEqual([expect.objectContaining({ userId: 'self', pending: true, cam: false, screen: false })])
+    expect(b.voiceMembers('c1')).toEqual([])
+    expect(b.v.tiles.value).toEqual([])
+    expect(observer.voiceDisplayMembers('c1', 'observer')).toEqual([])
+    expect(sessions.voiceSnapshot()).toEqual([])
+    // A presence refresh/handoff must not duplicate self or expose media controls while pending.
+    b.receive({ type: 'voice:presence', userId: 'self', channelId: 'c1', cam: true })
+    expect(b.voiceDisplayMembers('c1', 'self')).toEqual([expect.objectContaining({ userId: 'self', pending: true, cam: false })])
+    authorize({ token: 'token', url: 'url' })
+    await joining
+    expect(b.v.pendingChannelId.value).toBeNull()
+    expect(b.voiceDisplayMembers('c1', 'self')).toEqual([expect.objectContaining({ userId: 'self', pending: false })])
+    expect(observer.voiceMembers('c1')).toHaveLength(1)
+  })
+
+  it.each(['failure', 'cancel', 'takeover', 'admin'])('clears pending membership immediately on %s', async action => {
+    let reject!: (error: Error) => void
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn(
+        (_url, options: { signal: AbortSignal }) =>
+          new Promise((_resolve, fail) => {
+            reject = fail
+            options.signal.addEventListener('abort', () => fail(options.signal.reason), { once: true })
+          }),
+      ),
+    )
+    const b = await browser('self')
+    const joining = b.v.join('c1')
+    expect(b.voiceDisplayMembers('c1', 'self')).toHaveLength(1)
+    if (action === 'failure') reject(new Error('Token failed'))
+    else if (action === 'cancel') await b.v.leave(false)
+    else if (action === 'takeover') b.receive({ type: 'voice:kicked', sid: 'successor' })
+    else b.receive({ type: 'voice:disconnect', sid: b.v.sid, reason: 'Admin disconnected you' })
+    await joining
+    expect(b.v.pendingChannelId.value).toBeNull()
+    expect(b.v.channelId.value).toBeNull()
+    expect(b.voiceDisplayMembers('c1', 'self')).toEqual([])
+    expect(b.v.connecting.value).toBe(false)
+    expect(b.send.mock.calls.some(([m]) => m.type === 'voice:ready')).toBe(false)
+  })
+
+  it.each(['cancel', 'admin move'])('honors %s while switching channels during delayed teardown', async action => {
+    const b = await browser('self')
+    await b.v.join('c1')
+    let finish!: () => void
+    media.rooms[0]!.disconnect.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve
+        }),
+    )
+    const switching = b.v.join('c2')
+    expect(b.v.pendingChannelId.value).toBe('c2')
+    expect(b.voiceDisplayMembers('c2', 'self')).toHaveLength(1)
+    if (action === 'cancel') await b.v.leave(false)
+    else b.receive({ type: 'voice:move', sid: b.v.sid, channelId: 'c1' })
+    expect(b.v.pendingChannelId.value).toBeNull()
+    finish()
+    await switching
+    if (action === 'admin move') await vi.waitFor(() => expect(b.v.channelId.value).toBe('c1'))
+    expect(media.rooms).toHaveLength(action === 'cancel' ? 1 : 2)
+    expect(b.v.channelId.value).toBe(action === 'cancel' ? null : 'c1')
+    expect(b.v.connecting.value).toBe(false)
+  })
+})
+
 describe('acknowledged voice join', () => {
   it('prepares voice code on mount without requesting microphone access or joining', async () => {
     const capture = vi.spyOn(navigator.mediaDevices, 'getUserMedia')
@@ -608,10 +692,15 @@ describe('acknowledged voice join', () => {
     const joining = b.v.join('c1')
     await flush()
     expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(false)
+    expect(b.voiceDisplayMembers('c1', 'late')).toEqual([expect.objectContaining({ userId: 'late', pending: true })])
+    expect(b.voiceMembers('c1')).toEqual([])
+    expect(b.v.channelId.value).toBeNull()
     release()
     await joining
     expect(b.send.mock.calls.some(([m]) => m.type === 'voice:ready')).toBe(true)
     expect(sessions.voiceSnapshot().some(p => p.userId === 'late')).toBe(true)
+    expect(b.v.pendingChannelId.value).toBeNull()
+    expect(b.voiceDisplayMembers('c1', 'late')).toEqual([expect.objectContaining({ userId: 'late', pending: false })])
   })
 
   it('prepares the microphone during connection but waits to publish and respects a mute changed meanwhile', async () => {
@@ -844,6 +933,7 @@ describe('acknowledged voice join', () => {
     expect(sessions.sessionOf('middle')?.sid).toBe('successor')
     expect(b.handlers.size).toBe(1)
     expect(b.v.connecting.value).toBe(false)
+    expect(b.v.pendingChannelId.value).toBeNull()
     expect(toast.mock.calls).toEqual([[expect.objectContaining({ title: 'You joined voice from another tab or device' })]])
     sessions.leaveVoice('middle', 'successor')
   })
@@ -891,6 +981,7 @@ describe('acknowledged voice join', () => {
     b.receive({ type: 'voice:move', sid: b.v.sid, channelId: 'c2' })
     expect(sessions.sessionOf('middle')).toBeNull()
     expect(b.v.channelId.value).toBeNull()
+    expect(b.v.pendingChannelId.value).toBeNull()
     await joining
     await vi.waitFor(() => expect(b.v.channelId.value).toBe('c2'))
     finish()
