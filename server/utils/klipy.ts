@@ -1,11 +1,4 @@
-export interface GifItem {
-  id: string
-  title: string
-  url: string
-  preview: string
-  width: number
-  height: number
-}
+import type { GifItem } from '../../shared/utils/gifs'
 
 interface Fmt {
   url?: string

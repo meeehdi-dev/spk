@@ -246,6 +246,22 @@ export const objectDeletions = sqliteTable(
   t => [index('object_deletions_due').on(t.notBefore)],
 )
 
+export const gifFavorites = sqliteTable(
+  'gif_favorites',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    gifId: text('gif_id').notNull(),
+    title: text('title').notNull(),
+    url: text('url').notNull(),
+    preview: text('preview').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+  },
+  t => [primaryKey({ columns: [t.userId, t.gifId] })],
+)
+
 export const radioFavorites = sqliteTable(
   'radio_favorites',
   {
