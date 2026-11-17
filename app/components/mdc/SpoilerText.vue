@@ -27,7 +27,7 @@ onMounted(() => {
   <span
     ref="el"
     class="relative inline-block max-w-full overflow-hidden rounded bg-elevated px-0.5 align-bottom"
-    :class="shown ? '' : 'cursor-pointer select-none'"
+    :class="shown ? '' : 'min-w-5 cursor-pointer select-none'"
     :role="shown ? undefined : 'button'"
     :tabindex="shown ? undefined : 0"
     :aria-label="shown ? undefined : 'Spoiler: click to reveal'"
@@ -37,6 +37,8 @@ onMounted(() => {
     @keydown.space.capture="reveal"
   >
     <span :inert="!shown" :class="shown ? '' : 'pointer-events-none inline-block opacity-30 blur-xl'"><slot /></span>
-    <span v-if="!shown" aria-hidden="true" class="pointer-events-none absolute inset-0 bg-default/60" />
+    <span v-if="!shown" aria-hidden="true" class="pointer-events-none absolute inset-0 flex items-center justify-center bg-default/60">
+      <UIcon name="i-lucide-eye" class="size-4 shrink-0" />
+    </span>
   </span>
 </template>

@@ -113,7 +113,7 @@ onMounted(() => {
           @error="imgLoaded = true"
         />
         <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-default/60 text-xs font-bold">
-          <UIcon name="i-lucide-eye-off" class="mr-1 size-4" /> Spoiler: click to reveal
+          <UIcon name="i-lucide-eye" class="mr-1 size-4" aria-hidden="true" /> Spoiler: click to reveal
         </span>
       </button>
     </template>

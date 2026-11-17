@@ -1,3 +1,4 @@
+import { UIcon } from '#components'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -31,9 +32,13 @@ describe('attachment image opening', () => {
     const button = wrapper.find('button')
     if (spoiler) {
       expect(button.attributes('aria-label')).toBe('Spoiler: click to reveal')
+      expect(wrapper.findComponent(UIcon).props('name')).toBe('i-lucide-eye')
+      expect(wrapper.findComponent(UIcon).attributes('aria-hidden')).toBe('true')
       await button.trigger('click')
       expect(wrapper.emitted('open')).toBeUndefined()
     }
+    expect(wrapper.findComponent(UIcon).exists()).toBe(false)
+    expect(button.attributes('aria-label')).toBe('Open image.png')
     await button.trigger('click')
     expect(wrapper.emitted('open')).toEqual([[file]])
   })

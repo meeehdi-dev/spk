@@ -1,3 +1,4 @@
+import { UIcon } from '#components'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
@@ -7,6 +8,18 @@ import SpoilerText from '~/components/mdc/SpoilerText.vue'
 import { chatActionsKey } from '~/composables/messageContext'
 
 describe('spoiler reveal', () => {
+  it.each(['x', 'a longer spoiler\nwith multiple lines'])('shows a reveal icon only while text is hidden: %s', async text => {
+    const wrapper = await mountSuspended(SpoilerText, { slots: { default: () => h('span', text) } })
+    const icon = wrapper.findComponent(UIcon)
+    expect(icon.props('name')).toBe('i-lucide-eye')
+    expect(icon.element.closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(wrapper.find('[inert]').exists()).toBe(true)
+    await wrapper.trigger('click')
+    expect(wrapper.findComponent(UIcon).exists()).toBe(false)
+    expect(wrapper.find('[inert]').exists()).toBe(false)
+    expect(wrapper.text()).toBe(text)
+  })
+
   it('intercepts the first image click, then allows the lightbox without hiding again', async () => {
     const openImage = vi.fn()
     const href = 'https://example.com/image.gif'
@@ -29,8 +42,10 @@ describe('spoiler reveal', () => {
       slots: { default: () => h('a', { href: 'https://example.com', onClick: click }, 'secret') },
     })
     expect(wrapper.find('[inert]').exists()).toBe(true)
+    expect(wrapper.findComponent(UIcon).exists()).toBe(true)
     await wrapper.trigger('keydown', { key })
     expect(wrapper.attributes('role')).toBeUndefined()
+    expect(wrapper.findComponent(UIcon).exists()).toBe(false)
     expect(wrapper.find('[inert]').exists()).toBe(false)
     expect(click).not.toHaveBeenCalled()
   })
