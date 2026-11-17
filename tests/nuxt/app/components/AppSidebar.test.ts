@@ -81,6 +81,19 @@ it('highlights unread DM rows and channel pings, keeps badges on the right, and 
   expect(dm().find('[aria-label="Unread messages"]').exists()).toBe(false)
 })
 
+it.each([
+  { radioListening: false, cam: false, screen: false },
+  { radioListening: true, cam: false, screen: false },
+  { radioListening: false, cam: true, screen: false },
+  { radioListening: false, cam: false, screen: true },
+  { radioListening: true, cam: true, screen: true },
+])('reserves the full control height for voice member rows with %o', async controls => {
+  Object.assign(member, controls)
+  const wrapper = await mountInApp(AppSidebar)
+  await vi.waitFor(() => expect(wrapper.find('[data-member]').exists()).toBe(true))
+  expect(wrapper.find('[data-member]').classes()).toContain('min-h-9')
+})
+
 it('shows a non-actionable radio indicator matching the camera control only while listening', async () => {
   member.cam = true
   const wrapper = await mountInApp(AppSidebar)

@@ -276,7 +276,7 @@ const onDrop = (channelId: string) => {
             <ul class="ml-6">
               <UserContext v-for="m in voiceDisplayMembers(c.id, me?.id)" :key="m.userId" :user-id="m.userId" :disabled="m.pending">
                 <li
-                  class="flex items-center gap-2 py-0.5 text-sm text-muted"
+                  class="flex min-h-9 items-center gap-2 py-0.5 text-sm text-muted"
                   data-member
                   :class="m.pending && 'opacity-50'"
                   :draggable="admin.isAdmin.value && !m.pending"
