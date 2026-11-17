@@ -172,7 +172,13 @@ defineExpose({
         :placeholder="{ placeholder: `Message ${channelName}`, mode: 'firstLine' }"
         :mention="false"
         :image="false"
-        :starter-kit="{ heading: false, horizontalRule: false, underline: false, link: { autolink: false, linkOnPaste: false, openOnClick: false } }"
+        :starter-kit="{
+          heading: false,
+          horizontalRule: false,
+          underline: false,
+          link: { autolink: false, linkOnPaste: false, openOnClick: false },
+          trailingNode: { notAfter: ['blockquote'] },
+        }"
         :extensions="extensions"
         :ui="{ base: 'max-h-64 overflow-y-auto py-2 sm:px-3', content: 'min-h-10' }"
         @update:model-value="onUpdate"
