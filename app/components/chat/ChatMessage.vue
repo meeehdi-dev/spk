@@ -238,7 +238,9 @@ function onKey(e: KeyboardEvent) {
           <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
         <UTooltip v-else :text="exactTime(message.createdAt)">
-          <span class="absolute -right-2 hidden text-xs leading-6 whitespace-nowrap text-muted group-hover:inline">{{ clockTime(message.createdAt) }}</span>
+          <span class="absolute top-0 -right-2 hidden text-xs leading-6 whitespace-nowrap text-muted group-hover:inline">{{
+            clockTime(message.createdAt)
+          }}</span>
         </UTooltip>
       </div>
       <div class="min-w-0 flex-1">
