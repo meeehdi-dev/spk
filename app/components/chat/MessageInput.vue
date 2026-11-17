@@ -177,7 +177,7 @@ defineExpose({
           horizontalRule: false,
           underline: false,
           link: { autolink: false, linkOnPaste: false, openOnClick: false },
-          trailingNode: { notAfter: ['blockquote'] },
+          trailingNode: { notAfter: ['blockquote', 'codeBlock', 'bulletList', 'orderedList'] },
         }"
         :extensions="extensions"
         :ui="{ base: 'max-h-64 overflow-y-auto py-2 sm:px-3', content: 'min-h-10' }"
