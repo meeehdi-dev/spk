@@ -228,7 +228,7 @@ function onKey(e: KeyboardEvent) {
       class="group relative flex gap-3 px-4 py-0.5 outline-none compact:py-0"
       :class="[
         highlighted || pinged ? 'bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15' : 'hover:bg-elevated/50 focus-visible:bg-elevated/70',
-        grouped ? '' : 'mt-3 compact:mt-1',
+        grouped ? (message.body || editing ? 'items-baseline' : '') : 'mt-3 compact:mt-1',
       ]"
       @contextmenu="onContext"
       @keydown="onKey"
@@ -238,9 +238,7 @@ function onKey(e: KeyboardEvent) {
           <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
         <UTooltip v-else :text="exactTime(message.createdAt)">
-          <span class="absolute top-0 -right-2 hidden text-xs leading-6 whitespace-nowrap text-muted group-hover:inline">{{
-            clockTime(message.createdAt)
-          }}</span>
+          <span class="invisible relative left-2 text-xs whitespace-nowrap text-muted group-hover:visible">{{ clockTime(message.createdAt) }}</span>
         </UTooltip>
       </div>
       <div class="min-w-0 flex-1">

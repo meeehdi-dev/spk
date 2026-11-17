@@ -88,6 +88,42 @@ function stubResizeObserver() {
   return { observers, notify }
 }
 
+describe('grouped timestamps', () => {
+  it.each(['hello', 'first line\nsecond line', 'hello 👍', '👍', '> quoted text', '```\ncode\n```'])(
+    'shares the first baseline with %j and keeps the timestamp in flow while hidden',
+    async body => {
+      const wrapper = await mountInApp(
+        ChatMessage,
+        { message: { ...message, body }, grouped: true },
+        { global: { provide: { [chatActionsKey as symbol]: actions } } },
+      )
+      await flushPromises()
+      expect(wrapper.find('#msg-m1').classes()).toContain('items-baseline')
+      const timestamp = wrapper.find('#msg-m1 > div:first-child span')
+      expect(timestamp.text()).toBe(clockTime(message.createdAt))
+      expect(timestamp.classes()).toEqual(expect.arrayContaining(['invisible', 'group-hover:visible', 'text-xs']))
+      expect(timestamp.classes()).not.toContain('absolute')
+      expect(timestamp.classes()).not.toContain('hidden')
+      expect(timestamp.classes()).not.toContain('leading-6')
+    },
+  )
+
+  it('keeps bodyless rows top-aligned and leaves ungrouped headers unchanged', async () => {
+    const props = reactive({ message: { ...message, body: '' }, grouped: true, editing: false })
+    const wrapper = await mountInApp(ChatMessage, props, { global: { provide: { [chatActionsKey as symbol]: actions } } })
+    expect(wrapper.find('#msg-m1').classes()).not.toContain('items-baseline')
+    props.editing = true
+    await nextTick()
+    expect(wrapper.find('#msg-m1').classes()).toContain('items-baseline')
+    props.grouped = false
+    props.editing = false
+    await nextTick()
+    expect(wrapper.find('#msg-m1').classes()).not.toContain('items-baseline')
+    expect(wrapper.find('button[aria-label^="Profile of "]').exists()).toBe(true)
+    expect(wrapper.find('.group-hover\\:visible').exists()).toBe(false)
+  })
+})
+
 describe('emoji rendering', () => {
   it('uses SVGs in messages, reaction chips and quick reactions without changing reaction values', async () => {
     const wrapper = await mountInApp(
