@@ -22,7 +22,7 @@ function cleanSoundMeta(input: { name?: unknown; icon?: unknown }) {
 /** The presign request: only a small WAV may be uploaded. */
 export function checkSoundSize(size: unknown) {
   if (typeof size !== 'number' || !Number.isInteger(size) || size <= 44) throw new ChatError(400, 'Bad file size')
-  if (size > MAX_SOUND_BYTES) throw new ChatError(413, 'Sounds can be 1.5 MB at most')
+  if (size > MAX_SOUND_BYTES) throw new ChatError(413, 'Sounds can be 3 MB at most')
   return size
 }
 

@@ -1,7 +1,7 @@
 import { SOUND_MIME } from '../../../shared/utils/sounds'
 import { checkSoundSize, soundKey } from '../../db/sounds'
 
-// Body: { size }. Signs Content-Length and Content-Type audio/wav (at most 1.5 MB). Admin only.
+// Body: { size }. Signs Content-Length and Content-Type audio/wav (at most 3 MB). Admin only.
 export default defineEventHandler(async event => {
   await requireAdmin(event)
   return asHttp(async () => {

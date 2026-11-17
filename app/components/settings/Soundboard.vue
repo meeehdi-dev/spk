@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type WaveSurfer from 'wavesurfer.js'
-import type { Region } from 'wavesurfer.js/plugins/regions'
 
-import { cropMono, encodeWav, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BYTES, SOUND_RATE } from '#shared/utils/sounds'
-import { getMediaAudio, playMediaAudio } from '~/utils/media-audio'
+import { cropChannels, encodeWav, hasSoundClipping, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BYTES, SOUND_MIME, SOUND_RATE } from '#shared/utils/sounds'
+import { matchDevice } from '#shared/utils/voice'
+import { routeMediaOutput } from '~/utils/media-output'
 
 const { data: sounds, refresh } = useSounds()
 const toast = useToast()
@@ -20,43 +20,63 @@ onMounted(async () => {
 const box = ref<HTMLElement>()
 const media = shallowRef<HTMLMediaElement | null>(null)
 useMediaOutput(media)
+const voice = useVoice()
+const settings = useVoiceSettings()
+const listening = computed(() => settings.value.soundboard)
 const form = reactive({ name: '', icon: 'audio-lines' })
 const decoded = shallowRef<AudioBuffer>()
 const sel = ref({ start: 0, end: 0 })
 const volume = ref(100)
-const mono = computed(() => {
+const channels = computed(() => {
   const d = decoded.value
   return d
-    ? cropMono(
+    ? cropChannels(
         Array.from({ length: d.numberOfChannels }, (_, i) => d.getChannelData(i)),
         d.sampleRate,
         sel.value.start,
         sel.value.end,
       )
-    : new Float32Array()
+    : []
 })
-const clipping = computed(() => mono.value.some(sample => Math.abs(sample * (volume.value / 100)) > 1))
-const clippingWarning = 'This volume clips peaks and may distort the sound. Lower it to avoid distortion.'
+const clipping = computed(() => hasSoundClipping(channels.value, volume.value / 100))
+const clippingWarning = 'This upload gain would clip peaks. Lower it before previewing or saving.'
 const playing = ref(false)
 const saving = ref(false)
 let ws: WaveSurfer | undefined
-let region: Region | undefined
-let source: MediaElementAudioSourceNode | undefined
-let gain: GainNode | undefined
-let clipper: WaveShaperNode | undefined
+let previewUrl: string | undefined
+let previewVersion = 0
+let loadVersion = 0
+let previewFrame: number | undefined
 
-watch(volume, value => {
-  if (gain) gain.gain.value = value / 100
-})
+function stopPreview() {
+  previewVersion++
+  if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
+  previewFrame = undefined
+  if (media.value) {
+    media.value.pause()
+    media.value.removeAttribute('src')
+    media.value.load()
+    media.value = null
+  }
+  if (previewUrl) URL.revokeObjectURL(previewUrl)
+  previewUrl = undefined
+  playing.value = false
+  ws?.setTime(sel.value.start)
+}
+watch([volume, sel], stopPreview, { flush: 'sync' })
+watch(
+  () => listening.value.volume,
+  value => {
+    if (media.value) media.value.volume = value
+  },
+)
 
 function reset() {
+  loadVersion++
+  stopPreview()
   media.value = null
   ws?.destroy()
-  ws = region = undefined
-  source?.disconnect()
-  gain?.disconnect()
-  clipper?.disconnect()
-  source = gain = clipper = undefined
+  ws = undefined
   decoded.value = undefined
   volume.value = 100
   form.name = ''
@@ -80,45 +100,39 @@ async function load(file: File) {
   if (!file) return
   if (file.size > MAX_SOUND_SOURCE_BYTES) return fail('File too big')({ message: 'Choose a file under 20 MB' })
   reset()
+  const version = loadVersion
   try {
-    // Decoding at 48 kHz resamples, so 10 s of mono stays about 1 MB. The file never leaves the browser.
     const ctx = new AudioContext({ sampleRate: SOUND_RATE })
-    decoded.value = await ctx.decodeAudioData(await file.arrayBuffer())
-    void ctx.close()
-  } catch {
-    return fail('Could not read that file')({ message: 'The browser cannot decode it' })
+    let buffer: AudioBuffer
+    try {
+      buffer = await ctx.decodeAudioData(await file.arrayBuffer())
+    } finally {
+      void ctx.close()
+    }
+    if (version !== loadVersion) return
+    if (buffer.numberOfChannels > 2) throw new Error('Choose a mono or stereo file; surround audio is not supported')
+    decoded.value = buffer
+  } catch (e) {
+    if (version === loadVersion) fail('Could not read that file')(e)
+    return
   }
   form.name = file.name.replace(/\.[^.]+$/, '').slice(0, 32)
   await nextTick()
   const [{ default: WaveSurfer }, { default: Regions }] = await Promise.all([import('wavesurfer.js'), import('wavesurfer.js/plugins/regions')])
+  if (version !== loadVersion) return
   const regions = Regions.create()
   ws = WaveSurfer.create({
     container: box.value!,
-    url: URL.createObjectURL(file),
+    peaks: Array.from({ length: decoded.value!.numberOfChannels }, (_, i) => decoded.value!.getChannelData(i)),
+    duration: decoded.value!.duration,
+    interact: false,
     height: 96,
     waveColor: '#a1a1aa',
     progressColor: '#f59e0b',
     plugins: [regions],
   })
-  const output = getMediaAudio()
-  source = output.context.createMediaElementSource(ws.getMediaElement()!)
-  gain = output.context.createGain()
-  gain.gain.value = volume.value / 100
-  gain.channelCount = 1
-  gain.channelCountMode = 'explicit'
-  clipper = output.context.createWaveShaper()
-  // Match the WAV encoder's hard clipping, even when the output device is turned down.
-  clipper.curve = new Float32Array([-1, 0, 1])
-  source.connect(gain).connect(clipper).connect(output.destination)
-  media.value = output.element ?? null
-  ws.on('play', () => {
-    playing.value = true
-  })
-  ws.on('pause', () => {
-    playing.value = false
-  })
   ws.on('decode', d => {
-    region = regions.addRegion({
+    const region = regions.addRegion({
       start: 0,
       end: Math.min(d, MAX_SOUND_MS / 1000),
       color: 'rgba(245, 158, 11, 0.25)',
@@ -131,17 +145,47 @@ async function load(file: File) {
     sel.value = { start: r.start, end: r.end }
   })
 }
-const toggle = () => {
-  if (playing.value) ws?.pause()
-  else void playMediaAudio(() => region?.play(true))
+async function toggle() {
+  if (playing.value) return stopPreview()
+  if (!decoded.value || clipping.value || !channels.value[0]?.length) return
+  stopPreview()
+  const version = previewVersion
+  try {
+    const wav = encodeWav(channels.value, decoded.value.sampleRate, volume.value / 100)
+    const selectionStart = Math.floor(sel.value.start * decoded.value.sampleRate) / decoded.value.sampleRate
+    previewUrl = URL.createObjectURL(new Blob([wav as BlobPart], { type: SOUND_MIME }))
+    const player = new Audio(previewUrl)
+    player.loop = true
+    player.volume = listening.value.volume
+    media.value = player
+    // Direct playback avoids the extra buffering of MediaElement → Web Audio → MediaStream → MediaElement.
+    await routeMediaOutput(player, matchDevice(voice.settings.value.mediaSpeaker, voice.devices.value.speakers).deviceId ?? '')
+    if (version !== previewVersion) return
+    await player.play()
+    if (version !== previewVersion) return
+    playing.value = true
+    ws?.setTime(selectionStart)
+    const tick = () => {
+      if (version !== previewVersion) return
+      // The media clock follows buffering and loop wraparound; a separate animation timer would drift.
+      ws?.setTime(selectionStart + player.currentTime)
+      previewFrame = requestAnimationFrame(tick)
+    }
+    previewFrame = requestAnimationFrame(tick)
+  } catch (e) {
+    if (version === previewVersion) {
+      stopPreview()
+      fail('Could not preview the sound')(e)
+    }
+  }
 }
 
 async function save() {
-  if (!decoded.value || saving.value) return
+  if (!decoded.value || saving.value || clipping.value) return
   saving.value = true
   try {
     const d = decoded.value
-    const samples = mono.value
+    const samples = channels.value
     const wav = encodeWav(samples, d.sampleRate, volume.value / 100)
     if (wav.length > MAX_SOUND_BYTES) throw new Error('The cropped sound is too big')
     const { id, url, headers } = await $fetch<{ id: string; url: string; headers: Record<string, string> }>('/api/sounds/presign', {
@@ -152,7 +196,7 @@ async function save() {
     if (!put.ok) throw new Error(`Upload failed (${put.status})`)
     await $fetch('/api/sounds', {
       method: 'POST',
-      body: { id, name: form.name, icon: form.icon, durationMs: Math.round((samples.length / d.sampleRate) * 1000), size: wav.length },
+      body: { id, name: form.name, icon: form.icon, durationMs: Math.round((samples[0]!.length / d.sampleRate) * 1000), size: wav.length },
     })
     toast.add({ title: 'Sound added', icon: 'i-lucide-check' })
     reset()
@@ -255,13 +299,17 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
               :label="playing ? 'Pause' : 'Play selection'"
               color="neutral"
               variant="outline"
+              :disabled="clipping"
               @click="toggle"
             />
             <span>{{ sel.start.toFixed(2) }} s – {{ sel.end.toFixed(2) }} s ({{ (sel.end - sel.start).toFixed(2) }} s, 10 s at most)</span>
           </div>
-          <UFormField label="Volume" :hint="`${volume}%`" description="Applied permanently to the uploaded sound.">
+          <UFormField label="Upload gain" :hint="`${volume}%`" description="Applied permanently. 100% preserves the source level; no normalization is applied.">
             <USlider v-model="volume" :min="0" :max="200" :step="1" aria-label="Upload volume" />
           </UFormField>
+          <p class="text-sm text-muted">
+            Preview uses your soundboard listening volume ({{ Math.round(listening.volume * 100) }}%). This does not change the file.
+          </p>
           <p role="status" class="grid text-sm text-warning">
             <span aria-hidden="true" class="invisible col-start-1 row-start-1">{{ clippingWarning }}</span>
             <span v-if="clipping" class="col-start-1 row-start-1">{{ clippingWarning }}</span>
@@ -273,7 +321,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             <UFormField label="Icon">
               <USelectMenu v-model="form.icon" :items="iconItems" value-key="value" :icon="`i-lucide-${form.icon}`" virtualize class="w-56" aria-label="Icon" />
             </UFormField>
-            <UButton label="Save" icon="i-lucide-save" :loading="saving" :disabled="!form.name.trim() || !iconItems.length" @click="save" />
+            <UButton label="Save" icon="i-lucide-save" :loading="saving" :disabled="!form.name.trim() || !iconItems.length || clipping" @click="save" />
             <UButton label="Discard" icon="i-lucide-x" color="neutral" variant="ghost" @click="reset" />
           </div>
         </div>

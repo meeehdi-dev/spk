@@ -11,9 +11,13 @@ const id = '11111111-1111-4111-8111-111111111111'
 describe('checkSoundSize', () => {
   it('presign accepts only small files', () => {
     expect(checkSoundSize(1000)).toBe(1000)
-    expect(() => checkSoundSize(MAX_SOUND_BYTES + 1)).toThrow('1.5 MB')
+    expect(MAX_SOUND_BYTES).toBe(3 * 1024 * 1024)
+    expect(checkSoundSize(MAX_SOUND_BYTES)).toBe(MAX_SOUND_BYTES)
+    expect(checkSoundSize(44 + 480_000 * 2 * 3)).toBe(2_880_044)
+    expect(() => checkSoundSize(MAX_SOUND_BYTES + 1)).toThrow('3 MB')
     expect(() => checkSoundSize(10)).toThrow()
     expect(() => checkSoundSize('9')).toThrow()
+    for (const size of [44, 0, -1, 100.5, NaN, Infinity]) expect(() => checkSoundSize(size)).toThrow('Bad file size')
   })
 })
 
