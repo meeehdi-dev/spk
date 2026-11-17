@@ -33,6 +33,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('soundboard media playback', () => {
+  it.each([false, true])('amplifies playback and previews at 200% (preview: %s)', async preview => {
+    media.settings.value.soundboard = { on: !preview, volume: 2 }
+    await playSound('sound', preview)
+    expect(media.gain.gain.value).toBe(2)
+    expect(media.gain.connect).toHaveBeenCalledWith(media.destination)
+  })
+
   it('does not recreate playback after the layout closes while a sound is downloading', async () => {
     let finish!: () => void
     vi.mocked(fetch).mockImplementationOnce(

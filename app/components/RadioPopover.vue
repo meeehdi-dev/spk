@@ -146,8 +146,11 @@ const status = computed(() => {
               <UButton icon="i-lucide-square" label="Stop for everyone" color="neutral" variant="ghost" @click="radio.stop" />
             </div>
             <UFormField label="Volume (only you)" :hint="`${Math.round(radio.volume.value * 100)}%`">
-              <USlider v-model="radio.volume.value" :min="0" :max="1" :step="0.01" aria-label="Radio volume (only you)" />
+              <USlider v-model="radio.volume.value" :min="0" :max="2" :step="0.01" aria-label="Radio volume (only you)" />
             </UFormField>
+            <p v-if="radio.boostAvailable.value === false" role="status" class="text-xs text-muted">
+              Boost unavailable for this station or browser. Playback is capped at 100%.
+            </p>
           </template>
           <p v-else class="text-muted">Find a station to play in this channel.</p>
           <USeparator />

@@ -4,7 +4,16 @@ import { createRadioPlayer, type RadioPlayback } from '~/utils/radio-player'
 
 class AudioMock {
   src = ''
-  volume = 1
+  private level = 1
+  get volume() {
+    return this.level
+  }
+  set volume(value: number) {
+    if (value < 0 || value > 1) throw new Error('Invalid HTML volume')
+    this.level = value
+  }
+  crossOrigin: string | null = null
+  srcObject: unknown = null
   muted = false
   preload = ''
   onplaying: (() => void) | null = null
@@ -47,7 +56,147 @@ beforeEach(() => {
   })
 })
 afterEach(() => {
+  player.stop()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
+
+describe('radio amplification', () => {
+  const gain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }
+  const source = { connect: vi.fn(() => gain), disconnect: vi.fn() }
+  const stop = vi.fn()
+  const close = vi.fn(async () => {})
+  const resume = vi.fn(async () => {})
+  const stream = { getTracks: () => [{ stop }] }
+  let available: boolean | null
+  let contextState: string
+  beforeEach(() => {
+    vi.clearAllMocks()
+    gain.gain.value = 1
+    available = null
+    contextState = 'running'
+    resume.mockResolvedValue()
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        get state() {
+          return contextState
+        }
+        resume = resume
+        close = close
+        createGain = () => gain
+        createMediaElementSource = () => source
+        createMediaStreamDestination = () => ({ stream })
+      },
+    )
+    player = createRadioPlayer(
+      value => {
+        status = value
+      },
+      value => {
+        available = value
+      },
+    )
+  })
+
+  it('amplifies compatible streams to four, keeps element volume valid and routes only the output', async () => {
+    player.output(4, false, 'media')
+    await player.start('https://stream.example.com/cors')
+    expect(available).toBe(true)
+    expect(elements[0]!.crossOrigin).toBe('anonymous')
+    expect(elements[0]!.volume).toBe(1)
+    expect(elements[1]!.srcObject).toBe(stream)
+    expect(elements[1]!.sink).toBe('media')
+    expect(gain.gain.value).toBe(4)
+    player.output(4, true, 'other')
+    expect(gain.gain.value).toBe(0)
+    expect(elements[0]!.muted).toBe(true)
+    player.output(0.3, false, 'other')
+    expect(gain.gain.value).toBe(0.3)
+    expect(elements).toHaveLength(2)
+    player.stop()
+    expect(stop).toHaveBeenCalledOnce()
+    expect(source.disconnect).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to a fresh direct element on CORS failure, preserves output and exposes the cap', async () => {
+    player.output(4, true, 'media')
+    await player.start('https://stream.example.com/no-cors')
+    const stale = elements[0]!.onerror!
+    stale()
+    await vi.waitFor(() => expect(available).toBe(false))
+    expect(elements).toHaveLength(3)
+    expect(status).toBe('playing')
+    expect(elements[2]!.crossOrigin).toBeNull()
+    expect(elements[2]!.volume).toBe(1)
+    expect(elements[2]!.muted).toBe(true)
+    expect(elements[2]!.sink).toBe('media')
+    expect(elements[0]!.src).toBe('')
+    expect(close).toHaveBeenCalledOnce()
+    stale()
+    expect(elements).toHaveLength(3)
+    player.output(0.2, false, 'media')
+    expect(elements[2]!.volume).toBe(0.2)
+    expect(elements[2]!.muted).toBe(false)
+  })
+
+  it('waits for the audio graph before reporting source playback as playing', async () => {
+    let finish!: () => void
+    contextState = 'suspended'
+    resume.mockImplementationOnce(() => new Promise<void>(resolve => (finish = resolve)))
+    const pending = player.start('https://stream.example.com/cors')
+    expect(status).toBe('loading')
+    expect(available).toBeNull()
+    contextState = 'running'
+    finish()
+    await pending
+    expect(status).toBe('playing')
+    expect(available).toBe(true)
+  })
+
+  it.each(['context', 'output'])('keeps the watchdog active while %s readiness is pending and ignores stale completion', async pendingPart => {
+    vi.useFakeTimers()
+    let finish!: () => void
+    const wait = () => new Promise<void>(resolve => (finish = resolve))
+    if (pendingPart === 'context') {
+      contextState = 'suspended'
+      resume.mockImplementationOnce(wait)
+    } else {
+      vi.stubGlobal(
+        'Audio',
+        class extends AudioMock {
+          constructor() {
+            super()
+            if (elements.length === 1) this.play = vi.fn(wait)
+            elements.push(this)
+          }
+        },
+      )
+    }
+    const pending = player.start('https://stream.example.com/cors')
+    expect(status).toBe('loading')
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(elements).toHaveLength(3)
+    expect(elements[0]!.src).toBe('')
+    expect(close).toHaveBeenCalledOnce()
+    expect(status).toBe('playing')
+    expect(available).toBe(false)
+    finish()
+    await pending
+    expect(status).toBe('playing')
+    expect(available).toBe(false)
+  })
+
+  it('does not mistake autoplay blocking for CORS incompatibility and permits a user retry', async () => {
+    resume.mockRejectedValueOnce(new DOMException('Blocked', 'NotAllowedError'))
+    await player.start('https://stream.example.com/cors')
+    expect(status).toBe('blocked')
+    expect(elements).toHaveLength(2)
+    await player.start('https://stream.example.com/cors')
+    expect(status).toBe('playing')
+    expect(available).toBe(true)
+  })
 })
 
 describe('browser radio player', () => {

@@ -447,6 +447,69 @@ describe('independent remote audio outputs', () => {
 })
 
 describe('remote audio silence gate', () => {
+  it('combines 200% user/output gains, preserves separate sinks, and gates boosted audio across unmute and retry', async () => {
+    const gains: Array<{ gain: { value: number }; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }> = []
+    const close = vi.fn(async () => {})
+    const contexts: Array<{ state: string; onstatechange: (() => void) | null }> = []
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        state = 'running'
+        onstatechange: (() => void) | null = null
+        constructor() {
+          contexts.push(this)
+        }
+        resume = vi.fn(async () => {
+          this.state = 'running'
+          this.onstatechange?.()
+        })
+        close = close
+        createMediaStreamSource = () => ({ connect: (gain: object) => gain, disconnect: vi.fn() })
+        createGain = () => {
+          const gain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }
+          gains.push(gain)
+          return gain
+        }
+        createMediaStreamDestination = () => ({ stream: Object.assign(new MediaStream(), { getTracks: () => [] }) })
+      },
+    )
+    const r = await setup()
+    const mic = track('microphone'),
+      screen = track('screen_share_audio')
+    const p = participant('one', [mic, screen])
+    r.remoteParticipants.set('one', p)
+    settings.value.outputVolume = 2
+    voice.setVolume('one', { mic: 2, screen: 2 })
+    for (const pub of p.audioTrackPublications.values()) r.emit('subscribed', pub.track, pub, p)
+    expect(gains.map(gain => gain.gain.value)).toEqual([4, 4])
+    expect(mic.setSinkId).toHaveBeenLastCalledWith('voice')
+    expect(screen.setSinkId).toHaveBeenLastCalledWith('screen')
+    const context = contexts[0]!
+    context.state = 'suspended'
+    context.onstatechange!()
+    expect(voice.audioBlocked.value).toBe(true)
+    expect(r.canPlaybackAudio).toBe(true)
+    voice.setVolume('one', { mic: 0.25, screen: 0.25 })
+    expect(gains.map(gain => gain.gain.value)).toEqual([0.5, 0.5])
+    r.emit('audioPlaybackStatusChanged', true)
+    expect(voice.audioBlocked.value).toBe(true)
+    await voice.enableAudio()
+    expect(context.state).toBe('running')
+    expect(voice.audioBlocked.value).toBe(false)
+    voice.setVolume('one', { mic: 2, screen: 2 })
+    voice.toggleHeadphones()
+    mic.mediaStreamTrack.enabled = true
+    mic.emit('unmuted', mic)
+    await voice.enableAudio()
+    expect(mic.mediaStreamTrack.enabled).toBe(false)
+    expect(gains.map(gain => gain.gain.value)).toEqual([0, 0])
+    voice.toggleHeadphones()
+    expect(gains.map(gain => gain.gain.value)).toEqual([4, 4])
+    await voice.leave(false)
+    expect(close).toHaveBeenCalledOnce()
+    expect(gains.every(gain => gain.disconnect.mock.calls.length === 1)).toBe(true)
+  })
+
   it.each([
     { name: 'deafen', deafened: true, saved: { mic: 0.5, screen: 0.25 }, expected: [0, 0] },
     { name: 'mute for me', deafened: false, saved: { muted: true }, expected: [0, 0] },

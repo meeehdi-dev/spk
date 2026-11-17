@@ -15,6 +15,7 @@ const playback = await vi.hoisted(async () => {
     enabled: ref(true),
     playback: ref('idle'),
     volume: ref(0.5),
+    boostAvailable: ref<boolean | null>(null),
     commandError: ref(''),
     listen: vi.fn(),
     mute: vi.fn(),
@@ -54,6 +55,7 @@ beforeAll(() => {
 })
 beforeEach(() => {
   for (const fn of [list, save, remove, search, playback.listen, playback.mute, playback.stop, playback.select, playback.toast]) fn.mockReset()
+  playback.boostAvailable.value = null
   playback.commandError.value = ''
   playback.channelId.value = 'channel'
   playback.station.value = null
@@ -85,6 +87,17 @@ async function mountPopover(renderContent = false) {
 }
 
 describe('radio split control', () => {
+  it('offers 200% and explains when the station cannot be boosted', async () => {
+    playback.station.value = { id: 'station', name: 'Jazz' }
+    playback.boostAvailable.value = false
+    const { wrapper } = await mountPopover(true)
+    expect(wrapper.findComponent({ name: 'USlider' }).props('max')).toBe(2)
+    expect(wrapper.text()).toContain('Boost unavailable')
+    playback.boostAvailable.value = true
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Boost unavailable')
+  })
+
   it('opens settings from either control without a station, and disables both outside voice', async () => {
     const { wrapper, state, setOpen } = await mountPopover()
     await wrapper.find('[aria-label="Radio settings"]').trigger('click')

@@ -268,12 +268,12 @@ const soundRows = [
         <UFormField label="Sensitivity" description="Voice activation only. Higher picks up quieter speech.">
           <USlider v-model="s.sensitivity" :min="0" :max="100" :step="1" class="max-w-xs" aria-label="Sensitivity" @update:model-value="v.applySettings()" />
         </UFormField>
-        <UFormField label="Output volume">
+        <UFormField label="Output volume" :hint="`${Math.round(s.outputVolume * 100)}%`">
           <div class="flex items-center gap-3">
             <USlider
               v-model="s.outputVolume"
               :min="0"
-              :max="1"
+              :max="2"
               :step="0.01"
               class="max-w-xs"
               aria-label="Output volume"
@@ -295,7 +295,7 @@ const soundRows = [
           <USlider
             v-model="s.sounds[row.kind].volume"
             :min="0"
-            :max="1"
+            :max="2"
             :step="0.01"
             :disabled="!s.sounds[row.kind].on"
             class="max-w-xs flex-1"
@@ -318,7 +318,7 @@ const soundRows = [
           <USlider
             v-model="s.soundboard.volume"
             :min="0"
-            :max="1"
+            :max="2"
             :step="0.01"
             :disabled="!s.soundboard.on"
             class="max-w-xs flex-1"

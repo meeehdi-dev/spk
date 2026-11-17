@@ -173,8 +173,8 @@ const chevron = computed(() => ({ ...buttonStyle.value, icon: 'i-lucide-chevron-
               <template #item-label="{ item }"><EmojiText :text="item.label" /></template>
             </USelect>
           </UFormField>
-          <UFormField label="Output volume">
-            <USlider v-model="v.settings.value.outputVolume" :min="0" :max="1" :step="0.01" aria-label="Output volume" @update:model-value="v.applyOutput()" />
+          <UFormField label="Output volume" :hint="`${Math.round(v.settings.value.outputVolume * 100)}%`">
+            <USlider v-model="v.settings.value.outputVolume" :min="0" :max="2" :step="0.01" aria-label="Output volume" @update:model-value="v.applyOutput()" />
           </UFormField>
         </div>
       </template>

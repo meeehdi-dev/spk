@@ -36,6 +36,17 @@ afterEach(() => {
 const readSettings = () => scope.run(() => useVoiceSettings())!
 
 describe('voice action sounds', () => {
+  it('amplifies voice sounds and forced previews independently of general output', async () => {
+    const settings = readSettings()
+    settings.value.outputVolume = 0
+    settings.value.sounds.join = { on: true, volume: 2 }
+    await nextTick()
+    scope.run(() => playVoiceSound('join'))
+    scope.run(() => playVoiceSound('join', true, true))
+    expect(media.gain.gain.setValueAtTime).toHaveBeenCalledWith(0.6, 0)
+    expect(media.play).toHaveBeenCalledTimes(2)
+  })
+
   it('silences automatic voice sounds while Busy, preserves previews, and resumes when online', () => {
     status.value = 'busy'
     const kinds = ['join', 'leave', 'mute', 'deafen', 'camera', 'screen', 'watch'] as const
@@ -95,7 +106,7 @@ describe('voice settings radio volume', () => {
     expect(readSettings().value).toMatchObject({ radioVolume: 0.1, outputVolume: 0.4, noise: 'off' })
   })
 
-  it.each([0, 0.3, 0.5])('preserves a saved radio volume of %s', radioVolume => {
+  it.each([0, 0.3, 0.5, 2])('preserves a saved radio volume of %s', radioVolume => {
     localStorage.setItem('spk:voice', JSON.stringify({ radioVolume }))
 
     expect(readSettings().value.radioVolume).toBe(radioVolume)

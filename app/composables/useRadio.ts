@@ -6,6 +6,7 @@ import { createRadioPlayer, type RadioPlayback } from '~/utils/radio-player'
 const state = shallowRef<RadioState | null>(null)
 const playback = ref<RadioPlayback>('idle')
 const enabled = ref(true)
+const boostAvailable = ref<boolean | null>(null)
 const commandError = ref('')
 let player: ReturnType<typeof createRadioPlayer> | undefined
 
@@ -30,6 +31,7 @@ export function useRadio() {
   return {
     station,
     playback,
+    boostAvailable,
     enabled,
     commandError,
     volume: computed({
@@ -56,9 +58,14 @@ export function useRadioLive() {
   const voice = useVoice()
   const socket = useSocket()
   const radio = useRadio()
-  player = createRadioPlayer(value => {
-    playback.value = value
-  })
+  player = createRadioPlayer(
+    value => {
+      playback.value = value
+    },
+    available => {
+      boostAvailable.value = available
+    },
+  )
   const refresh = () => {
     if (voice.channelId.value && socket.connected.value) socket.send({ type: 'voice:radio:get', sid: voice.sid })
   }

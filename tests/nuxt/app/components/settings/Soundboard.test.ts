@@ -39,6 +39,9 @@ const mocks = await vi.hoisted(async () => {
     create: vi.fn(),
     save: vi.fn(),
     close: vi.fn(),
+    previewGain: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+    previewSource: { connect: vi.fn(), disconnect: vi.fn() },
+    destination: {},
     toast: vi.fn(),
   }
 })
@@ -46,6 +49,12 @@ mockNuxtImport('useToast', () => () => ({ add: mocks.toast }))
 mockNuxtImport('useVoice', () => () => mocks.voice)
 mockNuxtImport('useVoiceSettings', () => () => mocks.settings)
 mockNuxtImport('useSounds', () => () => ({ data: mocks.sounds, refresh: async () => {} }))
+vi.mock('~/utils/media-audio', () => ({
+  getMediaAudio: () => ({ context: { createMediaElementSource: () => mocks.previewSource, createGain: () => mocks.previewGain } }),
+  playMediaAudio: (play: (context: object, destination: object) => void) => play({}, mocks.destination),
+  setMediaAudioOutput: vi.fn(),
+  closeMediaAudio: vi.fn(),
+}))
 vi.mock('wavesurfer.js', () => ({ default: { create: mocks.create } }))
 vi.mock('wavesurfer.js/plugins/regions', () => ({
   default: {
@@ -145,6 +154,27 @@ function tick() {
 }
 
 describe('soundboard upload preview output', () => {
+  it('upgrades a live preview to Web Audio boosting without exceeding HTML volume and cleans up on pause', async () => {
+    const wrapper = await loadSound()
+    const player = await startPreview(wrapper)
+    mocks.settings.value.soundboard.volume = 2
+    await flushPromises()
+    expect(player.volume).toBe(1)
+    expect(mocks.previewGain.gain.value).toBe(2)
+    expect(mocks.previewSource.connect).toHaveBeenCalledWith(mocks.previewGain)
+    expect(mocks.previewGain.connect).toHaveBeenCalledWith(mocks.destination)
+    mocks.settings.value.soundboard.volume = 0.4
+    await flushPromises()
+    expect(player.volume).toBe(1)
+    expect(mocks.previewGain.gain.value).toBe(0.4)
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Pause')!
+      .trigger('click')
+    expect(mocks.previewSource.disconnect).toHaveBeenCalledOnce()
+    expect(mocks.previewGain.disconnect).toHaveBeenCalledOnce()
+  })
+
   it('previews the actual stereo upload bytes directly at listener volume and saves without a lossy encode', async () => {
     const upload = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', upload)

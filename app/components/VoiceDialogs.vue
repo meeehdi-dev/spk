@@ -17,21 +17,21 @@ const vol = computed(() => userVolume(v.volumes.value, v.volumeFor.value ?? ''))
     <template #title><EmojiText :text="`Volume: ${nameOf(v.volumeFor.value ?? '')}`" /></template>
     <template #body>
       <div v-if="v.volumeFor.value" class="flex flex-col gap-4">
-        <UFormField label="Mic volume">
+        <UFormField label="Mic volume" :hint="`${Math.round(vol.mic * 100)}%`">
           <USlider
             :model-value="vol.mic"
             :min="0"
-            :max="1"
+            :max="2"
             :step="0.01"
             aria-label="Mic volume"
             @update:model-value="v.setVolume(v.volumeFor.value!, { mic: $event as number })"
           />
         </UFormField>
-        <UFormField label="Screen share volume">
+        <UFormField label="Screen share volume" :hint="`${Math.round(vol.screen * 100)}%`">
           <USlider
             :model-value="vol.screen"
             :min="0"
-            :max="1"
+            :max="2"
             :step="0.01"
             aria-label="Screen share volume"
             @update:model-value="v.setVolume(v.volumeFor.value!, { screen: $event as number })"

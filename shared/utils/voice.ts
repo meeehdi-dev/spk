@@ -104,6 +104,6 @@ export interface UserVolume {
 }
 export const userVolume = (all: Record<string, Partial<UserVolume>>, id: string): UserVolume => ({ mic: 1, screen: 1, muted: false, ...all[id] })
 
-/** Playback volume (0–1) of one remote audio track: deafen and "mute for me" silence it, otherwise the per-user slider times the output volume. */
+/** Playback gain (0–4): deafen and "mute for me" silence it, otherwise per-user volume times output volume. */
 export const effectiveVolume = (deafened: boolean, v: UserVolume, kind: 'mic' | 'screen', output: number) =>
-  deafened || v.muted ? 0 : Math.min(1, Math.max(0, v[kind])) * output
+  deafened || v.muted ? 0 : Math.min(2, Math.max(0, v[kind])) * Math.min(2, Math.max(0, output))

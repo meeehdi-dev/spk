@@ -139,7 +139,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
               <USlider
                 :model-value="vol.screen"
                 :min="0"
-                :max="1"
+                :max="2"
                 :step="0.01"
                 aria-label="Screen share volume"
                 @update:model-value="v.setVolume(tile.userId, { screen: $event as number })"

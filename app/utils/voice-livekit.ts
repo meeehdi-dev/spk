@@ -50,6 +50,7 @@ import {
   type ScreenQuality,
   type UserVolume,
 } from '#shared/utils/voice'
+import { createTrackAudio } from '~/utils/track-audio'
 import { createVoiceDiagnostics, type VoiceDiagnostics } from '~/utils/voice-diagnostics'
 
 // One voice session per tab. `sid` tells the server (and our other tabs) which tab owns the account's session.
@@ -95,6 +96,13 @@ const volumeFor = ref<string | null>(null)
 const volumes = import.meta.client ? useLocalStorage<Record<string, Partial<UserVolume>>>('spk:user-volumes', {}) : ref<Record<string, Partial<UserVolume>>>({})
 let room: Room | undefined
 const outputListeners = new Map<RemoteAudioTrack, () => void>()
+const trackAudio = createTrackAudio(notePlaybackFailure)
+
+function notePlaybackFailure() {
+  playbackNeedsRetry = true
+  playbackFailureEpoch++
+  audioBlocked.value = true
+}
 let appliedCameraResolution: CameraResolution = 'auto'
 // Speaking turns on at once but off only after this hold, so pauses between words don't flicker the ring.
 export const SPEAKING_HOLD_MS = 500
@@ -155,11 +163,6 @@ export function useVoice() {
   function updateAudioBlocked(r = room) {
     if (r) audioBlocked.value = playbackNeedsRetry || microphoneAudioBlocked || !r.canPlaybackAudio
   }
-  function notePlaybackFailure() {
-    playbackNeedsRetry = true
-    playbackFailureEpoch++
-    audioBlocked.value = true
-  }
   const captureOptions = (deviceId?: string) => ({
     deviceId,
     echoCancellation: settings.value.echo,
@@ -219,9 +222,11 @@ export function useVoice() {
   function forgetTrackOutput(track: RemoteAudioTrack) {
     outputListeners.get(track)?.()
     outputListeners.delete(track)
+    trackAudio.forget(track)
   }
   function clearOutputListeners() {
     for (const track of outputListeners.keys()) forgetTrackOutput(track)
+    trackAudio.close()
   }
   function applyTrackOutput(track: RemoteAudioTrack, identity: string, source: Track.Source) {
     if (!outputListeners.has(track)) {
@@ -243,7 +248,7 @@ export function useVoice() {
     )
     // Element volume is ignored on some browsers (notably iOS); gate the received audio itself.
     track.mediaStreamTrack.enabled = volume > 0 && !track.isMuted
-    track.setVolume(volume)
+    trackAudio.volume(track, volume)
   }
   function applyOutput() {
     if (!room) return
@@ -264,7 +269,7 @@ export function useVoice() {
     }
   }
   function attachAudio(track: RemoteAudioTrack) {
-    if (!track.attachedElements.some(e => e.isConnected)) document.body.append(track.attach())
+    trackAudio.attach(track)
   }
 
   let pruneQueued = false
@@ -760,7 +765,7 @@ export function useVoice() {
     const failureEpoch = playbackFailureEpoch
     try {
       // Start both resumes before awaiting: mobile browsers require the original tap's activation.
-      await Promise.all([r.startAudio(), processor?.resume()])
+      await Promise.all([r.startAudio(), processor?.resume(), trackAudio.resume()])
       if (room !== r) return
       if (playbackFailureEpoch === failureEpoch) playbackNeedsRetry = false
       updateAudioBlocked(r)

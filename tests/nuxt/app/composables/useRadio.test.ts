@@ -196,6 +196,9 @@ describe('radio session lifecycle', () => {
     mocks.voice.settings.value.radioVolume = 0.3
     mocks.voice.settings.value.outputVolume = 0.5
     expect(media.output).toHaveBeenLastCalledWith(0.15, true, '')
+    mocks.voice.settings.value.radioVolume = 2
+    mocks.voice.settings.value.outputVolume = 2
+    expect(media.output).toHaveBeenLastCalledWith(4, true, '')
   })
   it('clears the previous station on move and ignores a late response from the old channel', () => {
     receive(frame(1))
