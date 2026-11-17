@@ -21,7 +21,11 @@ export function useRadio() {
   }
   function command(type: 'voice:radio:set' | 'voice:radio:stop', stationId?: string) {
     commandError.value = ''
-    if (!socket.send({ type, sid: voice.sid, stationId })) commandError.value = 'Radio controls are offline. Wait for reconnection.'
+    if (!socket.send({ type, sid: voice.sid, stationId })) {
+      commandError.value = 'Radio controls are offline. Wait for reconnection.'
+      return false
+    }
+    return true
   }
   return {
     station,
@@ -34,7 +38,9 @@ export function useRadio() {
         settings.value.radioVolume = value
       },
     }),
-    select: (id: string) => command('voice:radio:set', id),
+    select: (id: string) => {
+      if (command('voice:radio:set', id) && !enabled.value) listen()
+    },
     stop: () => command('voice:radio:stop'),
     listen,
     mute: () => {

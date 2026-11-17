@@ -29,13 +29,14 @@ const mocks = await vi.hoisted(async () => {
       devices: ref({ speakers: [] as Array<{ deviceId: string; label: string }> }),
     },
     connected: ref(true),
+    send: vi.fn(() => true),
     receive: (_frame: SocketFrame) => {},
   }
 })
 mockNuxtImport('useVoice', () => () => mocks.voice)
 mockNuxtImport('useSocket', () => () => ({
   connected: mocks.connected,
-  send: () => true,
+  send: mocks.send,
   on: (fn: (frame: SocketFrame) => void) => {
     mocks.receive = fn
   },
@@ -64,6 +65,7 @@ beforeEach(async () => {
   voice.settings.value = { radioVolume: 0.5, outputVolume: 1 }
   voice.devices.value = { speakers: [] }
   mocks.connected.value = true
+  mocks.send.mockReturnValue(true)
   useRadio().enabled.value = true
   await mountSuspended(defineComponent({ setup: () => (useRadioLive(), () => null) }))
   voice.channelId.value = 'c'
@@ -151,6 +153,38 @@ describe('radio session lifecycle', () => {
     expect(media.start).toHaveBeenCalledTimes(1)
     radio.listen()
     expect(media.start).toHaveBeenLastCalledWith('https://stream.example.com/two')
+  })
+  it('clears local pause when selecting a new station and plays its stream', () => {
+    receive(frame(1))
+    const radio = useRadio()
+    radio.mute()
+    radio.select('new-station')
+    expect(mocks.send).toHaveBeenLastCalledWith({ type: 'voice:radio:set', sid: 's', stationId: 'new-station' })
+    expect(radio.enabled.value).toBe(true)
+    receive({ ...frame(2), station: { ...station, id: 'new-station', url: 'https://stream.example.com/two' } })
+    expect(media.start).toHaveBeenLastCalledWith('https://stream.example.com/two')
+  })
+  it('resumes playback when reselecting the same station while paused', () => {
+    receive(frame(1))
+    const radio = useRadio()
+    radio.mute()
+    media.start.mockClear()
+    radio.select(station.id)
+    receive(frame(2))
+    expect(radio.enabled.value).toBe(true)
+    expect(media.start).toHaveBeenCalledExactlyOnceWith(station.url)
+  })
+  it('keeps local pause when a station selection cannot be sent', () => {
+    receive(frame(1))
+    const radio = useRadio()
+    radio.mute()
+    media.start.mockClear()
+    mocks.connected.value = false
+    mocks.send.mockReturnValue(false)
+    radio.select('new-station')
+    expect(radio.enabled.value).toBe(false)
+    expect(media.start).not.toHaveBeenCalled()
+    expect(radio.commandError.value).toBe('Radio controls are offline. Wait for reconnection.')
   })
   it('routes deafen and volume changes but does not treat mic mute as radio mute', () => {
     receive(frame(1))
