@@ -326,28 +326,46 @@ const onDrop = (channelId: string) => {
       </section>
     </nav>
 
-    <div v-if="voice.channelId.value || voice.connecting.value" class="mx-2 mb-2 flex shrink-0 items-center gap-1 rounded-lg bg-elevated/50 p-2">
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5 text-sm font-medium">
-          <UIcon
-            name="i-lucide-volume-2"
-            class="size-4 shrink-0"
-            :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
-          />
-          <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline"
-            ><EmojiText :text="voiceName ?? ''"
-          /></NuxtLink>
-          <span v-else class="truncate">Voice</span>
-        </div>
+    <div
+      v-if="voice.channelId.value || voice.connecting.value"
+      class="mx-2 mb-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-lg bg-elevated/50 p-2"
+    >
+      <div class="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5 text-sm font-medium">
+        <UIcon
+          name="i-lucide-volume-2"
+          class="size-4 shrink-0"
+          :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
+        />
+        <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline"
+          ><EmojiText :text="voiceName ?? ''"
+        /></NuxtLink>
+        <span v-else class="truncate">Voice</span>
+      </div>
+      <div
+        class="min-w-0 @min-[360px]/sidebar:col-start-1 @min-[360px]/sidebar:row-start-2"
+        :class="voice.connecting.value ? 'col-start-1 row-start-2' : 'col-start-2 row-start-1'"
+      >
         <VoiceConnectionPopover />
       </div>
-      <UButton v-if="voice.connecting.value" label="Cancel" color="neutral" variant="outline" @click="voice.leave(false)" />
-      <div v-else role="group" aria-label="Voice actions" class="flex shrink-0 flex-col items-end gap-1 @min-[360px]/sidebar:flex-row">
-        <div role="group" aria-label="Video actions" class="flex shrink-0 items-center gap-1">
+      <UButton
+        v-if="voice.connecting.value"
+        label="Cancel"
+        color="neutral"
+        variant="outline"
+        class="col-start-2 row-span-2 row-start-1"
+        @click="voice.leave(false)"
+      />
+      <div
+        v-else
+        role="group"
+        aria-label="Voice actions"
+        class="col-span-2 row-start-2 flex shrink-0 items-center justify-center gap-1 @max-[272px]/sidebar:gap-0.5 @min-[360px]/sidebar:col-span-1 @min-[360px]/sidebar:col-start-2 @min-[360px]/sidebar:row-span-2 @min-[360px]/sidebar:row-start-1 @max-[272px]/sidebar:[&_button]:px-0.5"
+      >
+        <div role="group" aria-label="Video actions" class="flex shrink-0 items-center gap-1 @max-[272px]/sidebar:gap-0.5">
           <VoiceControl kind="camera" />
           <VoiceControl kind="screen" />
         </div>
-        <div role="group" aria-label="Audio and leave actions" class="flex shrink-0 items-center gap-1">
+        <div role="group" aria-label="Audio and leave actions" class="flex shrink-0 items-center gap-1 @max-[272px]/sidebar:gap-0.5">
           <RadioPopover />
           <SoundboardPopover />
           <VoiceControl kind="leave" />

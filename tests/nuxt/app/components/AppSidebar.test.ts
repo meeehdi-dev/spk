@@ -112,10 +112,17 @@ it('shows a non-actionable radio indicator matching the camera control only whil
   expect(indicator().exists()).toBe(false)
 })
 
-it('groups camera and screen before radio, soundboard, and leave for the narrow layout', async () => {
+it('keeps voice actions in one centered row below the channel and connection status when narrow', async () => {
   useVoice().channelId.value = 'source'
   const wrapper = await mountInApp(AppSidebar)
   const actions = wrapper.find('[role="group"][aria-label="Voice actions"]')
+  expect(actions.classes()).toEqual(expect.arrayContaining(['col-span-2', 'row-start-2', 'flex', 'justify-center']))
+  expect(actions.classes()).not.toContain('flex-col')
+  expect(actions.classes()).toContain('@min-[360px]/sidebar:col-start-2')
+  const status = wrapper.find('[aria-label="Voice connection diagnostics"]').element.parentElement!
+  expect(status.classList.contains('col-start-2')).toBe(true)
+  expect(status.classList.contains('row-start-1')).toBe(true)
+  expect(status.classList.contains('@min-[360px]/sidebar:row-start-2')).toBe(true)
   const groups = actions.findAll(':scope > [role="group"]')
   expect(groups).toHaveLength(2)
   expect(groups[0]!.findAll('button').map(button => button.attributes('aria-label'))).toEqual([
