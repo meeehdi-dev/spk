@@ -95,6 +95,40 @@ describe('media output preference', () => {
   })
 })
 
+describe('soundboard listening volume', () => {
+  it('defaults fresh and older settings to enabled at 70%', () => {
+    expect(readSettings().value.soundboard).toEqual({ on: true, volume: 0.7 })
+    localStorage.setItem('spk:voice', JSON.stringify({ noise: 'off' }))
+    expect(readSettings().value).toMatchObject({ noise: 'off', soundboard: { on: true, volume: 0.7 } })
+  })
+
+  it.each([
+    [2, 1],
+    [-0.5, 0],
+    [0, 0],
+    [0.4, 0.4],
+    [1, 1],
+    [null, 0.7],
+    ['2', 0.7],
+  ])('merges saved volume %j as %s without changing unrelated preferences', (volume, expected) => {
+    localStorage.setItem(
+      'spk:voice',
+      JSON.stringify({ soundboard: { on: false, volume }, outputVolume: 2, radioVolume: 2, sounds: { join: { on: false, volume: 2 } } }),
+    )
+    expect(readSettings().value).toMatchObject({
+      soundboard: { on: false, volume: expected },
+      outputVolume: 2,
+      radioVolume: 2,
+      sounds: { join: { on: false, volume: 2 }, leave: { on: true, volume: 0.5 } },
+    })
+  })
+
+  it.each([{ on: false }, { volume: 0.3 }, null])('fills missing nested defaults for %j', soundboard => {
+    localStorage.setItem('spk:voice', JSON.stringify({ soundboard }))
+    expect(readSettings().value.soundboard).toEqual({ on: soundboard?.on ?? true, volume: soundboard?.volume ?? 0.7 })
+  })
+})
+
 describe('voice settings radio volume', () => {
   it('starts fresh storage at 10%', () => {
     expect(readSettings().value.radioVolume).toBe(0.1)

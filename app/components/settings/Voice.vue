@@ -318,7 +318,7 @@ const soundRows = [
           <USlider
             v-model="s.soundboard.volume"
             :min="0"
-            :max="2"
+            :max="1"
             :step="0.01"
             :disabled="!s.soundboard.on"
             class="max-w-xs flex-1"

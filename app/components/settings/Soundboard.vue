@@ -3,7 +3,6 @@ import type WaveSurfer from 'wavesurfer.js'
 
 import { cropChannels, encodeWav, hasSoundClipping, MAX_SOUND_BYTES, MAX_SOUND_MS, MAX_SOUND_SOURCE_BYTES, SOUND_MIME, SOUND_RATE } from '#shared/utils/sounds'
 import { matchDevice } from '#shared/utils/voice'
-import { getMediaAudio, playMediaAudio } from '~/utils/media-audio'
 import { routeMediaOutput } from '~/utils/media-output'
 
 const { data: sounds, refresh } = useSounds()
@@ -48,34 +47,16 @@ let previewUrl: string | undefined
 let previewVersion = 0
 let loadVersion = 0
 let previewFrame: number | undefined
-let previewGraph: { source: MediaElementAudioSourceNode; gain: GainNode } | undefined
-
 function applyPreviewVolume() {
-  const player = media.value
-  if (!player) return
-  if (listening.value.volume > 1 && !previewGraph) {
-    const { context } = getMediaAudio()
-    const source = context.createMediaElementSource(player)
-    const gain = context.createGain()
-    source.connect(gain)
-    const graph = { source, gain }
-    previewGraph = graph
-    void playMediaAudio((_context, destination) => {
-      if (previewGraph === graph) gain.connect(destination)
-    })
-  }
-  player.volume = previewGraph ? 1 : listening.value.volume
-  if (previewGraph) previewGraph.gain.gain.value = listening.value.volume
+  if (media.value) media.value.volume = Number.isFinite(listening.value.volume) ? Math.max(0, Math.min(1, listening.value.volume)) : 0.7
 }
 
 function stopPreview() {
   previewVersion++
-  previewGraph?.source.disconnect()
-  previewGraph?.gain.disconnect()
-  previewGraph = undefined
   if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
   previewFrame = undefined
   if (media.value) {
+    media.value.onended = null
     media.value.pause()
     media.value.removeAttribute('src')
     media.value.load()
@@ -173,10 +154,12 @@ async function toggle() {
     const selectionStart = Math.floor(sel.value.start * decoded.value.sampleRate) / decoded.value.sampleRate
     previewUrl = URL.createObjectURL(new Blob([wav as BlobPart], { type: SOUND_MIME }))
     const player = new Audio(previewUrl)
-    player.loop = true
+    player.loop = false
+    player.onended = () => {
+      if (version === previewVersion) stopPreview()
+    }
     media.value = player
     applyPreviewVolume()
-    // Keep ordinary previews direct; boosting uses the routed media graph.
     await routeMediaOutput(player, matchDevice(voice.settings.value.mediaSpeaker, voice.devices.value.speakers).deviceId ?? '')
     if (version !== previewVersion) return
     await player.play()
@@ -185,7 +168,7 @@ async function toggle() {
     ws?.setTime(selectionStart)
     const tick = () => {
       if (version !== previewVersion) return
-      // The media clock follows buffering and loop wraparound; a separate animation timer would drift.
+      // Follow the media clock so buffering does not make the waveform drift.
       ws?.setTime(selectionStart + player.currentTime)
       previewFrame = requestAnimationFrame(tick)
     }

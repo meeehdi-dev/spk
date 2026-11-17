@@ -39,9 +39,6 @@ const mocks = await vi.hoisted(async () => {
     create: vi.fn(),
     save: vi.fn(),
     close: vi.fn(),
-    previewGain: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
-    previewSource: { connect: vi.fn(), disconnect: vi.fn() },
-    destination: {},
     toast: vi.fn(),
   }
 })
@@ -49,12 +46,6 @@ mockNuxtImport('useToast', () => () => ({ add: mocks.toast }))
 mockNuxtImport('useVoice', () => () => mocks.voice)
 mockNuxtImport('useVoiceSettings', () => () => mocks.settings)
 mockNuxtImport('useSounds', () => () => ({ data: mocks.sounds, refresh: async () => {} }))
-vi.mock('~/utils/media-audio', () => ({
-  getMediaAudio: () => ({ context: { createMediaElementSource: () => mocks.previewSource, createGain: () => mocks.previewGain } }),
-  playMediaAudio: (play: (context: object, destination: object) => void) => play({}, mocks.destination),
-  setMediaAudioOutput: vi.fn(),
-  closeMediaAudio: vi.fn(),
-}))
 vi.mock('wavesurfer.js', () => ({ default: { create: mocks.create } }))
 vi.mock('wavesurfer.js/plugins/regions', () => ({
   default: {
@@ -154,28 +145,29 @@ function tick() {
 }
 
 describe('soundboard upload preview output', () => {
-  it('upgrades a live preview to Web Audio boosting without exceeding HTML volume and cleans up on pause', async () => {
+  it.each([
+    [2, 1],
+    [-1, 0],
+    [Number.NaN, 0.7],
+  ])('clamps listening volume %s directly to %s without a playback graph', async (volume, expected) => {
+    mocks.settings.value.soundboard.volume = volume!
     const wrapper = await loadSound()
     const player = await startPreview(wrapper)
+    expect(player.volume).toBe(expected)
+    expect(player.srcObject).toBeNull()
+    expect(mocks.close).toHaveBeenCalledOnce()
+    mocks.settings.value.soundboard.volume = 0.4
+    await flushPromises()
+    expect(player.volume).toBe(0.4)
     mocks.settings.value.soundboard.volume = 2
     await flushPromises()
     expect(player.volume).toBe(1)
-    expect(mocks.previewGain.gain.value).toBe(2)
-    expect(mocks.previewSource.connect).toHaveBeenCalledWith(mocks.previewGain)
-    expect(mocks.previewGain.connect).toHaveBeenCalledWith(mocks.destination)
-    mocks.settings.value.soundboard.volume = 0.4
-    await flushPromises()
-    expect(player.volume).toBe(1)
-    expect(mocks.previewGain.gain.value).toBe(0.4)
-    await wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Pause')!
-      .trigger('click')
-    expect(mocks.previewSource.disconnect).toHaveBeenCalledOnce()
-    expect(mocks.previewGain.disconnect).toHaveBeenCalledOnce()
   })
 
-  it('previews the actual stereo upload bytes directly at listener volume and saves without a lossy encode', async () => {
+  it.each([
+    { gain: 50, pcm: [1048576, -1048576, -1048576, 1048576, 3145728, -3145728, -3145728, 3145728] },
+    { gain: 125, pcm: [2621440, -2621440, -2621440, 2621440, 7864319, -7864320, -7864320, 7864319] },
+  ])('previews and saves identical stereo WAV bytes at $gain% upload gain without a lossy encode', async ({ gain, pcm: expectedPcm }) => {
     const upload = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', upload)
     const wrapper = await loadSound()
@@ -186,12 +178,13 @@ describe('soundboard upload preview output', () => {
     })
     const slider = wrapper.findComponent({ name: 'USlider' })
     expect(slider.props('modelValue')).toBe(100)
-    slider.vm.$emit('update:modelValue', 50)
+    expect(slider.props('max')).toBe(200)
+    slider.vm.$emit('update:modelValue', gain)
     await flushPromises()
     const player = await startPreview(wrapper)
     expect(player.src).toBe('blob:sound')
     expect(player.srcObject).toBeNull()
-    expect(player.loop).toBe(true)
+    expect(player.loop).toBe(false)
     expect(player.volume).toBe(0.7)
     mocks.settings.value.soundboard.volume = 0.4
     await flushPromises()
@@ -213,7 +206,7 @@ describe('soundboard upload preview output', () => {
       { length: 8 },
       (_, i) => ((view.getUint8(44 + i * 3) | (view.getUint8(45 + i * 3) << 8) | (view.getUint8(46 + i * 3) << 16)) << 8) >> 8,
     )
-    expect(pcm).toEqual([1048576, -1048576, -1048576, 1048576, 3145728, -3145728, -3145728, 3145728])
+    expect(pcm).toEqual(expectedPcm)
     await vi.waitFor(() => expect(mocks.save).toHaveBeenCalledWith({ id: 'sound', name: 'sound', icon: 'audio-lines', durationMs: 1000, size: 68 }))
     await vi.waitFor(() => expect(slider.props('modelValue')).toBe(100))
     expect(mocks.pause).toHaveBeenCalledOnce()
@@ -272,7 +265,7 @@ describe('soundboard upload preview output', () => {
     expect(mocks.setSinkId).not.toHaveBeenCalled()
   })
 
-  it('tracks the actual media position through buffering and loops, with the crop offset', async () => {
+  it('tracks the actual media position through buffering, with the crop offset', async () => {
     const wrapper = await loadSound()
     mocks.regionUpdated!({ start: 0.25, end: 0.75 })
     await flushPromises()
@@ -283,15 +276,86 @@ describe('soundboard upload preview output', () => {
     expect(mocks.setTime).toHaveBeenLastCalledWith(0.375)
     tick()
     expect(mocks.setTime).toHaveBeenLastCalledWith(0.375)
-    player.currentTime = 0.01
-    tick()
-    expect(mocks.setTime).toHaveBeenLastCalledWith(0.26)
     await wrapper
       .findAll('button')
       .find(button => button.text() === 'Pause')!
       .trigger('click')
     expect(mocks.frames.size).toBe(0)
     expect(mocks.setTime).toHaveBeenLastCalledWith(0.25)
+  })
+
+  it('releases ended playback and replays with a fresh URL, ignoring stale callbacks', async () => {
+    vi.mocked(URL.createObjectURL).mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:second')
+    const wrapper = await loadSound()
+    const first = await startPreview(wrapper)
+    const ended = first.onended!
+    const staleFrame = [...mocks.frames.values()][0]!
+    first.dispatchEvent(new Event('ended'))
+    await flushPromises()
+    expect(mocks.frames.size).toBe(0)
+    expect(first.onended).toBeNull()
+    expect(first.hasAttribute('src')).toBe(false)
+    expect(mocks.pause).toHaveBeenCalledOnce()
+    expect(mocks.load).toHaveBeenCalledOnce()
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:first')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Pause')).toBe(false)
+    expect(mocks.setTime).toHaveBeenLastCalledWith(0)
+    const second = await startPreview(wrapper)
+    expect(second.src).toBe('blob:second')
+    ended.call(first, new Event('ended'))
+    staleFrame(performance.now())
+    await flushPromises()
+    expect(mocks.frames.size).toBe(1)
+    expect(second.hasAttribute('src')).toBe(true)
+    wrapper.unmount()
+    expect(second.onended).toBeNull()
+    expect(mocks.frames.size).toBe(0)
+    expect(URL.revokeObjectURL).toHaveBeenLastCalledWith('blob:second')
+  })
+
+  it('ignores an ended preview whose play promise resolves after replay starts', async () => {
+    let played!: () => void
+    mocks.play.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          played = resolve
+        }),
+    )
+    const wrapper = await loadSound()
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Play selection')!
+      .trigger('click')
+    await vi.waitFor(() => expect(mocks.play).toHaveBeenCalledOnce())
+    mocks.players[0]!.dispatchEvent(new Event('ended'))
+    await flushPromises()
+    await startPreview(wrapper)
+    played()
+    await flushPromises()
+    expect(mocks.frames.size).toBe(1)
+    expect(URL.revokeObjectURL).toHaveBeenCalledOnce()
+    expect(mocks.toast).not.toHaveBeenCalled()
+  })
+
+  it('cancels a preview before pending output routing finishes', async () => {
+    let routed!: () => void
+    mocks.setSinkId.mockReturnValue(
+      new Promise<void>(resolve => {
+        routed = resolve
+      }),
+    )
+    const wrapper = await loadSound()
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Play selection')!
+      .trigger('click')
+    await vi.waitFor(() => expect(mocks.setSinkId).toHaveBeenCalled())
+    wrapper.unmount()
+    routed()
+    await flushPromises()
+    expect(mocks.play).not.toHaveBeenCalled()
+    expect(mocks.frames.size).toBe(0)
+    expect(URL.revokeObjectURL).toHaveBeenCalledOnce()
   })
 
   it('waits for output routing and playback before animating, and cancels a pending preview', async () => {

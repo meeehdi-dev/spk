@@ -19,10 +19,13 @@ const mocks = await vi.hoisted(async () => {
     },
     setOutput: vi.fn(),
     close: vi.fn(),
+    setSoundboardOutput: vi.fn(),
+    closeSoundboard: vi.fn(),
   }
 })
 mockNuxtImport('useVoice', () => () => mocks.voice)
 vi.mock('~/utils/media-audio', () => ({ setMediaAudioOutput: mocks.setOutput, closeMediaAudio: mocks.close }))
+vi.mock('~/composables/useSoundboard', () => ({ setSoundboardOutput: mocks.setSoundboardOutput, closeSoundboardAudio: mocks.closeSoundboard }))
 
 let scope: ReturnType<typeof effectScope>
 beforeEach(() => {
@@ -79,12 +82,16 @@ describe('media output following', () => {
 
   it('keeps the shared audio sink live for the layout lifetime and closes it on disposal', () => {
     scope.run(() => useMediaAudioLive())
-    expect(mocks.setOutput).toHaveBeenLastCalledWith('media', undefined, expect.any(Function))
+    expect(mocks.setOutput).toHaveBeenLastCalledWith('media')
+    expect(mocks.setSoundboardOutput).toHaveBeenLastCalledWith('media')
     mocks.voice.devices.value.speakers = []
-    expect(mocks.setOutput).toHaveBeenLastCalledWith('', 'media', expect.any(Function))
+    expect(mocks.setOutput).toHaveBeenLastCalledWith('')
+    expect(mocks.setSoundboardOutput).toHaveBeenLastCalledWith('')
     scope.stop()
     expect(mocks.close).toHaveBeenCalledOnce()
+    expect(mocks.closeSoundboard).toHaveBeenCalledOnce()
     mocks.voice.devices.value.speakers = [{ deviceId: 'media', label: 'Media' }]
     expect(mocks.setOutput).toHaveBeenCalledTimes(2)
+    expect(mocks.setSoundboardOutput).toHaveBeenCalledTimes(2)
   })
 })

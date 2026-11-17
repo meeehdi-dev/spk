@@ -73,6 +73,15 @@ async function mountSettings() {
   return { wrapper, click, video, v: useVoice() }
 }
 
+it('caps only soundboard listening at unity and keeps other output boosts', async () => {
+  const { wrapper } = await mountSettings()
+  const sliders = wrapper.findAllComponents({ name: 'USlider' })
+  const soundboard = sliders.find(slider => slider.find('[aria-label="Soundboard volume"]').exists())!
+  expect(soundboard.props()).toMatchObject({ min: 0, max: 1, step: 0.01 })
+  expect(sliders.find(slider => slider.find('[aria-label="Output volume"]').exists())!.props('max')).toBe(2)
+  expect(sliders.find(slider => slider.find('[aria-label="Join volume"]').exists())!.props('max')).toBe(2)
+})
+
 describe('device permission notice', () => {
   it('reserves the notice space and removes its action from accessibility and focus when labels are available', async () => {
     const { wrapper, v } = await mountSettings()

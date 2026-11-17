@@ -1,6 +1,7 @@
 import type { MaybeRefOrGetter } from 'vue'
 
 import { matchDevice } from '#shared/utils/voice'
+import { closeSoundboardAudio, setSoundboardOutput } from '~/composables/useSoundboard'
 import { closeMediaAudio, setMediaAudioOutput } from '~/utils/media-audio'
 import { routeMediaOutput } from '~/utils/media-output'
 
@@ -25,6 +26,16 @@ export function useMediaOutput(element: MaybeRefOrGetter<HTMLMediaElement | null
 export function useMediaAudioLive() {
   if (!import.meta.client) return
   const device = useMediaDevice()
-  watch(device, setMediaAudioOutput, { immediate: true, flush: 'sync' })
-  onScopeDispose(closeMediaAudio)
+  watch(
+    device,
+    id => {
+      setMediaAudioOutput(id)
+      setSoundboardOutput(id)
+    },
+    { immediate: true, flush: 'sync' },
+  )
+  onScopeDispose(() => {
+    closeMediaAudio()
+    closeSoundboardAudio()
+  })
 }

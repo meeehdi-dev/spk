@@ -1,5 +1,5 @@
 import { MAX_SOUND_MS, SOUND_COOLDOWN_MS } from '#shared/utils/sounds'
-import { getMediaAudio, playMediaAudio } from '~/utils/media-audio'
+import { routeMediaOutput } from '~/utils/media-output'
 
 export interface SoundEntry {
   id: string
@@ -10,41 +10,87 @@ export interface SoundEntry {
 
 export const useSounds = () => useFetch<SoundEntry[]>('/api/sounds', { key: 'sounds', headers: useRequestHeaders(['cookie']), default: () => [] })
 
-const buffers = new Map<string, Promise<AudioBuffer>>() // decoded once per sound; a failure is dropped so it can be retried
+const files = new Map<string, Promise<string>>() // cache file bytes, not expiring signed URLs
+const players = new Map<HTMLAudioElement, { id: string; stop: () => void }>()
+let output = ''
 
 function load(id: string) {
-  let p = buffers.get(id)
+  let p = files.get(id)
   if (!p) {
-    const { context } = getMediaAudio()
     p = $fetch<{ url: string }>(`/api/sounds/${id}/file`)
       .then(r => fetch(r.url))
-      .then(r => r.arrayBuffer())
-      .then(b => context.decodeAudioData(b))
-    p.catch(() => buffers.delete(id))
-    buffers.set(id, p)
+      .then(r => {
+        if (!r.ok) throw new Error(`Sound download failed (${r.status})`)
+        return r.blob()
+      })
+      .then(blob => {
+        if (files.get(id) !== p) throw new Error('Sound was discarded')
+        return URL.createObjectURL(blob)
+      })
+    p.catch(() => {
+      if (files.get(id) === p) files.delete(id)
+    })
+    files.set(id, p)
   }
   return p
 }
-/** Forget a cached sound (it was deleted). */
-export const forgetSound = (id: string) => buffers.delete(id)
 
-/** Plays a sound locally through Web Audio at the soundboard volume, for at most 10 s. `force` ignores the off switch (previews). */
+/** Forget a deleted sound, including pending and active playback. */
+export function forgetSound(id: string) {
+  const file = files.get(id)
+  files.delete(id)
+  void file?.then(
+    url => URL.revokeObjectURL(url),
+    () => {},
+  )
+  for (const player of players.values()) if (player.id === id) player.stop()
+}
+
+export function setSoundboardOutput(id: string) {
+  output = id
+  for (const player of players.keys()) void routeMediaOutput(player, id)
+}
+
+export function closeSoundboardAudio() {
+  for (const player of players.values()) player.stop()
+  for (const id of files.keys()) forgetSound(id)
+}
+
+/** Direct local playback for at most 10 s. `force` ignores the off switch (previews). */
 export async function playSound(id: string, force = false) {
   const { on, volume } = useVoiceSettings().value.soundboard
   if (!import.meta.client || (!on && !force)) return
+  let stop: (() => void) | undefined
   try {
-    const { context: loadingContext } = getMediaAudio()
-    const buf = await load(id)
-    if (loadingContext.state === 'closed') return
-    await playMediaAudio((context, destination) => {
-      const src = context.createBufferSource(),
-        gain = context.createGain()
-      src.buffer = buf
-      gain.gain.value = volume
-      src.connect(gain).connect(destination)
-      src.start(0, 0, Math.min(buf.duration, MAX_SOUND_MS / 1000))
-    })
+    const file = load(id)
+    const url = await file
+    if (files.get(id) !== file) return
+    const player = new Audio(url)
+    player.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.7
+    let timer: ReturnType<typeof setTimeout> | undefined
+    stop = () => {
+      if (!players.delete(player)) return
+      clearTimeout(timer)
+      player.onended = null
+      player.onerror = null
+      player.ontimeupdate = null
+      player.pause()
+      player.removeAttribute('src')
+      player.load()
+    }
+    const finish = stop
+    players.set(player, { id, stop })
+    player.onended = finish
+    player.onerror = finish
+    player.ontimeupdate = () => {
+      if (player.currentTime >= MAX_SOUND_MS / 1000) finish()
+    }
+    await routeMediaOutput(player, output)
+    if (!players.has(player)) return
+    await player.play()
+    if (players.has(player)) timer = setTimeout(finish, MAX_SOUND_MS)
   } catch {
+    stop?.()
     /* autoplay policy or a missing file: stay silent */
   }
 }

@@ -57,6 +57,11 @@ export const useVoiceSettings = () =>
         cameraResolution: isCameraResolution(stored.cameraResolution) ? stored.cameraResolution : defaults.cameraResolution,
         screenQuality: isScreenQuality(stored.screenQuality) ? stored.screenQuality : defaults.screenQuality,
         sounds: { ...defaults.sounds, ...stored.sounds },
+        soundboard: {
+          ...defaults.soundboard,
+          ...stored.soundboard,
+          volume: Number.isFinite(stored.soundboard?.volume) ? Math.max(0, Math.min(1, stored.soundboard.volume)) : defaults.soundboard.volume,
+        },
       }),
     },
   )

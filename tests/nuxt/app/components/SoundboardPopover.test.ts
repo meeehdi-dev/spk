@@ -43,6 +43,15 @@ const mountPopover = () =>
     },
   )
 
+it('caps the listening slider at unity', async () => {
+  const wrapper = await mountPopover()
+  const slider = wrapper.findComponent({ name: 'USlider' })
+  expect(slider.props()).toMatchObject({ min: 0, max: 1, step: 0.01 })
+  slider.vm.$emit('update:modelValue', 0.4)
+  await nextTick()
+  expect(state.settings.value.soundboard.volume).toBe(0.4)
+})
+
 it('disables sound buttons when hearing sounds is off and preserves cooldown disabling', async () => {
   const wrapper = await mountPopover()
   const sound = wrapper.get('button[aria-label="Play Bell"]')
