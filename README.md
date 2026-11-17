@@ -45,6 +45,14 @@ CI checks lint and formatting in separate steps alongside the other checks. Oxfm
 
 Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks script variables/calls; ESLint checks Vue attributes and Nuxt UI slot values. Oxfmt preserves duplicates so lint can report them; `pnpm lint:fix` removes exact duplicates. Conflicting utilities require choosing the intended style; classes in separate slots, alternative branches, and distinct responsive variants are checked independently.
 
+### UI sandbox
+
+Run `pnpm dev:ui` and open `http://localhost:3001` to browse the real interface with local fake data. No account, database, LiveKit server, camera, or microphone is needed. The floating **UI sandbox** panel selects populated, empty, connecting, reconnecting, and error presets; Reset restores the starting state.
+
+The populated preset includes unread DMs and text-channel mentions, online/idle/busy users, and fake voice participants with webcam and screen sharing. Open **Voice room** to watch synthetic video, or **Message edge cases** for long messages, replies, spoilers, reactions, and a code attachment. The panel can simulate incoming messages, typing, and slow API responses for loading states; normal chat and voice controls operate on browser-local state. Refreshing discards changes. Unsupported actions, including uploads and account/admin mutations, fail locally rather than reaching the real backend.
+
+Sandbox providers and the control panel are registered only in explicitly enabled development mode; production keeps the real authentication, socket, and LiveKit implementations. This is for visual and interaction checks, not authentication, delivery, or WebRTC verification. Media views use app-owned attachment types so a future desktop capture integration does not need to change UI components.
+
 ### Emoji
 
 Chat messages, reactions, and the searchable picker use locally served [Twemoji](https://github.com/jdecked/twemoji) SVG artwork by Twitter, Inc. and other contributors, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Assets are generated from the pinned `@iconify-json/twemoji` package during Nuxt builds; no emoji CDN is used. Attribution is also served at `/twemoji-LICENSE.txt`. Messages remain Unicode, and unavailable artwork falls back to native emoji.

@@ -4,6 +4,9 @@
     // MDC renders components by name; settings use resolveComponent().
     "app/components/mdc/**/*.vue",
     "app/components/settings/**/*.vue",
+    // Selected through development-only aliases and Nuxt hooks, not static application imports.
+    "dev/ui/{auth,voice,socket,plugin,panel-plugin}.ts",
+    "dev/ui/server/**/*.ts",
     // The PWA worker source is relative to Vite's app root.
     "service-worker/sw.js",
   ],

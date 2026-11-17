@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
+    "dev:ui": "NUXT_UI_SANDBOX=1 nuxt dev --port 3001",
     "fmt": "oxfmt --write .",
     "fmt:check": "oxfmt --check .",
     "icons": "pwa-assets-generator && node scripts/generate-badge.ts",

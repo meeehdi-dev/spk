@@ -1,7 +1,15 @@
+import { fileURLToPath } from 'node:url'
+
 import { noiseSuppressionAudioWorkletVitePlugin } from '@workadventure/noise-suppression/vite'
 
+const localPath = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc', '@vite-pwa/nuxt'],
+  modules: ['@nuxt/eslint', '@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/mdc', '@vite-pwa/nuxt', ...(process.env.NUXT_UI_SANDBOX === '1' ? ['./dev/ui/module'] : [])],
+  alias: {
+    '#voice-provider': localPath('./app/utils/voice-livekit.ts'),
+    '#socket-provider': localPath('./app/utils/socket-browser.ts'),
+  },
   devtools: { enabled: false },
   app: {
     head: {
@@ -90,6 +98,12 @@ export default defineNuxtConfig({
     },
   },
   hooks: {
+    'imports:extend'(imports) {
+      // Providers are selected through the composable facades, never auto-imported directly.
+      for (let i = imports.length - 1; i >= 0; i--) {
+        if (/\/utils\/(voice-livekit|voice-types|socket-browser)(\.ts)?$/.test(imports[i]!.from)) imports.splice(i, 1)
+      }
+    },
     listen(_server, listener: { getURLs: () => { type: string; url: string }[] }) {
       if (process.env.NODE_ENV !== 'development') return
       const tunnel = listener.getURLs().find(entry => entry.type === 'tunnel')

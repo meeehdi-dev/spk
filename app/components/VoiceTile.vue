@@ -11,8 +11,6 @@ const v = useVoice()
 const admin = useAdmin()
 const { byId, nameOf } = useUsers()
 const root = ref<HTMLElement>()
-const mainEl = ref<HTMLVideoElement>()
-const cornerEl = ref<HTMLVideoElement>()
 const preview = ref(false)
 const hovered = ref(false)
 const { toggle: fullscreen, exit: exitFullscreen } = useFullscreen(root, { autoExit: true })
@@ -25,23 +23,6 @@ watch([() => props.tile.watching, live], async ([watching, live]) => {
   if (!watching || !live) await exitFullscreen()
 })
 const mirrored = (t: unknown) => props.tile.local && t === props.tile.cam
-// The tracks are attached to the <video> elements by hand; detached again when they change.
-watchEffect(onCleanup => {
-  const t = main.value,
-    el = mainEl.value
-  if (t && el) {
-    t.attach(el)
-    onCleanup(() => t.detach(el))
-  }
-})
-watchEffect(onCleanup => {
-  const t = corner.value,
-    el = cornerEl.value
-  if (t && el) {
-    t.attach(el)
-    onCleanup(() => t.detach(el))
-  }
-})
 
 const watchers = computed(() => (props.tile.screenLive ? watchersOf(props.tile.userId) : []))
 const soundIcon = computed(() => v.playing.value[props.tile.userId])
@@ -106,21 +87,9 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       @mouseleave="hovered = false"
       @dblclick="fullscreen()"
     >
-      <video
-        v-show="main"
-        ref="mainEl"
-        autoplay
-        playsinline
-        muted
-        class="size-full"
-        :class="[screen ? 'object-contain' : 'object-cover', mirrored(main) ? '-scale-x-100' : '']"
-      />
-      <video
-        v-show="corner"
-        ref="cornerEl"
-        autoplay
-        playsinline
-        muted
+      <VoiceMediaView :track="main" class="size-full" :class="[screen ? 'object-contain' : 'object-cover', mirrored(main) ? '-scale-x-100' : '']" />
+      <VoiceMediaView
+        :track="corner"
         class="absolute top-10 right-2 h-1/4 min-h-16 rounded-md border border-default object-cover"
         :class="tile.local ? '-scale-x-100' : ''"
       />
