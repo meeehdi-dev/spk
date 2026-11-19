@@ -8,9 +8,10 @@ import { mountInApp } from '~~/tests/fixtures/app'
 const state = await vi.hoisted(async () => {
   const { ref } = await import('vue')
   return {
-    socket: { connected: ref(true), offline: ref(false) },
+    socket: { connected: ref(true), offline: ref(false), lost: ref(false) },
     voice: {
       connection: ref('connected'),
+      lost: ref(false),
       audioBlocked: ref(false),
       microphone: ref('ready'),
       enableMicrophone: vi.fn(),
@@ -30,7 +31,9 @@ mockNuxtImport('useToast', () => () => ({ add: state.toast }))
 beforeEach(() => {
   state.socket.connected.value = true
   state.socket.offline.value = false
+  state.socket.lost.value = false
   state.voice.connection.value = 'connected'
+  state.voice.lost.value = false
   state.voice.audioBlocked.value = false
   state.voice.microphone.value = 'ready'
   state.voice.retryChannelId.value = null
@@ -38,30 +41,34 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-it('announces app versus media interruptions and only notifies once per transition', async () => {
+it('announces only settled outages and notifies once per transition', async () => {
   const wrapper = await mountInApp(ConnectionNotice)
   const status = wrapper.get('[role="status"]')
   expect(status.attributes('aria-live')).toBe('polite')
   expect(status.classes()).toEqual(expect.arrayContaining(['relative', 'h-0', 'z-20']))
   expect(wrapper.text()).toBe('')
-  expect(state.toast).not.toHaveBeenCalled()
   state.socket.connected.value = false
+  state.voice.connection.value = 'reconnecting'
   await nextTick()
   expect(wrapper.text()).toBe('')
+  expect(state.toast).not.toHaveBeenCalled()
+  state.socket.lost.value = true
+  state.voice.lost.value = true
+  await nextTick()
   expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'App connection lost. Reconnecting…' }))
+  expect(wrapper.text()).toContain('Voice interrupted')
+  expect(wrapper.text()).toContain('Leave voice')
   state.socket.offline.value = true
   await nextTick()
   expect(wrapper.text()).toContain('Offline')
   expect(status.get('.absolute').classes()).toEqual(expect.arrayContaining(['top-0', 'max-h-[50dvh]', 'overflow-y-auto']))
   expect(state.toast).toHaveBeenCalledTimes(1)
-  state.voice.connection.value = 'reconnecting'
-  await nextTick()
-  expect(wrapper.text()).toContain('Voice interrupted')
-  expect(wrapper.text()).toContain('Leave voice')
   state.socket.connected.value = true
+  state.socket.lost.value = false
   state.socket.offline.value = false
   await nextTick()
   expect(state.toast).toHaveBeenCalledTimes(2)
+  expect(state.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'App connection restored' }))
 })
 
 it('offers microphone retry without leaving the listening connection', async () => {

@@ -18,6 +18,7 @@ export function useSocket() {
   return {
     connected,
     offline,
+    lost: computed(() => !connected.value), // the sandbox shows the settled state
     send: (data: unknown) => connected.value && sandboxSocketSend(data),
     on(handler: (frame: SocketFrame) => void) {
       const off = subscribeSocket(handler)

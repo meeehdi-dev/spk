@@ -34,7 +34,10 @@ describe('websocket open', () => {
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(terminate).not.toHaveBeenCalled()
     expect(raw.map(value => JSON.parse(value)).filter(value => value.type === 'ping')).toHaveLength(30)
-    await hooks.close!(peer, { code: 1000, reason: '' })
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    await hooks.close!(peer, { code: 1006, reason: 'gone\n[x]' })
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^\[ws\] close user=late code=1006 reason=gonex livedMs=600000 quietMs=600000$/))
+    info.mockRestore()
     const count = raw.length
     await vi.advanceTimersByTimeAsync(60_000)
     expect(raw).toHaveLength(count)

@@ -6,6 +6,9 @@ import { radioSnapshot } from '../utils/radioState'
 const PING_MS = 20_000
 const userOf = new WeakMap<Peer, string>()
 const timers = new WeakMap<Peer, ReturnType<typeof setInterval>>()
+// openedAt / lastSeen let the close log tell a silent death (long quiet) from an active socket being cut.
+const openedAt = new WeakMap<Peer, number>()
+const lastSeen = new WeakMap<Peer, number>()
 
 export default defineWebSocketHandler({
   // Rejects the upgrade unless the session cookie is valid and the user isn't banned.
@@ -41,6 +44,8 @@ export default defineWebSocketHandler({
   open(peer) {
     const userId = peer.context.userId as string
     userOf.set(peer, userId)
+    openedAt.set(peer, Date.now())
+    lastSeen.set(peer, Date.now())
     const p = addPeer(userId, peer, peer.context.status as ManualStatus | undefined)
     if (p) broadcast({ type: 'presence:update', userId, status: p })
     peer.send(JSON.stringify({ type: 'radio:snapshot', channels: radioSnapshot() }))
@@ -53,12 +58,18 @@ export default defineWebSocketHandler({
     )
   },
   message(peer, message) {
+    lastSeen.set(peer, Date.now())
     const text = message.text()
     if (text === 'ping') peer.send(JSON.stringify({ type: 'pong' }))
     else handleClientFrame(peer.context.userId as string, text, peer)
   },
-  close(peer) {
+  close(peer, details) {
     clearInterval(timers.get(peer))
+    const now = Date.now()
+    const reason = (details?.reason ?? '').replace(/[^\w .:-]/g, '').slice(0, 60) || '-'
+    console.info(
+      `[ws] close user=${userOf.get(peer) ?? '-'} code=${details?.code ?? '-'} reason=${reason} livedMs=${now - (openedAt.get(peer) ?? now)} quietMs=${now - (lastSeen.get(peer) ?? now)}`,
+    )
     dropVoiceSocket(peer)
     const id = userOf.get(peer)
     const p = id ? removePeer(id, peer) : null

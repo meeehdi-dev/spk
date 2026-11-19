@@ -296,6 +296,8 @@ export function useVoice() {
     connecting,
     connection,
     audioBlocked,
+    lost: computed(() => connection.value === 'reconnecting'),
+    health: computed(() => (connection.value === 'reconnecting' ? 'lost' : connection.value === 'connected' && !audioBlocked.value ? 'ok' : 'unstable')),
     microphone,
     retryChannelId,
     connectionLabel: computed(() => {

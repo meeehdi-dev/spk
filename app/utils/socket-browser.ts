@@ -36,6 +36,46 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined
 let connectTimer: ReturnType<typeof setTimeout> | undefined
 const connected = ref(false)
 const offline = ref(false)
+/** True once the app socket has been down for LOST_MS; brief drops never set it. */
+const lost = ref(false)
+export const LOST_MS = 5000
+let lostTimer: ReturnType<typeof setTimeout> | undefined
+let offlineTimer: ReturnType<typeof setTimeout> | undefined
+
+// Outage diagnostics: queued while disconnected, sent on the next open so the server logs why connections drop.
+export type OutageKind = 'app' | 'voice' | 'voiceSignal'
+export type OutageStart = { at: number; hidden: boolean; online: boolean; visibleMs: number | null }
+type OutageEnd = { kind: OutageKind; cause: string; code?: number; wasClean?: boolean; lost: boolean }
+let diagQueue: (OutageEnd & Omit<OutageStart, 'at'> & { outageMs: number; stallMs: number })[] = []
+let stall: { at: number; ms: number } | undefined
+let visibleSince = 0
+let appDown: (OutageStart & { cause: string; code?: number; wasClean?: boolean }) | undefined
+
+// visibleMs: how long the tab had been visible when the drop was noticed; a small value means it was found on wake.
+export const outageStart = (): OutageStart => {
+  const hidden = document.visibilityState === 'hidden'
+  return { at: Date.now(), hidden, online: navigator.onLine, visibleMs: hidden ? null : Date.now() - visibleSince }
+}
+export function report({ at, ...start }: OutageStart, end: OutageEnd) {
+  // stallMs: a long timer gap near the outage means the machine slept or the tab was frozen.
+  const event = { ...end, ...start, outageMs: Date.now() - at, stallMs: stall && stall.at >= at - 60_000 ? stall.ms : 0 }
+  console.info('[spk] connection outage', event)
+  diagQueue = [...diagQueue, event].slice(-20)
+  flushDiag()
+}
+function flushDiag() {
+  if (!diagQueue.length || ws?.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ type: 'diag', events: diagQueue }))
+  diagQueue = []
+}
+/** Marks an open socket as dropping; `lost` follows after `delay` unless it reopens first. */
+function down(cause: string, code?: number, wasClean?: boolean, delay = LOST_MS) {
+  if (!connected.value) return
+  appDown = { ...outageStart(), cause, code, wasClean }
+  clearTimeout(lostTimer)
+  if (delay) lostTimer = setTimeout(() => (lost.value = true), delay)
+  else lost.value = true
+}
 
 function resetSocket() {
   clearTimeout(retryTimer)
@@ -63,7 +103,12 @@ function connect() {
     if (ws !== current) return
     retry = 0
     clearTimeout(connectTimer)
+    clearTimeout(lostTimer)
+    if (appDown) report(appDown, { kind: 'app', cause: appDown.cause, code: appDown.code, wasClean: appDown.wasClean, lost: lost.value })
+    appDown = undefined
+    lost.value = false
     connected.value = true
+    flushDiag()
     openHandlers.forEach(h => h())
   }
   current.onmessage = e => {
@@ -76,8 +121,9 @@ function connect() {
       /* ignore malformed frames */
     }
   }
-  current.onclose = () => {
+  current.onclose = (e?: CloseEvent) => {
     if (ws !== current) return
+    down('close', e?.code, e?.wasClean)
     resetSocket()
     if (!offline.value) retryTimer = setTimeout(connect, Math.min(1000 * 2 ** retry++, 15_000))
   }
@@ -90,13 +136,27 @@ export function useSocket() {
     offline.value = !navigator.onLine
     window.addEventListener('offline', () => {
       offline.value = true
-      resetSocket()
+      clearTimeout(offlineTimer)
+      // Brief offline flips (Wi-Fi roam, VPN, interface switch) often leave the socket working; drop it only if the network stays gone.
+      offlineTimer = setTimeout(() => {
+        down('offline', undefined, undefined, 0)
+        resetSocket()
+      }, LOST_MS)
     })
     window.addEventListener('online', () => {
+      clearTimeout(offlineTimer)
       offline.value = false
       connect()
     })
+    let tick = Date.now()
+    setInterval(() => {
+      const now = Date.now()
+      if (now - tick > 15_000) stall = { at: now, ms: now - tick }
+      tick = now
+    }, 5000)
+    visibleSince = Date.now()
     document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') visibleSince = Date.now()
       if (document.visibilityState !== 'visible' || offline.value) return
       connect()
     })
@@ -105,6 +165,7 @@ export function useSocket() {
   return {
     connected,
     offline,
+    lost,
     send: (data: unknown) => {
       if (ws?.readyState !== WebSocket.OPEN) return false
       ws.send(JSON.stringify(data))

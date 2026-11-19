@@ -2,6 +2,7 @@ import { MANUAL_STATUSES, type ManualStatus } from '../../shared/utils/presence'
 import { accessibleChannel, channelMemberIds, ChatError, createMessage } from '../db/messages'
 import { markRead, readState } from '../db/reads'
 
+import { logConnectionDiag } from './connectionDiag'
 import { createLimiter } from './limiter'
 import { onlineUserIds, sendToUser, setManualStatus, setPeerIdle, broadcast } from './peers'
 import { queuePreviews } from './previews'
@@ -31,6 +32,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
     nonce?: string
     replyToId?: string | null
     attachments?: Array<{ id: string; spoiler?: boolean }>
+    events?: unknown
   }
   try {
     m = JSON.parse(raw)
@@ -48,6 +50,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
     if (status) broadcast({ type: 'presence:update', userId, status })
     return
   }
+  if (m.type === 'diag') return logConnectionDiag(userId, m.events)
   if (m.type?.startsWith('voice:')) return handleVoiceFrame(userId, m, socket)
   if (m.type === 'message:send') {
     try {

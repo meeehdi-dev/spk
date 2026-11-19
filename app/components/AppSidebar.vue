@@ -334,7 +334,7 @@ const onDrop = (channelId: string) => {
         <UIcon
           name="i-lucide-volume-2"
           class="size-4 shrink-0"
-          :class="voice.connection.value === 'connected' && !voice.audioBlocked.value ? 'text-success' : 'text-warning'"
+          :class="{ ok: 'text-success', unstable: 'text-warning', lost: 'text-error' }[voice.health.value]"
         />
         <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline"
           ><EmojiText :text="voiceName ?? ''"

@@ -166,6 +166,7 @@ async function browser(userId: string, initiallyConnected = true) {
   clients.push({ userId, receive, owner })
   mocks.useSocket.mockImplementation(() => ({
     connected,
+    lost: ref(false),
     send,
     on: (h: (m: Frame) => void) => {
       handlers.add(h)
@@ -1193,7 +1194,8 @@ describe('voice reconnection', () => {
     r.emit('Reconnecting')
     expect(b.v.connectionLabel.value).toBe('Voice reconnecting…')
     expect(b.v.ping.value).toBeNull()
-    expect(toast.mock.calls.filter(([m]) => m.title === 'Voice interrupted. Reconnecting…')).toHaveLength(1)
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice interrupted. Reconnecting…' }))
+    expect(b.v.health.value).toBe('unstable')
     dropVoiceSocket(b.owner)
     b.opened()
     expect(sessions.voiceSnapshot().find(p => p.userId === 'recovery')).toBeDefined()
@@ -1206,6 +1208,28 @@ describe('voice reconnection', () => {
     r.emit('Reconnected')
     expect(b.v.channelId.value).toBeNull()
     expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('toasts a reconnect only after 5 s and turns the speaker red, keeping brief drops silent', async () => {
+    const b = await browser('slow-recovery')
+    vi.useFakeTimers()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    await b.v.join('c1')
+    const r = media.rooms.at(-1)!
+    r.emit('SignalReconnecting')
+    await vi.advanceTimersByTimeAsync(2000)
+    r.emit('Reconnected')
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/Voice (signaling|interrupted|connection)/) }))
+    r.emit('SignalReconnecting')
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(b.v.health.value).toBe('unstable')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(b.v.health.value).toBe('lost')
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice signaling reconnecting. Audio may still work.' }))
+    r.emit('Reconnected')
+    expect(b.v.health.value).toBe('ok')
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice connection restored' }))
+    await b.v.leave(false)
   })
 
   it('offers a manual retry only for transport failures and preserves deafen on rejoin', async () => {

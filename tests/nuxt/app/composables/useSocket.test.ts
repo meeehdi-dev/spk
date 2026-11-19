@@ -5,7 +5,7 @@ class MockSocket {
   static OPEN = 1
   readyState = 0
   onopen?: () => void
-  onclose?: () => void
+  onclose?: (event?: CloseEvent) => void
   onmessage?: (event: { data: string }) => void
   send = vi.fn()
   close = vi.fn()
@@ -79,12 +79,26 @@ it('never expires an open socket for inactivity and ignores callbacks from repla
   expect(sockets).toHaveLength(2)
 })
 
-it('waits offline, retries promptly online and never duplicates a healthy socket', async () => {
+it('keeps a working socket through a brief offline blip without any outage', async () => {
   const socket = await setup()
   sockets[0]!.open()
   fire(windowEvents, 'offline')
   expect(socket.offline.value).toBe(true)
+  await vi.advanceTimersByTimeAsync(4000)
+  fire(windowEvents, 'online')
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(sockets[0]!.close).not.toHaveBeenCalled()
+  expect(socket.connected.value).toBe(true)
+  expect(socket.lost.value).toBe(false)
+})
+
+it('drops after staying offline, retries promptly online and never duplicates a healthy socket', async () => {
+  const socket = await setup()
+  sockets[0]!.open()
+  fire(windowEvents, 'offline')
+  await vi.advanceTimersByTimeAsync(5000)
   expect(socket.connected.value).toBe(false)
+  expect(socket.lost.value).toBe(true)
   sockets[0]!.onclose?.()
   await vi.advanceTimersByTimeAsync(120_000)
   expect(sockets).toHaveLength(1)
@@ -92,8 +106,31 @@ it('waits offline, retries promptly online and never duplicates a healthy socket
   expect(socket.offline.value).toBe(false)
   expect(sockets).toHaveLength(2)
   sockets[1]!.open()
+  expect(socket.lost.value).toBe(false)
   fire(windowEvents, 'online')
   expect(sockets).toHaveLength(2)
+})
+
+it('marks lost only after 5 s down and reports the outage once reconnected', async () => {
+  const socket = await setup()
+  const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+  sockets[0]!.open()
+  sockets[0]!.onclose?.({ code: 1006, wasClean: false } as CloseEvent)
+  await vi.advanceTimersByTimeAsync(1000)
+  sockets[1]!.open()
+  expect(socket.lost.value).toBe(false)
+  const diag = (s: MockSocket) => s.send.mock.calls.map(([d]) => JSON.parse(d as string)).find(d => d.type === 'diag')
+  expect(diag(sockets[1]!).events).toEqual([expect.objectContaining({ kind: 'app', cause: 'close', code: 1006, wasClean: false, lost: false })])
+  sockets[1]!.onclose?.()
+  await vi.advanceTimersByTimeAsync(4999)
+  expect(socket.lost.value).toBe(false)
+  await vi.advanceTimersByTimeAsync(1)
+  expect(socket.lost.value).toBe(true)
+  await vi.advanceTimersByTimeAsync(2000)
+  sockets[2]!.open()
+  expect(socket.lost.value).toBe(false)
+  expect(diag(sockets[2]!).events[0]).toMatchObject({ lost: true, outageMs: expect.any(Number) })
+  expect(info).toHaveBeenCalledTimes(2)
 })
 
 it('keeps backoff but does not reset an open socket after waking the tab', async () => {

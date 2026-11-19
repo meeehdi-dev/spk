@@ -8,7 +8,7 @@ const name = computed(() => channels.value.find(c => c.id === v.channelId.value)
 <template>
   <footer class="flex h-12 shrink-0 items-center gap-2 border-t border-default px-3 text-sm" :class="v.channelId.value ? '' : 'text-muted'">
     <div class="flex min-w-0 items-center gap-2">
-      <UIcon name="i-lucide-volume-2" class="size-4" :class="v.connection.value === 'connected' && !v.audioBlocked.value ? 'text-success' : 'text-warning'" />
+      <UIcon name="i-lucide-volume-2" class="size-4" :class="{ ok: 'text-success', unstable: 'text-warning', lost: 'text-error' }[v.health.value]" />
       <NuxtLink v-if="v.channelId.value" :to="`/c/${v.channelId.value}`" class="truncate font-medium hover:underline"
         ><EmojiText :text="name ?? ''"
       /></NuxtLink>

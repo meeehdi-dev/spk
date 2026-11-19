@@ -50,6 +50,7 @@ import {
   type ScreenQuality,
   type UserVolume,
 } from '#shared/utils/voice'
+import { LOST_MS, report, outageStart, type OutageKind, type OutageStart } from '~/utils/socket-browser'
 import { createTrackAudio } from '~/utils/track-audio'
 import { createVoiceDiagnostics, type VoiceDiagnostics } from '~/utils/voice-diagnostics'
 
@@ -60,6 +61,10 @@ const connecting = ref(false)
 const pendingChannelId = ref<string | null>(null)
 const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalReconnecting'>('disconnected')
 const audioBlocked = ref(false)
+/** True once a media or signal reconnect has lasted LOST_MS; brief interruptions never set it. */
+const lost = ref(false)
+let lostTimer: ReturnType<typeof setTimeout> | undefined
+let voiceDown: (OutageStart & { kind: OutageKind }) | undefined
 let playbackNeedsRetry = false
 let playbackFailureEpoch = 0
 let microphoneAudioBlocked = false
@@ -546,11 +551,19 @@ export function useVoice() {
         })
       const interrupted = (state: 'reconnecting' | 'signalReconnecting') => {
         if (room !== r) return
-        if (connection.value === 'connected')
-          toast.add({
-            title: state === 'reconnecting' ? 'Voice interrupted. Reconnecting…' : 'Voice signaling reconnecting. Audio may still work.',
-            color: 'warning',
-          })
+        if (connection.value === 'connected') {
+          voiceDown = { ...outageStart(), kind: 'voiceSignal' }
+          clearTimeout(lostTimer)
+          lostTimer = setTimeout(() => {
+            if (room !== r || connection.value === 'connected') return
+            lost.value = true
+            toast.add({
+              title: connection.value === 'reconnecting' ? 'Voice interrupted. Reconnecting…' : 'Voice signaling reconnecting. Audio may still work.',
+              color: 'warning',
+            })
+          }, LOST_MS)
+        }
+        if (state === 'reconnecting' && voiceDown) voiceDown.kind = 'voice'
         if (connection.value !== 'reconnecting') connection.value = state
         stopPing(false)
         clearSpeaking()
@@ -561,7 +574,9 @@ export function useVoice() {
       r.on(RoomEvent.Reconnecting, () => interrupted('reconnecting'))
       r.on(RoomEvent.Reconnected, () => {
         if (!r || room !== r) return
-        const recovered = connection.value !== 'connected'
+        const recovered = lost.value
+        if (voiceDown) report(voiceDown, { kind: voiceDown.kind, cause: 'reconnected', lost: lost.value })
+        endOutage()
         connection.value = 'connected'
         rebuild()
         for (const p of r.remoteParticipants.values())
@@ -587,6 +602,8 @@ export function useVoice() {
       })
       r.on(RoomEvent.Disconnected, reason => {
         if (room === r) {
+          const start = voiceDown ?? { ...outageStart(), kind: 'voice' as const }
+          report(start, { kind: start.kind, cause: reason === undefined ? 'unknown' : (DisconnectReason[reason] ?? String(reason)), lost: true })
           const retry =
             reason === undefined ||
             [
@@ -722,8 +739,15 @@ export function useVoice() {
     await join(id)
   }
 
+  function endOutage() {
+    clearTimeout(lostTimer)
+    voiceDown = undefined
+    lost.value = false
+  }
+
   async function leave(sound = true, reason?: string) {
     moveEpoch++
+    endOutage()
     pendingChannelId.value = null
     retryChannelId.value = null
     connection.value = 'disconnected'
@@ -1155,6 +1179,11 @@ export function useVoice() {
     connecting,
     connection,
     audioBlocked,
+    lost,
+    /** Speaker icon state: brief drops stay amber, only outages past LOST_MS (voice or app socket) turn red. */
+    health: computed(() =>
+      lost.value || socket.lost.value ? 'lost' : connection.value === 'connected' && !audioBlocked.value && socket.connected.value ? 'ok' : 'unstable',
+    ),
     microphone,
     retryChannelId,
     connectionLabel: computed(() => {

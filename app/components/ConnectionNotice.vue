@@ -2,21 +2,19 @@
 const socket = useSocket()
 const v = useVoice()
 const toast = useToast()
-let interrupted = false
-watch(socket.connected, (on, was) => {
-  if (!on && was) {
-    interrupted = true
-    toast.add({ title: 'App connection lost. Reconnecting…', color: 'warning', icon: 'i-lucide-wifi-off' })
-  } else if (on && interrupted) {
-    interrupted = false
-    toast.add({ title: 'App connection restored', color: 'success', icon: 'i-lucide-wifi' })
-  }
-})
+// `lost` only turns on after a few seconds down, so brief drops show nothing.
+watch(socket.lost, lost =>
+  toast.add(
+    lost
+      ? { title: 'App connection lost. Reconnecting…', color: 'warning', icon: 'i-lucide-wifi-off' }
+      : { title: 'App connection restored', color: 'success', icon: 'i-lucide-wifi' },
+  ),
+)
 const message = computed(() => {
   const parts: string[] = []
   if (socket.offline.value) parts.push('Offline. Waiting for your network to return.')
-  if (v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
-  else if (v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
+  if (v.lost.value && v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
+  else if (v.lost.value && v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
   if (v.audioBlocked.value) parts.push('Audio is blocked or interrupted. Enable audio to recover the call.')
   if (v.channelId.value && v.microphone.value === 'unavailable') parts.push('Your microphone is unavailable. You can still listen.')
   if (v.retryChannelId.value) parts.push('Voice disconnected. Rejoin when you are ready.')
