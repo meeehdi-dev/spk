@@ -20,6 +20,7 @@ export interface ChatActions {
   remove: (id: string) => Promise<void>
   react: (id: string, emoji: string, on: boolean) => Promise<void>
   reply: (id: string) => void
+  pin: (id: string, on: boolean) => Promise<void>
   /** Scroll to a message, loading its surroundings if needed. */
   jump: (id: string) => void
   removePreview: (id: string, url: string) => Promise<void>

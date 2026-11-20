@@ -56,6 +56,7 @@ function message(channelId: string, userId: string, body: string): MessageDto {
     attachments: [],
     reactions: [],
     previews: [],
+    pinned: false,
   }
 }
 
@@ -241,6 +242,14 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
         nextCursor: null,
       }
     }
+    const pins = path.match(/^\/api\/channels\/([^/]+)\/pins$/)
+    if (pins)
+      return structuredClone(
+        channelMessages(pins[1]!)
+          .filter(m => m.pinned)
+          .reverse()
+          .map(m => ({ ...m, pinnedAt: m.createdAt, pinnedBy: me.id })),
+      )
     const history = path.match(/^\/api\/channels\/([^/]+)\/messages$/)
     if (history) {
       if (scenario.value === 'errors') fail(503, 'Simulated sandbox history failure')
@@ -282,7 +291,7 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
     dispatchSocketFrame({ type: 'users:changed' })
     return { ok: true }
   }
-  const target = path.match(/^\/api\/messages\/([^/]+)(?:\/(reactions|previews))?$/)
+  const target = path.match(/^\/api\/messages\/([^/]+)(?:\/(reactions|previews|pin))?$/)
   if (target) {
     const m = messages.find(m => m.id === target[1]) ?? fail(404, 'Sandbox message not found')
     if (method === 'GET' && !target[2]) return structuredClone(m)
@@ -314,6 +323,11 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
       m.reactions = m.reactions.filter(r => r.userIds.length)
       dispatchSocketFrame({ type: 'reaction:update', channelId: m.channelId, messageId: m.id, reactions: m.reactions })
       return structuredClone({ reactions: m.reactions })
+    }
+    if (method === 'POST' && target[2] === 'pin') {
+      m.pinned = body.on !== false
+      dispatchSocketFrame({ type: 'pin:update', channelId: m.channelId, messageId: m.id, pinned: m.pinned })
+      return { channelId: m.channelId, messageId: m.id, pinned: m.pinned }
     }
     if (method === 'DELETE' && target[2] === 'previews') {
       m.previews = m.previews.filter(p => p.url !== body.url)

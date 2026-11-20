@@ -160,6 +160,23 @@ export const messageMentions = sqliteTable(
   t => [primaryKey({ columns: [t.messageId, t.userId] })],
 )
 
+export const messagePins = sqliteTable(
+  'message_pins',
+  {
+    messageId: text('message_id')
+      .primaryKey()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    pinnedBy: text('pinned_by')
+      .notNull()
+      .references(() => user.id),
+    pinnedAt: ts('pinned_at').notNull().default(now),
+  },
+  t => [index('message_pins_channel').on(t.channelId, t.pinnedAt)],
+)
+
 export const attachments = sqliteTable('attachments', {
   id: text('id').primaryKey(),
   messageId: text('message_id').references(() => messages.id, { onDelete: 'cascade' }),

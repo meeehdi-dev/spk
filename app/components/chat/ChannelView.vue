@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AttachmentDto, HistoryResult, MessageDto } from '../../../server/db/messages'
+import type { PinDto } from '../../../server/db/pins'
 import type { SocketFrame } from '../../composables/useSocket'
 
 const props = defineProps<{ channelId: string; messageId?: string }>()
@@ -67,8 +68,21 @@ watch(
   () => props.channelId,
   () => {
     editingId.value = null
+    pins.value = []
   },
 )
+
+const pins = ref<PinDto[]>([])
+let pinsGen = 0
+async function loadPins() {
+  const mine = ++pinsGen
+  try {
+    const r = await $fetch<PinDto[]>(`/api/channels/${props.channelId}/pins`)
+    if (!disposed && mine === pinsGen) pins.value = r
+  } catch {
+    // The bar keeps its last state; the next pin event or reconnect refetches.
+  }
+}
 
 const fetchPage = (query: Record<string, string>) => $fetch<HistoryResult>(`/api/channels/${props.channelId}/messages`, { query })
 
@@ -298,7 +312,7 @@ const typingText = computed(() => {
 socket.on(m => {
   const channelId = 'message' in m ? m.message.channelId : 'channelId' in m ? m.channelId : undefined
   if (channelId !== props.channelId) return
-  if (bufferedEvents && (m.type.startsWith('message:') || m.type === 'reaction:update')) {
+  if (bufferedEvents && (m.type.startsWith('message:') || m.type === 'reaction:update' || m.type === 'pin:update')) {
     bufferedEvents.push(m)
     return
   }
@@ -306,6 +320,7 @@ socket.on(m => {
 })
 
 function applyEvent(m: SocketFrame) {
+  if ((m.type === 'message:edit' || m.type === 'message:delete') && pins.value.some(p => p.id === ('id' in m ? m.id : m.message.id))) void loadPins()
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
@@ -330,6 +345,10 @@ function applyEvent(m: SocketFrame) {
   } else if (m.type === 'reaction:update' && m.channelId === props.channelId) {
     const x = byIdMsg(m.messageId)
     if (x) x.reactions = m.reactions
+  } else if (m.type === 'pin:update' && m.channelId === props.channelId) {
+    const x = byIdMsg(m.messageId)
+    if (x) x.pinned = m.pinned
+    void loadPins()
   } else if (m.type === 'typing' && m.channelId === props.channelId) {
     typers.set(m.userId, Date.now() + 5000)
   }
@@ -389,6 +408,16 @@ provide(chatActionsKey, {
     editingId.value = null
     void nextTick(() => input.value?.focus())
   },
+  async pin(id, on) {
+    try {
+      await $fetch(`/api/messages/${id}/pin`, { method: 'POST', body: { on } })
+      const x = byIdMsg(id)
+      if (x) x.pinned = on
+      void loadPins()
+    } catch (e) {
+      apiError(e, on ? 'Could not pin the message' : 'Could not unpin the message')
+    }
+  },
   jump(id) {
     if (byIdMsg(id)) jumpTo(id)
     else void navigateTo(`/c/${props.channelId}/m/${id}`)
@@ -432,13 +461,17 @@ const rows = computed(() => {
 onMounted(() =>
   watch(
     () => [props.channelId, props.messageId],
-    () => load(),
+    (next, prev) => {
+      if (next[0] !== prev?.[0]) void loadPins()
+      return load()
+    },
     { immediate: true },
   ),
 )
 // A fresh continuous window avoids deleted cursors and leaves all older messages reachable.
 socket.onOpen(() => {
   if (disposed) return
+  void loadPins()
   if (loading.value) pendingRecovery = true
   else if (!hasMoreAfter.value || recoveryFailed.value) void load(undefined, true, true)
 })
@@ -448,6 +481,7 @@ socket.onOpen(() => {
   <div class="flex h-full min-h-0 flex-col">
     <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted"><UIcon name="i-lucide-lock" /> No access</div>
     <template v-else>
+      <ChatPinnedBar :pins="pins" :can-pin="canPin(channel?.type, me?.role)" />
       <div class="relative min-h-0 flex-1">
         <div ref="scroller" class="h-full overflow-y-auto pb-9" @scroll.passive="onScroll">
           <div ref="content">

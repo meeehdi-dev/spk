@@ -87,6 +87,7 @@ const message: SocketFrame = {
     attachments: [],
     reactions: [],
     previews: [],
+    pinned: false,
   },
 }
 
