@@ -285,9 +285,19 @@ describe('live screen settings', () => {
     await v.startScreen()
     expect(p.createScreenTracks).toHaveBeenCalledTimes(1)
     await starting
+    // The source is captured at the ceiling; only the published clone carries the chosen quality.
     expect(p.createScreenTracks).toHaveBeenCalledWith(
-      expect.objectContaining({ audio: SCREEN_AUDIO_CAPTURE, video: expect.objectContaining({ width: { max: 1920 }, frameRate: { ideal: 60, max: 60 } }) }),
+      expect.objectContaining({
+        audio: SCREEN_AUDIO_CAPTURE,
+        video: expect.objectContaining({ width: { max: 2560 }, height: { max: 1440 }, frameRate: { ideal: 60, max: 60 } }),
+      }),
     )
+    expect(video.mediaStreamTrack.applyConstraints).not.toHaveBeenCalled()
+    expect(video.mediaStreamTrack.clone.mock.results[0]!.value.applyConstraints).toHaveBeenCalledWith({
+      width: { max: 1920 },
+      height: { max: 1080 },
+      frameRate: { ideal: 60, max: 60 },
+    })
     expect(v.tiles.value[0]?.screenQuality).toEqual(SMOOTH)
     expect(video.mediaStreamTrack.getSettings().height).toBe(720)
     expect(p.publishTrack).toHaveBeenCalledWith(audio, SCREEN_AUDIO_PUBLISH)
@@ -303,13 +313,14 @@ describe('live screen settings', () => {
       cam = track('video', 'camera')
     p.trackPublications.set('microphone', { track: mic })
     p.trackPublications.set('camera', { track: cam })
-    for (const quality of [SMOOTH, ECO]) {
+    for (const quality of [SMOOTH, ECO, SMOOTH]) {
       await v.setScreenQuality(quality)
       const preset = screenShareOptions(quality)
       expect(settings.value.screenQuality).toEqual(quality)
       expect(v.tiles.value[0]?.screenQuality).toEqual(quality)
       expect(video.mediaStreamTrack.getSettings()).toEqual({ width: 1280, height: 720 })
-      expect(video.mediaStreamTrack.applyConstraints).toHaveBeenLastCalledWith({
+      expect(video.mediaStreamTrack.applyConstraints).not.toHaveBeenCalled()
+      expect(video.mediaStreamTrack.clone.mock.results.at(-1)!.value.applyConstraints).toHaveBeenLastCalledWith({
         width: { max: preset.resolution.width },
         height: { max: preset.resolution.height },
         frameRate: { ideal: preset.resolution.frameRate, max: preset.resolution.frameRate },
@@ -388,8 +399,22 @@ describe('live screen settings', () => {
     remote.trackPublications.delete('screen_share')
     r.emit('TrackUnpublished')
     expect(v.theater.value).toBe('remote')
+    vi.useFakeTimers()
+    // A quality change republishes: theater survives a short gap.
     remote.trackPublications.clear()
     r.emit('TrackUnpublished')
+    vi.advanceTimersByTime(2999)
+    remote.trackPublications.set('screen_share', pub)
+    r.emit('TrackPublished')
+    vi.advanceTimersByTime(5000)
+    expect(v.theater.value).toBe('remote')
+    // A real stop clears theater after the grace period.
+    remote.trackPublications.clear()
+    r.emit('TrackUnpublished')
+    vi.advanceTimersByTime(2999)
+    expect(v.theater.value).toBe('remote')
+    vi.advanceTimersByTime(1)
+    vi.useRealTimers()
     expect(v.theater.value).toBeNull()
     expect(v.watching.value).toEqual(['remote'])
     remote.trackPublications.set('screen_share', pub)

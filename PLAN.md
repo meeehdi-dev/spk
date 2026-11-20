@@ -300,7 +300,7 @@ Per-channel GIF selections, reply targets, attachment queues (including running 
 
 - **One click** on the share button (or ⌘⌥⇧S) opens the browser's own picker (it can't be replaced in a web app). No pre-share dialog.
 - Audio is shared by default. A chevron popover next to the share button has the **Share audio** switch and the **Quality** choice (radio group, saved per browser). Both apply immediately during a share; inactive changes only save preferences.
-- Quality briefly republishes only screen video, retaining capture without another picker. Watch stays selected through this gap and later shares by the same person in this call, until Stop watching or either person leaves voice. Older clients may need to click Watch again.
+- Quality briefly republishes only screen video, retaining capture without another picker. Watch stays selected through this gap and later shares by the same person in this call, until Stop watching or either person leaves voice. Theater mode also survives a gap of up to 3 s. Older clients may need to click Watch again.
 - Audio off immediately mutes screen audio; on resumes captured audio. If audio permission is missing, enabling it reopens the browser picker. Cancellation, denial, or a source without audio preserves the current share; successful permission can replace the shared surface.
 - Picker hints: `displaySurface`, `selfBrowserSurface: 'exclude'`, `systemAudio`, `surfaceSwitching: 'include'` (Chromium; other browsers ignore most of them).
 
@@ -316,6 +316,7 @@ Screen share quality has two options. **Eco** is the default (tuned for sharp te
 | Codec                   | VP9, VP8 as `backupCodec`   | VP9, VP8 as `backupCodec`   |
 
 - One resolution per share (simulcast off). Capture size is a `max` ceiling, so a smaller screen is never upscaled.
+- The capture always runs at the highest option (1440p, 60 fps), because browsers may not raise a running capture's frame rate. The chosen quality is applied to the published copy, so changes take effect without reopening the picker.
 - **Screen audio:** Opus stereo, up to 256 kbps, DTX off.
 
 ### Sounds

@@ -38,6 +38,8 @@ import {
   type CameraResolution,
   SCREEN_AUDIO_CAPTURE,
   SCREEN_AUDIO_PUBLISH,
+  SCREEN_FPS,
+  SCREEN_HEIGHTS,
   VOICE_PUBLISH_DEFAULTS,
   sensitivityToDb,
   toggleDeafen,
@@ -79,6 +81,9 @@ const tiles = shallowRef<VoiceTile[]>([])
 const watching = ref<string[]>([])
 /** The tile shown large; shared voice state so it survives navigating away from the channel. */
 const theater = ref<string | null>(null)
+/** A quality change republishes the stream; keep theater through that gap. */
+const THEATER_GRACE_MS = 3000
+let theaterTimer: { id: string | null; timer: ReturnType<typeof setTimeout> } | undefined
 /** Sound icon per user while their soundboard sound plays. */
 const playing = ref<Record<string, string>>({})
 const playingOff = new Map<string, ReturnType<typeof setTimeout>>()
@@ -299,6 +304,8 @@ export function useVoice() {
       tiles.value = []
       camOn.value = screenOn.value = false
       theater.value = null
+      clearTimeout(theaterTimer?.timer)
+      theaterTimer = undefined
       return
     }
     // LiveKit removes participants synchronously before announcing a full reconnect.
@@ -327,8 +334,23 @@ export function useVoice() {
     }
     const all = [room.localParticipant, ...room.remoteParticipants.values()]
     tiles.value = all.map(make)
-    const focused = tiles.value.find(t => t.userId === theater.value)
-    if (!recovering && focused && !focused.camLive && !focused.screenLive) theater.value = null
+    const id = theater.value,
+      idle = () => {
+        const t = tiles.value.find(t => t.userId === id)
+        return !!t && !t.camLive && !t.screenLive
+      }
+    if (recovering || !idle() || theaterTimer?.id !== id) {
+      clearTimeout(theaterTimer?.timer)
+      theaterTimer = undefined
+    }
+    if (!recovering && idle())
+      theaterTimer ??= {
+        id,
+        timer: setTimeout(() => {
+          theaterTimer = undefined
+          if (theater.value === id && idle()) theater.value = null
+        }, THEATER_GRACE_MS),
+      }
     const [cam, screen] = [tiles.value[0]!.camLive, tiles.value[0]!.screenLive]
     const changed = cam !== camOn.value || screen !== screenOn.value
     camOn.value = cam
@@ -894,12 +916,14 @@ export function useVoice() {
     const { width, height, frameRate } = screenShareOptions(quality).resolution
     return { width: { max: width }, height: { max: height }, frameRate: { ideal: frameRate, max: frameRate } }
   }
+  // Capture at the ceiling; each published clone is constrained down, since browsers may not raise a running capture's frame rate.
+  const SCREEN_CAPTURE_MAX: ScreenQuality = { height: SCREEN_HEIGHTS.at(-1)!, fps: SCREEN_FPS.at(-1)! }
   const screenCapture = (quality: ScreenQuality, audio: boolean): ScreenShareCaptureOptions => ({
     audio: audio ? SCREEN_AUDIO_CAPTURE : false,
     resolution: { width: 0, height: 0 },
     contentHint: screenShareOptions(quality).contentHint,
     // `max` never upscales the surface; LiveKit's type only declares displaySurface.
-    video: { displaySurface: 'monitor', ...screenConstraints(quality) } as { displaySurface: 'monitor' },
+    video: { displaySurface: 'monitor', ...screenConstraints(SCREEN_CAPTURE_MAX) } as { displaySurface: 'monitor' },
     selfBrowserSurface: 'exclude',
     systemAudio: 'include',
     surfaceSwitching: 'include',
@@ -950,6 +974,7 @@ export function useVoice() {
     const video = new LocalVideoTrack(s.video.mediaStreamTrack.clone())
     video.source = s.video.source
     s.publication = video
+    await video.mediaStreamTrack.applyConstraints(screenConstraints(quality))
     await r.localParticipant.publishTrack(video, screenPublish(quality))
     // LiveKit can override the hint while configuring VP9; keep the selected preset.
     video.mediaStreamTrack.contentHint = s.video.mediaStreamTrack.contentHint = screenShareOptions(quality).contentHint
@@ -1006,8 +1031,6 @@ export function useVoice() {
       previous = settings.value.screenQuality
     const current = () => room === r && screenEpoch === epoch && screenSession === s
     const apply = async (q: ScreenQuality) => {
-      await s.video.mediaStreamTrack.applyConstraints(screenConstraints(q))
-      if (!current()) return
       await unpublishScreenVideo(r, s)
       if (!current()) return
       await publishScreenVideo(r, s, q)
