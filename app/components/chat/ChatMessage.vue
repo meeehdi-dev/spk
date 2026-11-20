@@ -233,7 +233,7 @@ function onKey(e: KeyboardEvent) {
       @contextmenu="onContext"
       @keydown="onKey"
     >
-      <div class="relative w-9 shrink-0 text-right">
+      <div class="relative flex w-9 shrink-0 justify-end">
         <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
           <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
