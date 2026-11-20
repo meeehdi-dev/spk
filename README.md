@@ -10,7 +10,7 @@ The design document is [PLAN.md](PLAN.md).
 
 ## Requirements
 
-- Node 26.13.0 and pnpm 12.18.0 (pinned in `package.json`)
+- Node 26.13.1 and pnpm 12.21.0 (pinned in `package.json`)
 - `livekit-server` (voice; for local dev, see [livekit.io](https://docs.livekit.io/home/self-hosting/local/))
 - A Cloudflare R2 bucket and API token (file uploads)
 - Optional: a [Klipy](https://klipy.com) API key (GIFs)

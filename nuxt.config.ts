@@ -24,11 +24,9 @@ export default defineNuxtConfig({
   },
   experimental: { emitRouteChunkError: 'manual', checkOutdatedBuildInterval: 5 * 60 * 1000 },
   pwa: {
-    strategies: 'injectManifest',
-    srcDir: '../service-worker',
-    filename: 'sw.js',
+    strategies: 'buildSW',
     injectRegister: false,
-    injectManifest: { injectionPoint: undefined },
+    buildSW: { swSrc: 'service-worker/sw.js' },
     client: { registerPlugin: false },
     devOptions: { enabled: false },
     pwaAssets: { disabled: true },
@@ -121,7 +119,7 @@ export default defineNuxtConfig({
     },
     'app:resolve'(app) {
       // The PWA module injects an empty asset helper even when generation is disabled.
-      app.plugins = app.plugins.filter(plugin => !plugin.src.endsWith('/pwa-icons-plugin.ts'))
+      app.plugins = app.plugins.filter(plugin => !plugin.src.endsWith('/pwa-icons/plugin.js'))
     },
     // Nuxt's bare `assets` alias breaks the package's `new URL('assets/…', import.meta.url)`, so its worklet/wasm/model aren't emitted.
     'vite:extendConfig'(config) {
