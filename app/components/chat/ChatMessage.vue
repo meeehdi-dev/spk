@@ -20,6 +20,7 @@ const pinged = computed(
     (props.message.replyTo?.userId === me.value.id || extractMentionIds(props.message.body).includes(me.value.id)),
 )
 const canDelete = computed(() => own.value || me.value?.role === 'admin')
+const pinnable = computed(() => canPin(channels.value.find(c => c.id === props.message.channelId)?.type, me.value?.role))
 
 provide(
   messageCtxKey,
@@ -167,6 +168,15 @@ const messageItems = (point?: { x: number; y: number }) => [
         },
       ]
     : []),
+  ...(pinnable.value
+    ? [
+        {
+          label: props.message.pinned ? 'Unpin message' : 'Pin message',
+          icon: props.message.pinned ? 'i-lucide-pin-off' : 'i-lucide-pin',
+          onSelect: () => actions.pin(props.message.id, !props.message.pinned),
+        },
+      ]
+    : []),
   { label: 'Copy text', icon: 'i-lucide-copy', onSelect: () => copyText(plain()) },
   { label: 'Copy Markdown', icon: 'i-lucide-file-code', onSelect: () => copyText(props.message.body) },
   { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => copyText(link()) },
@@ -252,6 +262,7 @@ function onKey(e: KeyboardEvent) {
           <UTooltip v-if="message.editedAt && !editing" :text="exactTime(message.editedAt)">
             <span class="text-[10px] text-muted">(edited)</span>
           </UTooltip>
+          <UIcon v-if="message.pinned" name="i-lucide-pin" class="size-3 self-center text-muted" aria-label="Pinned" />
         </div>
         <button
           v-if="message.replyTo"

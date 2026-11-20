@@ -7,7 +7,7 @@ import { extractUrls } from '../../shared/utils/links'
 import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
 
 import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
-import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePreviews, messages, reactions, user } from './schema'
+import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePins, messagePreviews, messages, reactions, user } from './schema'
 
 /** A database or a transaction handle. */
 type Conn = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>
@@ -51,6 +51,7 @@ export interface MessageDto {
   attachments: AttachmentDto[]
   reactions: ReactionDto[]
   previews: PreviewDto[]
+  pinned: boolean
 }
 
 export class ChatError extends Error {
@@ -93,7 +94,7 @@ export function channelMemberIds(db: Db, ch: { id: string; type: string }, onlin
 const preview = (body: string) => (body.split('\n').find(l => l.trim()) ?? '').trim().slice(0, 120)
 
 /** Rows -> DTOs with their attachments, reactions and reply previews (3-4 queries for the whole page). */
-function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDto[] {
+export function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDto[] {
   if (!rows.length) return []
   const ids = rows.map(r => r.id)
   const files = db
@@ -115,6 +116,14 @@ function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDt
     .where(inArray(messagePreviews.messageId, ids))
     .orderBy(messagePreviews.position)
     .all()
+  const pins = new Set(
+    db
+      .select({ id: messagePins.messageId })
+      .from(messagePins)
+      .where(inArray(messagePins.messageId, ids))
+      .all()
+      .map(p => p.id),
+  )
   const replyIds = [...new Set(rows.map(r => r.replyToId).filter((x): x is string => !!x))]
   const originals = new Map((replyIds.length ? db.select().from(messages).where(inArray(messages.id, replyIds)).all() : []).map(m => [m.id, m]))
   return rows.map(m => {
@@ -136,6 +145,7 @@ function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): MessageDt
       previews: cards
         .filter(c => c.messageId === m.id)
         .map(c => ({ url: c.p.url, title: c.p.title, description: c.p.description, siteName: c.p.siteName, image: !!c.p.imageKey })),
+      pinned: pins.has(m.id),
     }
   })
 }
@@ -220,7 +230,7 @@ export function createMessage(db: Db, userId: string, channelId: string, body: u
   })
 }
 
-const liveMessage = (db: Db, id: unknown) =>
+export const liveMessage = (db: Db, id: unknown) =>
   typeof id === 'string'
     ? db
         .select()
@@ -275,6 +285,7 @@ export function deleteMessage(db: Db, userId: string, isAdmin: boolean, messageI
     tx.delete(reactions).where(eq(reactions.messageId, m.id)).run()
     tx.delete(messageMentions).where(eq(messageMentions.messageId, m.id)).run()
     tx.delete(messagePreviews).where(eq(messagePreviews.messageId, m.id)).run()
+    tx.delete(messagePins).where(eq(messagePins.messageId, m.id)).run()
     tx.update(messages)
       .set({ body: '', deletedAt: new Date(now) })
       .where(eq(messages.id, m.id))

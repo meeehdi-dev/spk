@@ -18,6 +18,7 @@ export type SocketFrame =
   | { type: 'message:delete'; channelId: string; id: string }
   | { type: 'message:previews'; channelId: string; messageId: string; previews: MessageDto['previews'] }
   | { type: 'reaction:update'; channelId: string; messageId: string; reactions: MessageDto['reactions'] }
+  | { type: 'pin:update'; channelId: string; messageId: string; pinned: boolean }
   | { type: 'typing'; channelId: string; userId: string }
   | ({ type: 'voice:presence' } & (VoicePresence | { userId: string; channelId: null }))
   | { type: 'voice:sound'; userId: string; soundId: string }

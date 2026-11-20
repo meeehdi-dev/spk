@@ -38,13 +38,17 @@ const message: MessageDto = {
   attachments: [],
   reactions: [],
   previews: [],
+  pinned: false,
 }
-const actions = { edit: vi.fn(), remove: vi.fn(), react: vi.fn(), reply: vi.fn(), jump: vi.fn(), removePreview: vi.fn(), openImage: vi.fn() }
+const actions = { edit: vi.fn(), remove: vi.fn(), react: vi.fn(), reply: vi.fn(), pin: vi.fn(), jump: vi.fn(), removePreview: vi.fn(), openImage: vi.fn() }
 
 beforeAll(() => {
   registerEndpoint('/api/profile/me', () => ({ id: 'a', email: 'a@x.dev', role: 'user', displayName: 'Alex', avatarKey: null }))
   registerEndpoint('/api/users', () => [{ id: 'a', displayName: 'Alex', avatarKey: null, role: 'user' }])
-  registerEndpoint('/api/channels', () => [{ id: 'c', type: 'text', name: 'general' }])
+  registerEndpoint('/api/channels', () => [
+    { id: 'c', type: 'text', name: 'general' },
+    { id: 'd', type: 'dm', name: null },
+  ])
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -178,7 +182,7 @@ describe('message highlights', () => {
       props.highlighted = highlighted
       await nextTick()
     }
-    await vi.waitFor(() => expect(useNuxtData('channels').data.value).toEqual([{ id: 'c', type: 'text', name: 'general' }]))
+    await vi.waitFor(() => expect(useNuxtData('channels').data.value).toContainEqual({ id: 'c', type: 'text', name: 'general' }))
     await update({ body: 'hello <@a>' })
     expect(state.root.classList).toContain('bg-primary/10')
     expect(state.root.classList).toContain('hover:bg-primary/15')
@@ -378,5 +382,26 @@ describe('message menus and reaction picker', () => {
     await nextTick()
     expect(state.picker).toBe(false)
     expect(actions.react).toHaveBeenCalledExactlyOnceWith('m1', '😀', true)
+  })
+})
+
+describe('pinning', () => {
+  const pinItem = (state: State) => state.messageItems().find(item => /pin/i.test(item.label))
+  it('hides Pin in text channels for non-admins and offers Pin/Unpin in DMs', async () => {
+    expect(pinItem((await mountMessage()).state)).toBeUndefined()
+    for (const pinned of [false, true]) {
+      const wrapper = await mountInApp(
+        ChatMessage,
+        { message: { ...message, channelId: 'd', pinned }, grouped: false },
+        { global: { provide: { [chatActionsKey as symbol]: actions } } },
+      )
+      await flushPromises()
+      const state = wrapper.findComponent(ChatMessage).vm as unknown as State
+      const item = pinItem(state)!
+      expect(item.label).toBe(pinned ? 'Unpin message' : 'Pin message')
+      item.onSelect()
+      expect(actions.pin).toHaveBeenLastCalledWith('m1', !pinned)
+      expect(wrapper.find('[aria-label="Pinned"]').exists()).toBe(pinned)
+    }
   })
 })

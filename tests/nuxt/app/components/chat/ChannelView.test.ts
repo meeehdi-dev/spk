@@ -1,5 +1,6 @@
 import type { SocketFrame } from '~/composables/useSocket'
 import type { HistoryResult, MessageDto } from '~~/server/db/messages'
+import type { PinDto } from '~~/server/db/pins'
 
 import { mockComponent, mockNuxtImport, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
@@ -50,6 +51,7 @@ interface State {
 }
 
 const history = vi.fn<(channelId: string, query: Record<string, string>) => Promise<HistoryResult> | HistoryResult>()
+const pinList = vi.fn<(channelId: string) => Promise<PinDto[]> | PinDto[]>()
 const reactions = vi.fn<(body: { emoji: string; on: boolean }) => Promise<{ reactions: MessageDto['reactions'] }> | { reactions: MessageDto['reactions'] }>()
 const message = (id: string, createdAt = 1): MessageDto => ({
   id,
@@ -62,6 +64,7 @@ const message = (id: string, createdAt = 1): MessageDto => ({
   attachments: [],
   reactions: [],
   previews: [],
+  pinned: false,
 })
 const page = (messages: MessageDto[], hasMoreBefore = false, hasMoreAfter = false): HistoryResult => ({ messages, hasMoreBefore, hasMoreAfter })
 const settle = async () => {
@@ -78,10 +81,12 @@ beforeAll(() => {
     { id: 'other', type: 'text', name: 'other' },
   ])
   for (const id of ['t', 'other']) registerEndpoint(`/api/channels/${id}/messages`, event => history(id, getQuery(event) as Record<string, string>))
+  for (const id of ['t', 'other']) registerEndpoint(`/api/channels/${id}/pins`, () => pinList(id))
   registerEndpoint('/api/messages/m/reactions', { method: 'POST', handler: async event => reactions(await readBody(event)) })
   registerEndpoint('/api/channels/t/unread', { method: 'POST', handler: event => ({ unread: 0, mentions: 0, id: getRouterParam(event, 'id') }) })
 })
 beforeEach(() => {
+  pinList.mockReset().mockReturnValue([])
   history.mockReset()
   reactions.mockReset()
   mocks.frames.clear()
@@ -323,5 +328,52 @@ describe('message rows', () => {
     expect(localStorage.getItem('spk:recent-reactions:b')).toBeNull()
     me.value = { ...me.value!, id: 'a' }
     expect(quick()).toEqual(['👍', '😂', '❤️'])
+  })
+})
+
+describe('pins', () => {
+  const pinOf = (m: MessageDto): PinDto => ({ ...m, pinned: true, pinnedAt: 1, pinnedBy: 'a' })
+  const bar = (wrapper: Awaited<ReturnType<typeof mountChannel>>['wrapper']) => wrapper.find('[title="Show the latest pinned message"]')
+
+  it('drops a late pin list from the previous channel', async () => {
+    const late = Promise.withResolvers<PinDto[]>()
+    pinList.mockImplementation(id => (id === 't' ? late.promise : []))
+    const { wrapper, props } = await loaded()
+    history.mockResolvedValueOnce(page([]))
+    props.channelId = 'other'
+    await settle()
+    late.resolve([pinOf(message('anchor'))])
+    await settle()
+    expect(bar(wrapper).exists()).toBe(false)
+  })
+
+  it('applies pin:update to the row and refetches the bar, also after editing or deleting a pinned message', async () => {
+    const { wrapper, state } = await loaded()
+    await settle()
+    const calls = pinList.mock.calls.length
+    pinList.mockReturnValue([pinOf(message('anchor'))])
+    receive({ type: 'pin:update', channelId: 't', messageId: 'anchor', pinned: true })
+    await settle()
+    expect(state.messages[0]!.pinned).toBe(true)
+    expect(bar(wrapper).text()).toContain('anchor')
+    receive({ type: 'message:edit', message: { ...message('anchor'), body: 'changed', pinned: true } })
+    receive({ type: 'message:edit', message: message('unpinned') })
+    await settle()
+    expect(pinList.mock.calls.length).toBe(calls + 2)
+    pinList.mockReturnValue([])
+    receive({ type: 'message:delete', channelId: 't', id: 'anchor' })
+    await settle()
+    expect(pinList.mock.calls.length).toBe(calls + 3)
+    expect(bar(wrapper).exists()).toBe(false)
+  })
+
+  it('refetches pins on reconnect', async () => {
+    await loaded()
+    await settle()
+    const calls = pinList.mock.calls.length
+    history.mockResolvedValueOnce(page([message('anchor')]))
+    reconnect()
+    await settle()
+    expect(pinList.mock.calls.length).toBe(calls + 1)
   })
 })
