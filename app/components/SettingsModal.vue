@@ -10,30 +10,53 @@ const open = computed({
     if (!o) tab.value = null
   },
 })
-const items = computed(() =>
-  SETTINGS_TABS.filter(t => !('admin' in t) || me.value?.role === 'admin').map(t => ({
+// Registered by the dev-only UI sandbox (dev/ui/panel-plugin.ts); absent in normal runs.
+const sandboxPanel = import.meta.dev ? useNuxtApp().vueApp.component('UiSandboxPanel') : undefined
+const sandbox = ref(false)
+watch(tab, () => {
+  sandbox.value = false
+})
+const items = computed(() => [
+  ...SETTINGS_TABS.filter(t => !('admin' in t) || me.value?.role === 'admin').map(t => ({
     label: t.label,
     icon: t.icon,
-    active: tab.value === t.id,
+    active: !sandbox.value && tab.value === t.id,
     onSelect: () => {
       tab.value = t.id
+      sandbox.value = false
     },
   })),
-)
+  ...(sandboxPanel
+    ? [
+        {
+          label: 'UI sandbox',
+          icon: 'i-lucide-flask-conical',
+          active: sandbox.value,
+          class: 'text-inverted before:bg-primary hover:text-inverted hover:before:bg-primary/90',
+          ui: { linkLeadingIcon: 'text-inverted group-hover:text-inverted' },
+          onSelect: () => {
+            sandbox.value = true
+          },
+        },
+      ]
+    : []),
+])
 const view = computed(() =>
-  tab.value
-    ? {
-        profile: resolveComponent('SettingsProfile'),
-        appearance: resolveComponent('SettingsAppearance'),
-        voice: resolveComponent('SettingsVoice'),
-        notifications: resolveComponent('SettingsNotifications'),
-        shortcuts: resolveComponent('SettingsShortcuts'),
-        changelog: resolveComponent('SettingsChangelog'),
-        soundboard: resolveComponent('SettingsSoundboard'),
-        invites: resolveComponent('SettingsInvites'),
-        users: resolveComponent('SettingsUsers'),
-      }[tab.value]
-    : null,
+  sandbox.value
+    ? sandboxPanel
+    : tab.value
+      ? {
+          profile: resolveComponent('SettingsProfile'),
+          appearance: resolveComponent('SettingsAppearance'),
+          voice: resolveComponent('SettingsVoice'),
+          notifications: resolveComponent('SettingsNotifications'),
+          shortcuts: resolveComponent('SettingsShortcuts'),
+          changelog: resolveComponent('SettingsChangelog'),
+          soundboard: resolveComponent('SettingsSoundboard'),
+          invites: resolveComponent('SettingsInvites'),
+          users: resolveComponent('SettingsUsers'),
+        }[tab.value]
+      : null,
 )
 </script>
 

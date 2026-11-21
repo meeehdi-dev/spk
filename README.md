@@ -47,7 +47,7 @@ Duplicate and conflicting Tailwind utilities fail lint and CI. Oxlint checks scr
 
 ### UI sandbox
 
-Run `pnpm dev:ui` and open `http://localhost:3001` to browse the real interface with local fake data. No account, database, LiveKit server, camera, or microphone is needed. The floating **UI sandbox** panel selects populated, empty, connecting, reconnecting, and error presets; Reset restores the starting state.
+Run `pnpm dev:ui` and open `http://localhost:3001` to browse the real interface with local fake data. No account, database, LiveKit server, camera, or microphone is needed. The **UI sandbox** tab, last in Settings, selects populated, empty, connecting, reconnecting, and error presets; Reset restores the starting state.
 
 The populated preset includes unread DMs and text-channel mentions, online/idle/busy users, and fake voice participants with webcam and screen sharing. Open **Voice room** to watch synthetic video, or **Message edge cases** for long messages, replies, spoilers, reactions, and a code attachment. The panel can simulate incoming messages, typing, and slow API responses for loading states; normal chat and voice controls operate on browser-local state. Refreshing discards changes. Unsupported actions, including uploads and account/admin mutations, fail locally rather than reaching the real backend.
 
