@@ -242,8 +242,8 @@ importers:
         specifier: ^11.12.0
         version: 11.12.0
       livekit-client:
-        specifier: ^2.24.1
-        version: 2.24.1(@types/dom-mediacapture-record@1.0.22)
+        specifier: ^2.25.0
+        version: 2.25.0(@types/dom-mediacapture-record@1.0.22)
       livekit-server-sdk:
         specifier: ^2.20.1
         version: 2.20.1
@@ -5626,8 +5626,8 @@ packages:
       '@parcel/watcher':
         optional: true
 
-  livekit-client@2.24.1:
-    resolution: {integrity: sha512-8kkpTPuszlkza99XOV/QZVQG7M730i5gH52j0AZzsUMQpQfI9tEgW2JfDge7+Z2ZUUuBEtV3r2MYbALHFJ2HIg==}
+  livekit-client@2.25.0:
+    resolution: {integrity: sha512-QrXeBqrTCPujCu7uMmT9DXOIYTCGz0Ig90EGJx4B05fhQX3BLZJzAbEpRqvFwhQZyQV5uf2KeYsjeVo6as1kZw==}
     peerDependencies:
       '@types/dom-mediacapture-record': ^1
 
@@ -12869,7 +12869,7 @@ snapshots:
     transitivePeerDependencies:
       - srvx
 
-  livekit-client@2.24.1(@types/dom-mediacapture-record@1.0.22):
+  livekit-client@2.25.0(@types/dom-mediacapture-record@1.0.22):
     dependencies:
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.53.0

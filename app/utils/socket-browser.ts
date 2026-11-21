@@ -44,9 +44,9 @@ let lostTimer: ReturnType<typeof setTimeout> | undefined
 let offlineTimer: ReturnType<typeof setTimeout> | undefined
 
 // Outage diagnostics: queued while disconnected, sent on the next open so the server logs why connections drop.
-export type OutageKind = 'app' | 'voice' | 'voiceSignal'
+export type OutageKind = 'app' | 'voice' | 'voiceSignal' | 'voiceTrack'
 export type OutageStart = { at: number; hidden: boolean; online: boolean; visibleMs: number | null }
-type OutageEnd = { kind: OutageKind; cause: string; code?: number; wasClean?: boolean; lost: boolean }
+type OutageEnd = { kind: OutageKind; cause: string; code?: number; wasClean?: boolean; lost: boolean; track?: string }
 let diagQueue: (OutageEnd & Omit<OutageStart, 'at'> & { outageMs: number; stallMs: number })[] = []
 let stall: { at: number; ms: number } | undefined
 let visibleSince = 0

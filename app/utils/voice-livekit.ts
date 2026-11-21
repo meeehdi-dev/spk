@@ -72,6 +72,12 @@ let playbackFailureEpoch = 0
 let microphoneAudioBlocked = false
 const microphone = ref<'idle' | 'starting' | 'ready' | 'unavailable'>('idle')
 let pendingMicrophone: AbortController | undefined
+// The session's single mic track; LiveKit keeps the same object across republish.
+let micPub: LocalAudioTrack | undefined
+// When each remote mic publication was first seen desired but unsubscribed.
+const stuck = new WeakMap<object, number>()
+const STUCK_MS = 10_000 // well past a normal (even TURN) subscribe, so a slow one is never reset mid-flight
+let stopVisibleHeal: (() => void) | undefined
 const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
 const presence = ref<Record<string, VoiceMember>>({})
@@ -168,7 +174,8 @@ export function useVoice() {
   const toast = useToast()
   const { data: me } = useMe()
 
-  const micTrack = () => room?.localParticipant.getTrackPublication('microphone' as Track.Source)?.audioTrack
+  const micTrack = () => (room ? micPub : undefined)
+  const trackDiag = (cause: string, track?: string) => report(outageStart(), { kind: 'voiceTrack', cause, lost: false, track })
   const processing = () => ({ enhanced: settings.value.noise === 'enhanced', thresholdDb: sensitivityToDb(settings.value.sensitivity) })
   function updateAudioBlocked(r = room) {
     if (r) audioBlocked.value = playbackNeedsRetry || microphoneAudioBlocked || !r.canPlaybackAudio
@@ -257,6 +264,7 @@ export function useVoice() {
       settings.value.outputVolume,
     )
     // Element volume is ignored on some browsers (notably iOS); gate the received audio itself.
+    // Runs on every output change; keeping !isMuted stops it re-enabling a track LiveKit muted.
     track.mediaStreamTrack.enabled = volume > 0 && !track.isMuted
     trackAudio.volume(track, volume)
   }
@@ -275,6 +283,24 @@ export function useVoice() {
       for (const pub of p.trackPublications.values()) {
         const want = pub.source === ('microphone' as Track.Source) || watching.value.includes(p.identity)
         if (pub.isDesired !== want) pub.setSubscribed(want)
+      }
+    }
+  }
+  // Ping tick / tab visible: a mic still desired but unsubscribed after STUCK_MS gets resubscribed. Wall-clock, so throttled timers only delay it.
+  function heal() {
+    if (connection.value !== 'connected') return
+    for (const p of room?.remoteParticipants.values() ?? []) {
+      for (const pub of p.audioTrackPublications.values()) {
+        if (pub.source !== ('microphone' as Track.Source)) continue
+        const since = stuck.get(pub)
+        if (!pub.isDesired || pub.isSubscribed) stuck.delete(pub)
+        else if (since === undefined) stuck.set(pub, Date.now())
+        else if (Date.now() - since >= STUCK_MS) {
+          stuck.delete(pub)
+          pub.setSubscribed(false)
+          pub.setSubscribed(true)
+          trackDiag('resubscribed', pub.trackSid)
+        }
       }
     }
   }
@@ -384,6 +410,13 @@ export function useVoice() {
 
   async function enableMicrophone(permission?: Promise<undefined | Error>, r = room, connected?: Promise<void>) {
     if (!r || pendingMicrophone || microphone.value === 'ready') return
+    const published = micPub && [...r.localParticipant.trackPublications.values()].find(p => p.track === micPub)
+    if (published) {
+      microphone.value = 'ready'
+      applyMute()
+      trackDiag('micReused', published.trackSid)
+      return
+    }
     const attempt = new AbortController()
     pendingMicrophone = attempt
     const { signal } = attempt
@@ -437,13 +470,21 @@ export function useVoice() {
       if (mute.value.muted) await track.mute()
       signal.throwIfAborted()
       await r.localParticipant.publishTrack(track)
-      signal.throwIfAborted()
+      signal.throwIfAborted() // an aborted publish is unpublished below as an orphan
+      micPub = track
       microphone.value = 'ready'
       applyMute()
     } catch (e) {
       track?.stop() // Capture can finish after leaving; unpublished tracks need explicit cleanup.
+      const orphan = track && [...r.localParticipant.trackPublications.values()].find(p => p.track === track)
+      if (orphan) {
+        await r.localParticipant.unpublishTrack(track!).catch(() => {})
+        trackDiag('micUnpublished', orphan.trackSid)
+      }
       await connected?.catch(() => {})
       if (!signal.aborted && room === r) {
+        console.warn('Microphone failed', (e as Error).message)
+        trackDiag('micPublishFailed', orphan?.trackSid)
         microphone.value = 'unavailable'
         pushState()
         toast.add({ title: 'Microphone unavailable. You can still listen.', description: (e as Error).message, color: 'warning', icon: 'i-lucide-mic-off' })
@@ -507,6 +548,7 @@ export function useVoice() {
       r = new Room({
         adaptiveStream: true,
         dynacast: true,
+        singlePeerConnection: false,
         disconnectOnPageLeave: false, // beforeunload can be cancelled; pagehide handles departure.
         publishDefaults: VOICE_PUBLISH_DEFAULTS,
         videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
@@ -517,6 +559,10 @@ export function useVoice() {
         applyTrackOutput(track as RemoteAudioTrack, participant.identity, publication.source)
         attachAudio(track as RemoteAudioTrack) // remote audio only plays while attached to an element
         void routeOutput(track as RemoteAudioTrack)
+      })
+      r.on(RoomEvent.TrackSubscriptionFailed, trackSid => {
+        if (signal.aborted || (room !== r && pendingJoin !== attempt)) return
+        trackDiag('subFailed', trackSid) // heal() retries once it has been stuck long enough
       })
       // Firefox: LiveKit's own default-device pick sets every remote sink on devicechange; restore ours.
       r.on(RoomEvent.ActiveDeviceChanged, kind => {
@@ -683,6 +729,7 @@ export function useVoice() {
       pendingMicrophone?.abort()
       pendingMicrophone = undefined
       microphone.value = 'idle'
+      micPub = undefined
       processor = undefined
       playbackNeedsRetry = microphoneAudioBlocked = audioBlocked.value = false
       if (claimed) socket.send({ type: 'voice:leave', sid })
@@ -733,12 +780,20 @@ export function useVoice() {
     void read()
     pingTimer = setInterval(() => {
       void read()
+      heal()
     }, 2000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') heal()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    stopVisibleHeal = () => document.removeEventListener('visibilitychange', onVisible)
   }
   function stopPing(clearHistory = true) {
     pingEpoch++
     clearInterval(pingTimer)
     pingTimer = undefined
+    stopVisibleHeal?.()
+    stopVisibleHeal = undefined
     ping.value = null
     diagnostics.value = null
     if (clearHistory) pingHistory.value = []
@@ -777,6 +832,7 @@ export function useVoice() {
     pendingMicrophone?.abort()
     pendingMicrophone = undefined
     microphone.value = 'idle'
+    micPub = undefined
     const pending = pendingJoin
     pending?.abort()
     restoreAudioSession?.()

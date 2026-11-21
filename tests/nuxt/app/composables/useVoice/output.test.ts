@@ -61,6 +61,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       connectionQuality: 'excellent',
       identity: 'local',
       isLocal: true,
+      trackPublications: new Map(),
       getTrackPublication: () => ({ audioTrack: this.mic }),
       createTracks: vi.fn(async () => [this.mic]),
       publishTrack: vi.fn(async () => {}),

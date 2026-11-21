@@ -62,7 +62,13 @@ const { media, MockRoom } = vi.hoisted(() => {
         return this.cameraPublication
       }),
       createTracks: vi.fn(async () => [this.mic]),
-      publishTrack: vi.fn(async () => {}),
+      trackPublications: new Map<string, { track: unknown; trackSid: string }>(),
+      publishTrack: vi.fn(async (track: unknown) => {
+        this.localParticipant.trackPublications.set('TR_mic', { track, trackSid: 'TR_mic' })
+      }),
+      unpublishTrack: vi.fn(async () => {
+        this.localParticipant.trackPublications.clear()
+      }),
     }
     on(event: string, fn: (...args: unknown[]) => void) {
       this.events.set(event, [...(this.events.get(event) ?? []), fn])
@@ -87,7 +93,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       this.rejectConnect?.(new Error('Connection cancelled'))
       this.emit('Disconnected')
     })
-    constructor(public options: { disconnectOnPageLeave?: boolean }) {
+    constructor(public options: { disconnectOnPageLeave?: boolean; singlePeerConnection?: boolean }) {
       media.rooms.push(this)
     }
   }
@@ -494,6 +500,7 @@ describe('acknowledged voice join', () => {
     await b.v.join('c1')
     const r = media.rooms[0]!
     expect(r.options.disconnectOnPageLeave).toBe(false)
+    expect(r.options.singlePeerConnection).toBe(false)
     const beforeUnload = mocks.useEventListener.mock.calls.find(([, event]) => event === 'beforeunload')![2]
     const pageHide = mocks.useEventListener.mock.calls.find(([, event]) => event === 'pagehide')![2]
     sound.mockClear()
@@ -759,7 +766,7 @@ describe('acknowledged voice join', () => {
     }
     await b.v.join('c1')
     await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
-    expect(order).toEqual(['processor', 'mute', 'publish'])
+    expect(order).toEqual(['processor', 'mute', 'publish', 'mute']) // trailing mute: applyMute on the published track
     expect(media.rooms[0]!.mic.setProcessor).toHaveBeenCalledWith(expect.any(Object))
   })
 
@@ -1265,6 +1272,49 @@ describe('voice reconnection', () => {
     await retrying
     expect(media.rooms).toHaveLength(1)
     expect(b.v.channelId.value).toBeNull()
+  })
+})
+
+describe('one microphone publication per session', () => {
+  it('unpublishes an orphaned track when publishing fails and republishes exactly once on retry', async () => {
+    const b = await browser('mic-orphan')
+    media.connect = async () => {
+      const lp = media.rooms[0]!.localParticipant
+      lp.publishTrack.mockImplementationOnce(async (track: unknown) => {
+        lp.trackPublications.set('TR_mic', { track, trackSid: 'TR_mic' })
+        throw new Error('publish failed')
+      })
+    }
+    await b.v.join('c1')
+    const r = media.rooms[0]!
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('unavailable'))
+    expect(r.localParticipant.unpublishTrack).toHaveBeenCalledWith(r.mic)
+    expect(r.localParticipant.trackPublications.size).toBe(0)
+    await b.v.enableMicrophone()
+    expect(b.v.microphone.value).toBe('ready')
+    expect(r.localParticipant.publishTrack).toHaveBeenCalledTimes(2)
+    expect(r.localParticipant.trackPublications.size).toBe(1)
+  })
+
+  it('reuses the published microphone instead of capturing and publishing again', async () => {
+    const b = await browser('mic-reuse')
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    const r = media.rooms[0]!
+    b.v.microphone.value = 'unavailable'
+    await b.v.enableMicrophone()
+    expect(b.v.microphone.value).toBe('ready')
+    expect(r.localParticipant.createTracks).toHaveBeenCalledTimes(1)
+    expect(r.localParticipant.publishTrack).toHaveBeenCalledTimes(1)
+  })
+
+  it('mutes the published track when toggling the microphone', async () => {
+    const b = await browser('mic-toggle')
+    await b.v.join('c1')
+    await vi.waitFor(() => expect(b.v.microphone.value).toBe('ready'))
+    b.v.toggleMic()
+    const r = media.rooms[0]!
+    expect(r.mic.mute).toHaveBeenCalled()
   })
 })
 

@@ -29,6 +29,18 @@ it('logs known fields only and drops malformed or forged events', () => {
   ])
 })
 
+it('logs a valid voice track sid and drops forged ones', () => {
+  const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+  logConnectionDiag('u4', [
+    { kind: 'voiceTrack', cause: 'resubscribed', track: 'TR_AMdM34EpsyrDWf' },
+    { kind: 'voiceTrack', cause: 'subFailed', track: 'TR_x\n[error] forged' },
+  ])
+  expect(info.mock.calls.map(c => c[0])).toEqual([
+    '[ws-diag] user=u4 kind=voiceTrack cause=resubscribed code=- clean=- lost=false hidden=false online=true visibleMs=- outageMs=- stallMs=- track=TR_AMdM34EpsyrDWf',
+    '[ws-diag] user=u4 kind=voiceTrack cause=subFailed code=- clean=- lost=false hidden=false online=true visibleMs=- outageMs=- stallMs=-',
+  ])
+})
+
 it('caps events per frame and frames per user', () => {
   const info = vi.spyOn(console, 'info').mockImplementation(() => {})
   const events = Array.from({ length: 50 }, () => ({ kind: 'voiceSignal', cause: 'reconnected' }))
