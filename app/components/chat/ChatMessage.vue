@@ -235,9 +235,14 @@ function onKey(e: KeyboardEvent) {
       :id="`msg-${message.id}`"
       ref="root"
       tabindex="0"
-      class="group relative flex gap-3 px-4 py-0.5 outline-none compact:py-0"
+      class="group relative flex gap-3 px-4 py-0.5 transition-colors duration-700 outline-none compact:py-0"
       :class="[
-        highlighted || pinged ? 'bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15' : 'hover:bg-elevated/50 focus-visible:bg-elevated/70',
+        // Jump target (search, reply, pin): neutral so it doesn't read as an amber mention; fades when ChannelView clears it.
+        highlighted
+          ? 'bg-inverted/10'
+          : pinged
+            ? 'bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15'
+            : 'hover:bg-elevated/50 focus-visible:bg-elevated/70',
         grouped ? (message.body || editing ? 'items-baseline' : '') : 'mt-3 compact:mt-1',
       ]"
       @contextmenu="onContext"
