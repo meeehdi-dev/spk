@@ -6,15 +6,19 @@ const name = computed(() => channels.value.find(c => c.id === v.channelId.value)
 </script>
 
 <template>
-  <footer class="flex h-12 shrink-0 items-center gap-2 border-t border-default px-3 text-sm" :class="v.channelId.value ? '' : 'text-muted'">
-    <div class="flex min-w-0 items-center gap-2">
+  <footer
+    class="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-default px-3 py-1.5 text-sm sm:h-12 sm:py-0"
+    :class="v.channelId.value ? '' : 'text-muted'"
+  >
+    <!-- Phones: name and status on top, the controls spread across their own row. -->
+    <div class="flex min-w-0 items-center gap-2 max-sm:w-full">
       <UIcon name="i-lucide-volume-2" class="size-4" :class="{ ok: 'text-success', unstable: 'text-warning', lost: 'text-error' }[v.health.value]" />
       <NuxtLink v-if="v.channelId.value" :to="`/c/${v.channelId.value}`" class="truncate font-medium hover:underline"
         ><EmojiText :text="name ?? ''"
       /></NuxtLink>
       <span class="truncate text-xs text-muted">{{ v.connectionLabel.value }}</span>
     </div>
-    <div class="ml-auto flex items-center gap-1">
+    <div class="flex items-center gap-1 max-sm:w-full max-sm:justify-between sm:ml-auto">
       <VoiceControl kind="mic" />
       <VoiceControl kind="deafen" />
       <VoiceControl kind="camera" />

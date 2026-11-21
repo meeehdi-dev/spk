@@ -22,6 +22,8 @@ const mentionItems = computed(() =>
 )
 
 const editorRef = ref<{ editor: Editor }>()
+// Phones: formatting tools stay folded behind a toggle and open as their own row.
+const formatOpen = ref(false)
 const isEmpty = computed(() => !model.value.trim() && !gif.value && !uploads.ready.value.length)
 
 function send() {
@@ -176,7 +178,7 @@ defineExpose({
           trailingNode: { notAfter: ['blockquote', 'codeBlock', 'bulletList', 'orderedList'] },
         }"
         :extensions="extensions"
-        :ui="{ base: 'max-h-64 overflow-y-auto py-2 sm:px-3', content: 'min-h-10' }"
+        :ui="{ base: 'max-h-64 overflow-y-auto px-3 py-2', content: 'min-h-10' }"
         @update:model-value="onUpdate"
       >
         <template #default="{ editor }">
@@ -184,16 +186,27 @@ defineExpose({
           <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
         </template>
       </UEditor>
-      <div class="flex items-center gap-0.5 px-1.5 py-1">
-        <UTooltip v-for="t in tools" :key="t.label" :text="t.label" :kbds="t.keys as never">
-          <UButton
-            :icon="t.icon"
-            color="neutral"
-            :variant="editorRef?.editor?.isActive(t.active) ? 'soft' : 'ghost'"
-            :aria-label="t.label"
-            @click="editorRef && t.on(editorRef.editor)"
-          />
-        </UTooltip>
+      <div class="flex flex-wrap items-center gap-0.5 px-1.5 py-1">
+        <UButton
+          class="sm:hidden"
+          icon="i-lucide-type"
+          color="neutral"
+          :variant="formatOpen ? 'soft' : 'ghost'"
+          aria-label="Formatting"
+          :aria-expanded="formatOpen"
+          @click="formatOpen = !formatOpen"
+        />
+        <div class="flex items-center gap-0.5" :class="formatOpen ? 'max-sm:order-last max-sm:w-full' : 'max-sm:hidden'">
+          <UTooltip v-for="t in tools" :key="t.label" :text="t.label" :kbds="t.keys as never">
+            <UButton
+              :icon="t.icon"
+              color="neutral"
+              :variant="editorRef?.editor?.isActive(t.active) ? 'soft' : 'ghost'"
+              :aria-label="t.label"
+              @click="editorRef && t.on(editorRef.editor)"
+            />
+          </UTooltip>
+        </div>
         <input
           ref="fileInput"
           type="file"
@@ -224,7 +237,16 @@ defineExpose({
           </template>
         </UPopover>
         <UTooltip text="Send" :kbds="['enter']">
-          <UButton class="ml-auto" icon="i-lucide-send-horizontal" size="md" label="Send" :disabled="isEmpty" aria-label="Send message" @click="send" />
+          <UButton
+            class="ml-auto"
+            icon="i-lucide-send-horizontal"
+            size="md"
+            label="Send"
+            :ui="{ label: 'max-sm:hidden' }"
+            :disabled="isEmpty"
+            aria-label="Send message"
+            @click="send"
+          />
         </UTooltip>
       </div>
     </div>
