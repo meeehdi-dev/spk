@@ -1,5 +1,5 @@
 # Stage 1: build (native modules need build tools)
-FROM node:26.13.1-slim AS build
+FROM node:lts-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN npm install -g corepack && corepack enable
 WORKDIR /app
@@ -9,7 +9,7 @@ COPY . .
 RUN pnpm build
 
 # Stage 2: runtime
-FROM node:26.13.1-slim
+FROM node:lts-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl sqlite3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/.output ./.output

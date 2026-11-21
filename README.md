@@ -10,7 +10,7 @@ The design document is [PLAN.md](PLAN.md).
 
 ## Requirements
 
-- Node 26.13.1 and pnpm 12.21.0 (pinned in `package.json`)
+- Latest Node LTS (at least 26) and pnpm 12.21.0 (pinned in `package.json`)
 - `livekit-server` (voice; for local dev, see [livekit.io](https://docs.livekit.io/home/self-hosting/local/))
 - A Cloudflare R2 bucket and API token (file uploads)
 - Optional: a [Klipy](https://klipy.com) API key (GIFs)
@@ -19,7 +19,7 @@ Nuxt UI's built-in Nuxt Fonts integration detects Geist and Geist Mono from the 
 
 ## Local development
 
-With mise, run `mise install` for the pinned Node and Corepack versions, then use `mise exec -- corepack pnpm …` for pnpm commands. With mise activated in your shell, `corepack enable pnpm` also makes the plain `pnpm` command available.
+With mise, run `mise install` for the latest Node LTS and Corepack, then use `mise exec -- corepack pnpm …` for pnpm commands. With mise activated in your shell, `corepack enable pnpm` also makes the plain `pnpm` command available.
 
 ```sh
 cp .env.example .env     # fill in the values (each one is commented)
@@ -158,7 +158,7 @@ docker exec spk sqlite3 /app/data/spk.db "VACUUM INTO '/app/data/backup.db'"
    ```
 3. Keep PRs small and focused, with the checks passing. Add a unit test for risky logic. There are no E2E tests.
 
-GitHub Actions runs Knip, jscpd, typecheck, and tests on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the app once inside the Docker image, without publishing or deploying it. CI uses the exact Node and Corepack versions from `mise.toml`, the pnpm version from `package.json`, and needs no production secrets.
+GitHub Actions runs Knip, jscpd, typecheck, and tests on PRs to `main`, pushes to `main`, and manual dispatches. After they pass, it builds the app once inside the Docker image, without publishing or deploying it. CI uses the latest Node LTS and Corepack from `mise.toml`, the pnpm version from `package.json`, and needs no production secrets.
 
 Tool installs are cached separately from Corepack's pnpm download and the pnpm package store. The frozen install still runs on cache hits to recreate `node_modules` and validate the lockfile. Docker builds directly from the exact tested Git commit and caches intermediate layers; `.dockerignore` excludes docs, CI, tests, and deployment files from its build context.
 

@@ -474,7 +474,7 @@ Admins also manage channels (create, rename, delete, reorder text and voice chan
 
 ## 13. Deployment (Docker)
 
-- **Dockerfile**, 2 stages on `node:22-slim`:
+- **Dockerfile**, 2 stages on `node:lts-slim`:
   1. **Build:** `pnpm install` (with build tools for `better-sqlite3`), `nuxt build`.
   2. **Runtime:** copies `.output`, installs `curl`, runs as a non-root user, `HEALTHCHECK CMD curl -fsS http://localhost:3000/api/health`.
 - **`GET /api/health`:** runs `select 1` on SQLite. Returns `200 { ok: true }`, or 503.
