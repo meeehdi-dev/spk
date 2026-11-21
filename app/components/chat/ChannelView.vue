@@ -478,7 +478,7 @@ socket.onOpen(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-tl-lg bg-(--ui-bg-panel)">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-(--ui-bg-panel) lg:rounded-tl-lg">
     <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted"><UIcon name="i-lucide-lock" /> No access</div>
     <template v-else>
       <ChatPinnedBar :pins="pins" :can-pin="canPin(channel?.type, me?.role)" />

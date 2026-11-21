@@ -95,7 +95,11 @@ watch(suggestions, () => {
 })
 defineExpose({ onKey })
 
-const jump = (h: SearchHit) => navigateTo(`/c/${h.channelId}/m/${h.messageId}`)
+const jump = (h: SearchHit) => {
+  // Mobile: the slideover covers the chat, so close it to show the message. The desktop panel (external) sits beside it and stays open.
+  if (!props.external) search.close()
+  return navigateTo(`/c/${h.channelId}/m/${h.messageId}`)
+}
 const link = (h: SearchHit) => `${location.origin}/c/${h.channelId}/m/${h.messageId}`
 const channelName = (id: string) => label(channels.value.find(c => c.id === id))
 const menu = (h: SearchHit) => [
@@ -151,7 +155,7 @@ watch(
       </UTooltip>
     </div>
     <div class="p-2">
-      <USelect v-model="search.scope" :items="scopes" class="w-full" :ui="{ base: 'bg-(--ui-bg-panel) ring-0' }" aria-label="Search scope" />
+      <USelect v-model="search.scope" :items="scopes" class="w-full" aria-label="Search scope" />
     </div>
     <ul v-if="suggestions.length" class="p-1" role="listbox" aria-label="Suggestions">
       <li v-for="(s, i) in suggestions" :key="s">

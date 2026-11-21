@@ -22,7 +22,7 @@ const toggleTheater = (id: string) => {
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-(--ui-bg-panel)">
+  <div class="relative flex h-full flex-col overflow-hidden bg-(--ui-bg-panel) lg:rounded-tl-lg">
     <p
       v-if="here && v.connectionLabel.value !== 'Connected'"
       role="status"

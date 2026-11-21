@@ -114,10 +114,16 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       :default-size="288"
       :menu="{ description: 'Channels and direct messages' }"
       :ui="{
+        header: 'relative lg:hidden',
+        content: 'bg-neutral-50 dark:bg-neutral-900',
         root: 'min-w-0 border-e-0 bg-neutral-50 data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56 dark:bg-neutral-900',
         body: 'gap-0 p-0 sm:p-0 compact:p-0 compact:sm:p-0',
       }"
     >
+      <!-- Mobile drawer only (header is lg:hidden); desktop shows the logo inside AppSidebar. -->
+      <template #header>
+        <span class="absolute left-1/2 -translate-x-1/2 text-2xl font-bold text-primary">spk</span>
+      </template>
       <AppSidebar class="w-full" />
     </UDashboardSidebar>
 
@@ -159,7 +165,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
             placeholder="Search"
             aria-label="Search messages"
             class="w-56 max-lg:hidden xl:w-72"
-            :ui="{ base: 'bg-(--ui-bg-panel) ring-0' }"
             @focus="searchFocus"
             @input="searchFocus"
             @keydown="panel?.onKey($event)"
@@ -196,6 +201,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       title="Search"
       description="Search messages"
       class="lg:hidden"
+      :ui="{ content: 'bg-neutral-50 dark:bg-neutral-900' }"
       @update:open="!$event && search.close()"
     >
       <template #body>
