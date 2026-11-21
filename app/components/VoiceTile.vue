@@ -81,7 +81,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     <div
       ref="root"
       tabindex="0"
-      class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-default bg-elevated/40 ring-2 transition outline-none focus-visible:ring-primary"
+      class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-neutral-50 ring-2 transition outline-none focus-visible:ring-primary dark:bg-neutral-900"
       :class="tile.speaking ? 'ring-success' : 'ring-transparent'"
       @mouseenter="hovered = true"
       @mouseleave="hovered = false"
@@ -95,7 +95,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       />
 
       <div v-if="!main" class="flex flex-col items-center gap-2">
-        <UAvatar :src="avatarSrc(byId.get(tile.userId))" :alt="nameOf(tile.userId)" size="3xl" />
+        <UAvatar :src="avatarSrc(byId.get(tile.userId))" :alt="nameOf(tile.userId)" size="3xl" class="bg-(--ui-bg-panel)" />
         <template v-if="tile.local && tile.screenLive">
           <p class="text-sm">You're sharing your screen</p>
           <UButton label="Stop" icon="i-lucide-monitor-off" color="error" @click="v.stopScreen()" />
@@ -110,14 +110,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <span v-if="tile.screenLive && tile.screenQuality" class="shrink-0 border-l border-default pl-1.5 text-[10px] whitespace-nowrap">
           {{ tile.screenQuality.height }}p · {{ tile.screenQuality.fps }} fps
         </span>
-        <UBadge
-          v-if="!tile.watching && live"
-          class="shrink-0"
-          :icon="tile.screenLive ? 'i-lucide-screen-share' : 'i-lucide-video'"
-          label="LIVE"
-          color="error"
-          size="sm"
-        />
       </span>
 
       <div class="absolute right-2 bottom-2 flex gap-1 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">

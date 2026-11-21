@@ -36,14 +36,14 @@ onMounted(loadMore)
 </script>
 
 <template>
-  <div ref="root" class="space-y-6">
+  <div ref="root" class="space-y-6 compact:space-y-4">
     <h2 class="text-lg font-semibold">Changelog</h2>
     <ul class="space-y-2">
       <li v-for="(entry, index) in sorted" :key="entry.sha">
-        <h3 v-if="index === 0 || sorted[index - 1]?.date !== entry.date" class="pt-4 pb-3 text-sm font-semibold text-muted">
+        <h3 v-if="index === 0 || sorted[index - 1]?.date !== entry.date" class="pt-4 pb-3 text-sm font-semibold text-muted compact:pt-3 compact:pb-2">
           <time :datetime="entry.date">{{ dateFormat.format(new Date(entry.date)) }}</time>
         </h3>
-        <div class="flex items-baseline gap-3 text-sm">
+        <div class="flex items-baseline gap-3 text-sm compact:gap-2">
           <ULink :to="commitUrl(entry.sha)" target="_blank" rel="noopener noreferrer" class="shrink-0 font-mono text-primary">
             {{ entry.sha.slice(0, 7) }}
           </ULink>

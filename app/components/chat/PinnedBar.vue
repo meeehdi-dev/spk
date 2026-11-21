@@ -80,7 +80,7 @@ onClickOutside(root, close)
       />
     </div>
     <div v-if="open" class="absolute inset-x-0 top-full max-h-[60vh] overflow-y-auto border-b border-default bg-default shadow-md">
-      <div v-for="p in visible" :key="p.id" class="border-t border-default px-4 py-2 text-sm">
+      <div v-for="p in visible" :key="p.id" class="border-t border-default px-4 py-2 text-sm compact:py-1">
         <button
           v-if="all"
           type="button"

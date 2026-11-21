@@ -138,5 +138,10 @@ export default defineNuxtConfig({
   },
   eslint: { config: { stylistic: false } },
   // Twemoji is served as static SVGs, not duplicated in the icon API's server bundle.
-  icon: { provider: 'server', serverBundle: { collections: ['lucide'], remote: false }, clientBundle: { scan: true }, fallbackToApi: false },
+  icon: {
+    provider: 'server',
+    serverBundle: { collections: ['lucide'], remote: false },
+    clientBundle: { scan: { globInclude: ['**/*.vue', 'shared/**/*.ts'] } },
+    fallbackToApi: false,
+  },
 })

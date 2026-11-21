@@ -114,15 +114,15 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       :default-size="288"
       :menu="{ description: 'Channels and direct messages' }"
       :ui="{
-        root: 'min-w-0 data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56',
-        body: 'gap-0 p-0 sm:p-0',
+        root: 'min-w-0 border-e-0 bg-neutral-50 data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56 dark:bg-neutral-900',
+        body: 'gap-0 p-0 sm:p-0 compact:p-0 compact:sm:p-0',
       }"
     >
       <AppSidebar class="w-full" />
     </UDashboardSidebar>
 
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-3">
+      <header class="flex h-12 shrink-0 items-center gap-2 bg-neutral-50 px-3 dark:bg-neutral-900">
         <UButton class="lg:hidden" icon="i-lucide-menu" color="neutral" variant="ghost" aria-label="Open sidebar" @click="open = true" />
         <UTooltip :text="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'" :kbds="['meta', 'B']" class="max-lg:hidden">
           <UButton
@@ -159,6 +159,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
             placeholder="Search"
             aria-label="Search messages"
             class="w-56 max-lg:hidden xl:w-72"
+            :ui="{ base: 'bg-(--ui-bg-panel) ring-0' }"
             @focus="searchFocus"
             @input="searchFocus"
             @keydown="panel?.onKey($event)"
@@ -172,14 +173,21 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
       <ConnectionNotice />
 
-      <main class="min-h-0 flex-1" :class="route.path.startsWith('/c/') ? 'overflow-hidden' : 'overflow-y-auto'">
+      <main
+        class="min-h-0 flex-1"
+        :class="[
+          route.path.startsWith('/c/') ? 'overflow-hidden' : 'overflow-y-auto',
+          (route.path.startsWith('/c/') || route.path === '/') && 'bg-neutral-50 dark:bg-neutral-900',
+          (route.path.startsWith('/c/') || route.path === '/') && search.open && isLarge && '*:rounded-tr-lg',
+        ]"
+      >
         <slot />
       </main>
 
       <VoiceBar v-if="bottomVoice" />
     </div>
 
-    <aside v-if="search.open && isLarge" class="w-80 shrink-0 border-l border-default xl:w-96">
+    <aside v-if="search.open && isLarge" class="w-80 shrink-0 xl:w-96">
       <SearchPanel ref="panel" external />
     </aside>
     <USlideover

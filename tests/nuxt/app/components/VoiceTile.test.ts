@@ -91,7 +91,7 @@ describe('screen controls', () => {
     expect(wrapper.find('span.bottom-12').exists()).toBe(false)
     tile.watching = false
     await nextTick()
-    expect(quality()!.nextElementSibling?.textContent?.trim()).toBe('LIVE')
+    expect(quality()!.nextElementSibling).toBeNull() // no LIVE badge
     tile.watching = true
     tile.local = true // hidden local preview still has the preset
     await nextTick()

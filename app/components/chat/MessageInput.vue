@@ -148,7 +148,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="p-3" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
+  <div class="p-3 compact:p-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
     <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-elevated px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
       <span class="truncate"
@@ -158,11 +158,7 @@ defineExpose({
         <UButton class="ml-auto" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
       </UTooltip>
     </div>
-    <div
-      class="rounded-lg bg-elevated/50 ring-1 ring-transparent focus-within:ring-primary/40"
-      :class="dragging ? 'bg-primary/5 ring-primary' : ''"
-      @paste.capture="onPaste"
-    >
+    <div class="rounded-lg bg-default ring-1 ring-transparent" :class="dragging ? 'bg-primary/5 ring-primary' : ''" @paste.capture="onPaste">
       <ChatUploadQueue v-if="uploads.items.value.length || gif" :uploads="uploads.items.value" :gif="gif" @cancel="uploads.cancel" @remove-gif="gif = null" />
       <UEditor
         ref="editorRef"
@@ -188,7 +184,7 @@ defineExpose({
           <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
         </template>
       </UEditor>
-      <div class="flex items-center gap-0.5 border-t border-default/50 px-1.5 py-1">
+      <div class="flex items-center gap-0.5 px-1.5 py-1">
         <UTooltip v-for="t in tools" :key="t.label" :text="t.label" :kbds="t.keys as never">
           <UButton
             :icon="t.icon"

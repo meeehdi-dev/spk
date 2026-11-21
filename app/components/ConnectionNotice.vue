@@ -15,7 +15,6 @@ const message = computed(() => {
   if (socket.offline.value) parts.push('Offline. Waiting for your network to return.')
   if (v.lost.value && v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
   else if (v.lost.value && v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
-  if (v.audioBlocked.value) parts.push('Audio is blocked or interrupted. Enable audio to recover the call.')
   if (v.channelId.value && v.microphone.value === 'unavailable') parts.push('Your microphone is unavailable. You can still listen.')
   if (v.retryChannelId.value) parts.push('Voice disconnected. Rejoin when you are ready.')
   return parts.join(' ')
@@ -27,7 +26,6 @@ const message = computed(() => {
     <div v-if="message" class="absolute inset-x-0 top-0 max-h-[50dvh] overflow-y-auto bg-default shadow-lg">
       <UAlert :title="message" icon="i-lucide-wifi-off" color="warning" variant="soft" class="rounded-none">
         <template #actions>
-          <UButton v-if="v.audioBlocked.value" label="Enable audio" icon="i-lucide-volume-2" @click="v.enableAudio()" />
           <UButton
             v-if="v.channelId.value && v.microphone.value === 'unavailable'"
             label="Enable microphone"

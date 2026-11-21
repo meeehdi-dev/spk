@@ -244,7 +244,14 @@ function onKey(e: KeyboardEvent) {
       @keydown="onKey"
     >
       <div class="relative flex w-9 shrink-0 justify-end">
-        <button v-if="!grouped" ref="avatarEl" type="button" class="rounded-full" :aria-label="`Profile of ${nameOf(message.userId)}`" @click="openProfile">
+        <button
+          v-if="!grouped"
+          ref="avatarEl"
+          type="button"
+          class="self-start rounded-full"
+          :aria-label="`Profile of ${nameOf(message.userId)}`"
+          @click="openProfile"
+        >
           <UAvatar :src="avatarSrc(author)" :alt="nameOf(message.userId)" icon="i-lucide-user" :chip="presenceChip(message.userId)" />
         </button>
         <UTooltip v-else :text="exactTime(message.createdAt)">

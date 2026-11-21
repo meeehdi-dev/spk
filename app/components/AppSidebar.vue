@@ -105,7 +105,7 @@ const onDrop = (channelId: string) => {
     <nav class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2 compact:gap-1">
       <div class="px-2 py-2 text-center text-2xl font-bold text-primary">spk</div>
 
-      <section>
+      <section class="rounded-lg bg-(--ui-bg-panel) p-1">
         <h2 class="flex h-8 items-center gap-1.5 px-2 text-sm font-semibold text-muted compact:h-6">
           <UIcon name="i-lucide-message-circle" class="size-4" aria-hidden="true" />Direct messages
         </h2>
@@ -157,8 +157,8 @@ const onDrop = (channelId: string) => {
         </ul>
       </section>
 
-      <section>
-        <div class="flex h-8 items-center justify-between px-2 compact:h-6">
+      <section class="rounded-lg bg-(--ui-bg-panel) p-1">
+        <div class="flex h-8 items-center justify-between pl-2 compact:h-6">
           <h2 class="flex items-center gap-1.5 text-sm font-semibold text-muted">
             <UIcon name="i-lucide-hash" class="size-4" aria-hidden="true" />Text channels
           </h2>
@@ -214,8 +214,8 @@ const onDrop = (channelId: string) => {
         </ul>
       </section>
 
-      <section>
-        <div class="flex h-8 items-center justify-between px-2 compact:h-6">
+      <section class="rounded-lg bg-(--ui-bg-panel) p-1">
+        <div class="flex h-8 items-center justify-between pl-2 compact:h-6">
           <h2 class="flex items-center gap-1.5 text-sm font-semibold text-muted">
             <UIcon name="i-lucide-volume-2" class="size-4" aria-hidden="true" />Voice channels
           </h2>
@@ -273,10 +273,10 @@ const onDrop = (channelId: string) => {
                 />
               </UTooltip>
             </div>
-            <ul class="ml-6">
+            <ul class="ml-7">
               <UserContext v-for="m in voiceDisplayMembers(c.id, me?.id)" :key="m.userId" :user-id="m.userId" :disabled="m.pending">
                 <li
-                  class="flex min-h-9 items-center gap-2 py-0.5 text-sm text-muted"
+                  class="relative flex min-h-9 items-center gap-2 py-0.5 text-sm text-muted before:absolute before:top-0 before:-left-3 before:h-1/2 before:w-2.5 before:rounded-bl-md before:border-b-2 before:border-l-2 before:border-default after:absolute after:inset-y-0 after:-left-3 after:border-l-2 after:border-default last:after:hidden"
                   data-member
                   :class="m.pending && 'opacity-50'"
                   :draggable="admin.isAdmin.value && !m.pending"
@@ -328,7 +328,7 @@ const onDrop = (channelId: string) => {
 
     <div
       v-if="voice.channelId.value || voice.connecting.value"
-      class="mx-2 mb-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-lg bg-elevated/50 p-2"
+      class="mx-2 mb-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-lg bg-(--ui-bg-panel) p-2"
     >
       <div class="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5 text-sm font-medium">
         <UIcon
@@ -373,7 +373,13 @@ const onDrop = (channelId: string) => {
       </div>
     </div>
 
-    <div v-if="me" class="mx-2 mb-2 flex shrink-0 items-center gap-1 rounded-lg bg-elevated/50 p-2">
+    <div v-if="voice.audioBlocked.value" role="status" class="mx-2 mb-2 flex shrink-0 items-center gap-2 rounded-lg bg-(--ui-bg-panel) p-2">
+      <UIcon name="i-lucide-volume-x" class="size-4 shrink-0 text-warning" aria-hidden="true" />
+      <span class="min-w-0 flex-1 truncate text-sm font-medium">Audio blocked</span>
+      <UButton label="Enable audio" size="sm" @click="voice.enableAudio()" />
+    </div>
+
+    <div v-if="me" class="mx-2 mb-2 flex shrink-0 items-center gap-1 rounded-lg bg-(--ui-bg-panel) p-2">
       <UDropdownMenu :items="statusMenu" :content="{ align: 'start', side: 'top' }" :ui="{ content: 'w-48' }">
         <UButton color="neutral" variant="ghost" class="shrink-0 p-1" aria-label="Set status">
           <UAvatar :src="avatarSrc(me)" :alt="me.displayName ?? ''" icon="i-lucide-user" size="sm" :chip="presenceChip(me.id)" />

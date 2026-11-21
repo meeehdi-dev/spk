@@ -14,20 +14,20 @@ const themes = [
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Density</h2>
       </template>
       <URadioGroup v-model="density" :items="densities" legend="Density" />
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Theme</h2>
       </template>
       <URadioGroup v-model="colorMode.preference" :items="themes" legend="Theme" />
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Media</h2>
       </template>

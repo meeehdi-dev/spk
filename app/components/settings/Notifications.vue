@@ -22,12 +22,12 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">System notifications</h2>
       </template>
-      <div class="flex flex-col gap-3 text-sm">
+      <div class="flex flex-col gap-3 text-sm compact:gap-2">
         <p v-if="permission === 'unsupported'" class="text-muted">This browser can't show notifications. On iOS, add spk to the home screen first.</p>
         <template v-else>
           <p class="text-muted">
@@ -57,23 +57,23 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
         </template>
       </div>
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">What notifies you</h2>
       </template>
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-3 compact:gap-2">
         <USwitch v-model="s.dms" label="Direct messages" icon="i-lucide-message-circle" />
         <USwitch v-model="s.pings" label="Mentions and replies" icon="i-lucide-at-sign" description="In channels, only when you are mentioned or replied to." />
       </div>
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Sound</h2>
       </template>
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-3 compact:gap-2">
         <USwitch v-model="s.sound" label="Message sound" icon="i-lucide-volume-2" />
         <UFormField label="Volume">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 compact:gap-2">
             <USlider v-model="s.volume" :min="0" :max="2" :step="0.01" :disabled="!s.sound" class="max-w-xs" />
             <UButton icon="i-lucide-play" color="neutral" variant="ghost" aria-label="Test sound" @click="playBlip(s.volume, true)" />
           </div>

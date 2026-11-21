@@ -57,8 +57,8 @@ const fmt = (d: number) => new Date(d).toLocaleString()
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Create invite</h2>
       </template>
@@ -70,7 +70,7 @@ const fmt = (d: number) => new Date(d).toLocaleString()
       </form>
       <UAlert
         v-if="link"
-        class="mt-4"
+        class="mt-4 compact:mt-3"
         color="success"
         variant="subtle"
         icon="i-lucide-link"
@@ -82,14 +82,14 @@ const fmt = (d: number) => new Date(d).toLocaleString()
         </template>
       </UAlert>
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Invites</h2>
       </template>
       <p v-if="!rows.length" class="text-sm text-muted">No invites yet.</p>
       <ul class="divide-y divide-default">
         <UContextMenu v-for="r in rows" :key="r.id" :items="menu(r)" :disabled="!menu(r).length">
-          <li class="flex flex-wrap items-center gap-2 py-2 text-sm">
+          <li class="flex flex-wrap items-center gap-2 py-2 text-sm compact:py-1">
             <UBadge :label="r.status" :color="colors[r.status]" variant="subtle" />
             <span class="min-w-0 flex-1 truncate"
               ><EmojiText :text="r.note || 'No note'" />

@@ -161,16 +161,14 @@ const soundRows = [
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Devices</h2>
       </template>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 compact:gap-3">
         <UAlert
-          :class="{ invisible: !labelsHidden }"
-          :aria-hidden="!labelsHidden"
-          :inert="!labelsHidden"
+          v-if="labelsHidden"
           color="info"
           variant="subtle"
           icon="i-lucide-info"
@@ -189,7 +187,7 @@ const soundRows = [
           </USelect>
         </UFormField>
         <UFormField label="Level">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 compact:gap-2">
             <UButton
               :icon="testing ? 'i-lucide-square' : 'i-lucide-play'"
               :label="testing ? 'Stop' : 'Test microphone'"
@@ -255,11 +253,11 @@ const soundRows = [
       </div>
     </UCard>
 
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Voice processing</h2>
       </template>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 compact:gap-3">
         <UFormField label="Noise suppression" description="Enhanced is stronger: one-time download of about 11–22 MB, and it uses more CPU.">
           <USelect v-model="s.noise" :items="noiseItems" class="w-full max-w-xs" @update:model-value="v.applySettings()" />
         </UFormField>
@@ -268,8 +266,8 @@ const soundRows = [
         <UFormField label="Sensitivity" description="Voice activation only. Higher picks up quieter speech.">
           <USlider v-model="s.sensitivity" :min="0" :max="100" :step="1" class="max-w-xs" aria-label="Sensitivity" @update:model-value="v.applySettings()" />
         </UFormField>
-        <UFormField label="Output volume" :hint="`${Math.round(s.outputVolume * 100)}%`">
-          <div class="flex items-center gap-3">
+        <UFormField label="Output volume">
+          <div class="flex items-center gap-3 compact:gap-2">
             <USlider
               v-model="s.outputVolume"
               :min="0"
@@ -285,12 +283,12 @@ const soundRows = [
       </div>
     </UCard>
 
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Sounds</h2>
       </template>
-      <div class="flex flex-col gap-4">
-        <div v-for="row in soundRows" :key="row.kind" class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap">
+      <div class="flex flex-col gap-4 compact:gap-3">
+        <div v-for="row in soundRows" :key="row.kind" class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap compact:gap-x-3 compact:gap-y-1">
           <USwitch v-model="s.sounds[row.kind].on" :label="row.label" class="w-full shrink-0 sm:w-60 sm:whitespace-nowrap" />
           <USlider
             v-model="s.sounds[row.kind].volume"
@@ -313,7 +311,7 @@ const soundRows = [
             />
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap compact:gap-x-3 compact:gap-y-1">
           <USwitch v-model="s.soundboard.on" label="Soundboard" class="w-full shrink-0 sm:w-60" />
           <USlider
             v-model="s.soundboard.volume"

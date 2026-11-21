@@ -190,6 +190,9 @@ export function resetVoiceScenario(preset: string) {
         'ui-alex': { ...member('ui-voice'), cam: true, screen: true, speaking: true },
         'ui-sam': { ...member('ui-voice'), cam: true, watching: ['ui-alex'] },
         'ui-jordan': { ...member('ui-voice'), muted: true },
+        'ui-riley': { ...member('ui-voice-games'), speaking: true },
+        'ui-casey': { ...member('ui-voice-games'), screen: true },
+        'ui-morgan': { ...member('ui-voice-music'), deafened: true },
       }
   if (!empty) watching.value = ['ui-alex']
   if (connecting.value) {

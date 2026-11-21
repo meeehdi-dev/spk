@@ -9,9 +9,20 @@
 /* White text on amber-500 is ~2:1; amber-700 gives ~5:1. Dark mode keeps amber-400 with dark text. */
 :root {
   --ui-primary: var(--color-amber-700);
+  /* Main content panel and sidebar cards (`bg-(--ui-bg-panel)`). Light: between neutral-100 and 200, so it stands out from the neutral-50 sidebar. */
+  --ui-bg-panel: color-mix(in oklab, var(--ui-color-neutral-100) 50%, var(--ui-color-neutral-200));
 }
 .dark {
   --ui-primary: var(--color-amber-400);
+  /* One step lighter than Nuxt UI's dark defaults, so the sidebar and header keep neutral-900 as the darkest surface. */
+  --ui-bg: var(--ui-color-neutral-800);
+  --ui-bg-muted: var(--ui-color-neutral-700);
+  --ui-bg-elevated: var(--ui-color-neutral-700);
+  --ui-bg-accented: var(--ui-color-neutral-600);
+  --ui-border: var(--ui-color-neutral-700);
+  --ui-border-muted: var(--ui-color-neutral-600);
+  --ui-border-accented: var(--ui-color-neutral-600);
+  --ui-bg-panel: color-mix(in oklab, var(--ui-bg-elevated) 25%, var(--ui-color-neutral-900));
 }
 
 /* Code blocks (ProsePre, text file previews) */

@@ -1269,7 +1269,7 @@ export function useVoice() {
       if (connecting.value) return 'Connecting…'
       if (connection.value === 'reconnecting') return 'Voice reconnecting…'
       if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
-      if (audioBlocked.value) return 'Audio blocked or interrupted'
+      if (audioBlocked.value) return 'Audio blocked'
       if (microphone.value === 'starting') return 'Connected · Setting up microphone…'
       if (microphone.value === 'unavailable') return 'Connected · Microphone unavailable'
       return connection.value === 'connected' ? 'Connected' : 'Not connected'

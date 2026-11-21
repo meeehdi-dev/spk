@@ -18,7 +18,6 @@ const state = await vi.hoisted(async () => {
       retryChannelId: ref<string | null>(null),
       channelId: ref<string | null>('voice'),
       connecting: ref(false),
-      enableAudio: vi.fn(),
       reconnect: vi.fn(),
       leave: vi.fn(),
     },
@@ -83,13 +82,12 @@ it('offers microphone retry without leaving the listening connection', async () 
   expect(wrapper.text()).toBe('')
 })
 
-it('offers click-to-enable playback and an explicit terminal rejoin', async () => {
+it('leaves blocked audio to the sidebar and offers an explicit terminal rejoin', async () => {
   const wrapper = await mountInApp(ConnectionNotice)
   state.voice.audioBlocked.value = true
   await nextTick()
+  expect(wrapper.text()).toBe('')
   const button = (label: string) => wrapper.findAll('button').find(b => b.text() === label)!
-  await button('Enable audio').trigger('click')
-  expect(state.voice.enableAudio).toHaveBeenCalledOnce()
   state.voice.audioBlocked.value = false
   state.voice.connection.value = 'disconnected'
   state.voice.channelId.value = null

@@ -29,11 +29,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    v-if="href"
-    ref="el"
-    class="group/card relative mt-1 flex max-w-md flex-col overflow-hidden rounded-md border border-l-4 border-default border-l-primary bg-elevated/50"
-  >
+  <div v-if="href" ref="el" class="group/card relative mt-1 flex max-w-md flex-col overflow-hidden rounded-md bg-default dark:bg-elevated/50">
     <a :href="href" target="_blank" rel="noopener noreferrer" class="flex flex-col gap-0.5 p-2 text-sm hover:bg-elevated">
       <span class="truncate text-xs text-muted"><EmojiText :text="preview.siteName || host" /></span>
       <span v-if="preview.title" class="line-clamp-2 font-bold text-primary"><EmojiText :text="preview.title" /></span>

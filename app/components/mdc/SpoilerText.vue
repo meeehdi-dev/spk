@@ -26,7 +26,7 @@ onMounted(() => {
 <template>
   <span
     ref="el"
-    class="relative inline-block max-w-full overflow-hidden rounded bg-elevated px-0.5 align-bottom"
+    class="relative inline-block max-w-full overflow-hidden rounded bg-neutral-50 px-0.5 align-bottom dark:bg-neutral-700"
     :class="shown ? '' : 'min-w-5 cursor-pointer select-none'"
     :role="shown ? undefined : 'button'"
     :tabindex="shown ? undefined : 0"

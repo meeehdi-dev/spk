@@ -83,29 +83,21 @@ it('caps only soundboard listening at unity and keeps other output boosts', asyn
 })
 
 describe('device permission notice', () => {
-  it('reserves the notice space and removes its action from accessibility and focus when labels are available', async () => {
+  it('shows the notice only while device labels are hidden', async () => {
     const { wrapper, v } = await mountSettings()
-    const notice = wrapper.findComponent({ name: 'UAlert' })
-    const element = notice.element
-    expect(notice.classes()).toContain('invisible')
-    expect(notice.attributes('aria-hidden')).toBe('true')
-    expect(notice.attributes('inert')).toBeDefined()
+    const notice = () => wrapper.findComponent({ name: 'UAlert' })
+    expect(notice().exists()).toBe(false)
     v.devices.value = { ...v.devices.value, mics: [{ deviceId: 'mac', kind: 'audioinput', label: '' } as MediaDeviceInfo] }
     await nextTick()
-    expect(notice.element).toBe(element)
-    expect(notice.classes()).not.toContain('invisible')
-    expect(notice.attributes('aria-hidden')).toBe('false')
-    expect(notice.attributes('inert')).toBeUndefined()
+    expect(notice().exists()).toBe(true)
     const input = stream()
     vi.spyOn(navigator.mediaDevices, 'enumerateDevices').mockResolvedValueOnce(v.devices.value.mics)
     getUserMedia.mockResolvedValueOnce(input.value)
-    await notice.find('button').trigger('click')
+    await notice().find('button').trigger('click')
     await flushPromises()
     expect(getUserMedia).toHaveBeenCalledOnce()
     expect(input.stop).toHaveBeenCalledOnce()
-    expect(notice.element).toBe(element)
-    expect(notice.classes()).toContain('invisible')
-    expect(notice.attributes('inert')).toBeDefined()
+    expect(notice().exists()).toBe(false)
   })
 })
 

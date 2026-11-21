@@ -22,7 +22,7 @@ const toggleTheater = (id: string) => {
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col">
+  <div class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-(--ui-bg-panel)">
     <p
       v-if="here && v.connectionLabel.value !== 'Connected'"
       role="status"
@@ -83,7 +83,7 @@ const toggleTheater = (id: string) => {
 
     <div
       class="mx-2 mb-2 flex w-fit max-w-[calc(100%_-_1rem)] shrink-0 flex-wrap items-center justify-center gap-2 self-center"
-      :class="here && 'rounded-lg bg-elevated/50 p-2'"
+      :class="here && 'rounded-lg bg-neutral-50 p-2 dark:bg-neutral-900'"
     >
       <UButton v-if="pending" label="Cancel" color="neutral" variant="outline" @click="v.leave(false)" />
       <UButton v-else-if="!here" label="Join voice" icon="i-lucide-phone" :loading="v.connecting.value" @click="v.join(channelId)" />

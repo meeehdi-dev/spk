@@ -23,7 +23,12 @@ function restoreFocus(event: Event) {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="filename" :content="{ onCloseAutoFocus: restoreFocus }" :ui="{ content: 'w-auto max-w-[95vw]', body: 'p-2' }">
+  <UModal
+    v-model:open="open"
+    :title="filename"
+    :content="{ onCloseAutoFocus: restoreFocus }"
+    :ui="{ content: 'w-auto max-w-[95vw]', body: 'p-2 compact:p-2 compact:sm:p-2' }"
+  >
     <template #title><EmojiText :text="filename" /></template>
     <template #body>
       <img v-if="src" :src="src" :alt="filename" referrerpolicy="no-referrer" class="mx-auto max-h-[80vh] max-w-full object-contain" />

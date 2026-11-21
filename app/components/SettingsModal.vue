@@ -43,14 +43,17 @@ const view = computed(() =>
     title="Settings"
     description="Your profile and preferences"
     :fullscreen="!wide"
-    :ui="{ content: wide ? 'h-[85dvh] max-w-6xl' : '', body: 'flex min-h-0 flex-col p-0 sm:p-0 md:flex-row' }"
+    :ui="{
+      content: ['divide-y-0 bg-neutral-50 dark:bg-neutral-900', wide ? 'h-[85dvh] max-w-6xl' : ''],
+      body: 'flex min-h-0 flex-col p-0 sm:p-0 md:flex-row compact:p-0 compact:sm:p-0',
+    }"
   >
     <template #body>
       <!-- Sidebar on desktop; on mobile the same menu is a compact grid above the content. -->
-      <nav aria-label="Settings" class="shrink-0 overflow-y-auto border-b border-default p-3 md:w-52 md:border-r md:border-b-0">
+      <nav aria-label="Settings" class="shrink-0 overflow-y-auto p-3 md:w-52 compact:p-2">
         <UNavigationMenu :items="items" orientation="vertical" highlight :ui="{ list: 'max-md:grid max-md:grid-cols-2' }" />
       </nav>
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 compact:p-3 compact:sm:p-4">
         <Suspense>
           <component :is="view" :key="tab" />
         </Suspense>

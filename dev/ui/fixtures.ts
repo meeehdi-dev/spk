@@ -65,8 +65,8 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
   responseDelay.value = 0
   sequence = 0
   me = { id: 'ui-me', email: 'you@example.test', role: 'admin', displayName: 'You', avatarKey: null }
-  users = ['You', 'Alex', 'Sam', 'Jordan'].map((displayName, i) => ({
-    id: ['ui-me', 'ui-alex', 'ui-sam', 'ui-jordan'][i]!,
+  users = ['You', 'Alex', 'Sam', 'Jordan', 'Riley', 'Casey', 'Morgan'].map((displayName, i) => ({
+    id: ['ui-me', 'ui-alex', 'ui-sam', 'ui-jordan', 'ui-riley', 'ui-casey', 'ui-morgan'][i]!,
     displayName,
     avatarKey: null,
     role: i ? 'user' : 'admin',
@@ -77,6 +77,9 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
     { id: 'ui-unread', type: 'text', name: 'design-notes' },
     { id: 'ui-showcase', type: 'text', name: 'ui-showcase' },
     { id: 'ui-voice', type: 'voice', name: 'Lounge' },
+    { id: 'ui-voice-games', type: 'voice', name: 'Games' },
+    { id: 'ui-voice-music', type: 'voice', name: 'Music' },
+    { id: 'ui-voice-empty', type: 'voice', name: 'Quiet room' },
     { id: 'ui-dm', type: 'dm', name: null, otherUserId: 'ui-alex', lastActivityAt: preset === 'empty' ? null : epoch },
   ]
   messages =
@@ -142,7 +145,7 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
     'ui-dm': { unread: preset === 'empty' ? 0 : 1, mentions: 0 },
     'ui-showcase': { unread: 0, mentions: 0 },
   }
-  presence = { 'ui-me': 'online', 'ui-alex': 'online', 'ui-sam': 'idle', 'ui-jordan': 'busy' }
+  presence = { 'ui-me': 'online', 'ui-alex': 'online', 'ui-sam': 'idle', 'ui-jordan': 'busy', 'ui-riley': 'online', 'ui-casey': 'online', 'ui-morgan': 'idle' }
   resetVoiceScenario(preset)
   dispatchSocketFrame({ type: 'channels:changed' })
   dispatchSocketFrame({ type: 'users:changed' })

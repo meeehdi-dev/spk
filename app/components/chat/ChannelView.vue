@@ -478,7 +478,7 @@ socket.onOpen(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-tl-lg bg-(--ui-bg-panel)">
     <div v-if="denied" class="flex flex-1 items-center justify-center gap-2 text-muted"><UIcon name="i-lucide-lock" /> No access</div>
     <template v-else>
       <ChatPinnedBar :pins="pins" :can-pin="canPin(channel?.type, me?.role)" />
@@ -487,21 +487,22 @@ socket.onOpen(() => {
           <div ref="content">
             <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
             <template v-else>
-              <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted">
-                <div v-if="channel?.type === 'dm'" class="font-bold text-default">
-                  This is the start of your conversation with <EmojiText :text="label(channel).slice(1)" />
-                </div>
+              <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted compact:pt-3">
                 <div v-if="!messages.length">No messages yet. Say something!</div>
               </div>
               <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
                 <template v-if="loadingMore"> <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages… </template>
               </div>
               <template v-for="r in rows" :key="r.key">
-                <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted">
+                <div v-if="r.divider" class="my-3 flex items-center gap-3 px-4 text-xs text-muted compact:my-1.5 compact:gap-2">
                   <USeparator class="flex-1" /><span>{{ r.divider }}</span><USeparator class="flex-1" />
                 </div>
                 <template v-else>
-                  <div v-if="dividerId === r.message!.id" id="new-messages-divider" class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error">
+                  <div
+                    v-if="dividerId === r.message!.id"
+                    id="new-messages-divider"
+                    class="my-2 flex items-center gap-3 px-4 text-xs font-bold text-error compact:my-1 compact:gap-2"
+                  >
                     <USeparator color="error" class="flex-1" /><span>New messages</span><USeparator color="error" class="flex-1" />
                   </div>
                   <ChatMessage

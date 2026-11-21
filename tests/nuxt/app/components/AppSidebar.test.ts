@@ -34,6 +34,7 @@ afterEach(() => {
   useVoice().channelId.value = null
   useVoice().pendingChannelId.value = null
   useVoice().connecting.value = false
+  useVoice().audioBlocked.value = false
   vi.restoreAllMocks()
 })
 
@@ -110,6 +111,16 @@ it('shows a non-actionable radio indicator matching the camera control only whil
   member.radioListening = false
   await nextTick()
   expect(indicator().exists()).toBe(false)
+})
+
+it('shows a blocked-audio card with an enable button only while audio is blocked', async () => {
+  const wrapper = await mountInApp(AppSidebar)
+  const button = () => wrapper.findAll('button').find(b => b.text() === 'Enable audio')
+  expect(button()).toBeUndefined()
+  useVoice().audioBlocked.value = true
+  await nextTick()
+  expect(wrapper.text()).toContain('Audio blocked')
+  expect(button()).toBeDefined()
 })
 
 it('keeps voice actions in one centered row below the channel and connection status when narrow', async () => {

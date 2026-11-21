@@ -128,9 +128,12 @@ watch(
 </script>
 
 <template>
-  <aside class="flex h-full w-full flex-col bg-default" aria-label="Search">
-    <div class="flex items-center gap-2 border-b border-default p-2" :class="external ? 'justify-between' : ''">
-      <span v-if="external" class="text-sm font-medium">Search</span>
+  <aside class="flex h-full w-full flex-col bg-neutral-50 dark:bg-neutral-900" aria-label="Search">
+    <div class="flex items-center gap-2 p-2">
+      <template v-if="external">
+        <span class="size-8 shrink-0" aria-hidden="true" />
+        <span class="flex-1 text-center text-sm font-medium">Search</span>
+      </template>
       <UInput
         v-if="!external"
         ref="input"
@@ -147,10 +150,10 @@ watch(
         <UButton icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Close search" @click="search.close()" />
       </UTooltip>
     </div>
-    <div class="border-b border-default p-2">
-      <USelect v-model="search.scope" :items="scopes" class="w-full" aria-label="Search scope" />
+    <div class="p-2">
+      <USelect v-model="search.scope" :items="scopes" class="w-full" :ui="{ base: 'bg-(--ui-bg-panel) ring-0' }" aria-label="Search scope" />
     </div>
-    <ul v-if="suggestions.length" class="border-b border-default p-1" role="listbox" aria-label="Suggestions">
+    <ul v-if="suggestions.length" class="p-1" role="listbox" aria-label="Suggestions">
       <li v-for="(s, i) in suggestions" :key="s">
         <UButton :label="s" color="neutral" :variant="i === active ? 'soft' : 'ghost'" block class="justify-start" role="option" @click="pick(s)">
           <EmojiText :text="s" data-slot="label" class="truncate" />
@@ -164,15 +167,14 @@ watch(
           >before:2026-11-01</code
         > <code>after:2026-10-01</code>
       </p>
-      <ul v-if="!suggestions.length" role="listbox" aria-label="Results">
+      <ul v-if="!suggestions.length" class="space-y-2 px-2 pb-2" role="listbox" aria-label="Results">
         <li v-for="(h, i) in results" :key="h.messageId">
           <UContextMenu :items="menu(h)">
             <button
               type="button"
               role="option"
               :aria-selected="i === active"
-              class="block w-full border-b border-default px-3 py-2 text-left text-sm hover:bg-elevated"
-              :class="i === active ? 'bg-elevated' : ''"
+              class="block w-full rounded-lg bg-(--ui-bg-panel) px-3 py-2 text-left text-sm hover:bg-elevated compact:py-1"
               @click="jump(h)"
             >
               <div class="flex items-center gap-2 text-xs text-muted">

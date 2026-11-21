@@ -1043,7 +1043,7 @@ describe('audio recovery', () => {
     }
     const r = await setup()
     expect(voice.audioBlocked.value).toBe(true)
-    expect(voice.connectionLabel.value).toBe('Audio blocked or interrupted')
+    expect(voice.connectionLabel.value).toBe('Audio blocked')
     r.startAudio.mockRejectedValueOnce(new Error('Still blocked'))
     await voice.enableAudio()
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not enable audio' }))

@@ -30,12 +30,12 @@ async function changePassword() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Profile</h2>
       </template>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 compact:gap-3">
         <AvatarPicker />
         <form class="flex items-end gap-2" @submit.prevent="saveNickname">
           <UFormField label="Nickname" hint="2 to 32 characters" :error="nickError" class="flex-1">
@@ -45,11 +45,11 @@ async function changePassword() {
         </form>
       </div>
     </UCard>
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Change password</h2>
       </template>
-      <form class="flex flex-col gap-3" @submit.prevent="changePassword">
+      <form class="flex flex-col gap-3 compact:gap-2" @submit.prevent="changePassword">
         <UFormField label="Current password">
           <UInput v-model="pw.currentPassword" type="password" autocomplete="current-password" required class="w-full" />
         </UFormField>

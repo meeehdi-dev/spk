@@ -269,19 +269,19 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Add a sound</h2>
       </template>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 compact:gap-3">
         <UFormField
           label="Audio file"
           description="mp3, ogg, wav, m4a… up to 20 MB. It never leaves your browser; only the cropped part (10 s at most) is uploaded."
         >
           <!-- The input is visually hidden, not display:none, so it stays reachable from the keyboard. -->
           <label
-            class="flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accented p-8 text-center text-sm text-muted transition hover:border-primary has-[:focus-visible]:border-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary"
+            class="flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accented p-8 text-center text-sm text-muted transition hover:border-primary has-[:focus-visible]:border-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary compact:p-6"
             :class="over ? 'border-primary bg-elevated/50' : ''"
             @dragover.prevent="over = true"
             @dragleave="over = false"
@@ -292,9 +292,9 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             <input type="file" accept="audio/*" class="sr-only" aria-label="Audio file" @change="choose" />
           </label>
         </UFormField>
-        <div v-show="decoded" class="flex flex-col gap-4">
+        <div v-show="decoded" class="flex flex-col gap-4 compact:gap-3">
           <div ref="box" class="rounded-md border border-default p-2" />
-          <div class="flex items-center gap-3 text-sm text-muted">
+          <div class="flex items-center gap-3 text-sm text-muted compact:gap-2">
             <UButton
               :icon="playing ? 'i-lucide-pause' : 'i-lucide-play'"
               :label="playing ? 'Pause' : 'Play selection'"
@@ -329,14 +329,14 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
       </div>
     </UCard>
 
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Sounds</h2>
       </template>
       <p v-if="!sounds.length" class="text-sm text-muted">No sounds yet.</p>
       <ul class="divide-y divide-default">
         <UContextMenu v-for="s in sounds" :key="s.id" :items="menu(s)">
-          <li class="flex items-center gap-3 py-2 text-sm">
+          <li class="flex items-center gap-3 py-2 text-sm compact:gap-2 compact:py-1">
             <UIcon :name="`i-lucide-${s.icon}`" class="size-5" />
             <span class="min-w-0 flex-1 truncate"><EmojiText :text="s.name" /> <span class="text-xs text-muted">· {{ secs(s.durationMs) }}</span></span>
             <UDropdownMenu :items="menu(s)">
@@ -349,7 +349,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
     <UModal v-model:open="editOpen" title="Edit sound" description="Name and icon only. To change the crop, delete the sound and upload it again.">
       <template #body>
-        <form v-if="editing" class="flex flex-col gap-4" @submit.prevent="saveEdit">
+        <form v-if="editing" class="flex flex-col gap-4 compact:gap-3" @submit.prevent="saveEdit">
           <UFormField label="Name">
             <UInput v-model="editing.name" maxlength="32" class="w-full" />
           </UFormField>

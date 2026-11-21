@@ -87,8 +87,8 @@ const items = (u: Row) => [
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <UCard>
+  <div class="flex flex-col gap-6 compact:gap-4">
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Storage</h2>
       </template>
@@ -110,12 +110,12 @@ const items = (u: Row) => [
       </template>
     </UAlert>
 
-    <UCard>
+    <UCard variant="soft" class="dark:bg-elevated/25">
       <template #header>
         <h2 class="font-bold">Users</h2>
       </template>
       <ul class="divide-y divide-default">
-        <li v-for="u in data.users" :key="u.id" class="flex flex-wrap items-center gap-2 py-2 text-sm">
+        <li v-for="u in data.users" :key="u.id" class="flex flex-wrap items-center gap-2 py-2 text-sm compact:py-1">
           <UserContext :user-id="u.id" class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-2">
               <UAvatar :src="avatarSrc(u)" :alt="u.displayName ?? ''" icon="i-lucide-user" size="sm" :chip="presenceChip(u.id)" />
