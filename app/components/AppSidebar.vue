@@ -103,7 +103,8 @@ const onDrop = (channelId: string) => {
 <template>
   <div class="@container/sidebar flex h-full flex-col">
     <nav class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2 compact:gap-1">
-      <div class="px-2 py-2 text-center text-2xl font-bold text-primary">spk</div>
+      <!-- h-12 matching the header, minus nav padding and gap, so the first card lines up with the main panel. -->
+      <div class="-mt-2 -mb-3 flex h-12 shrink-0 items-center justify-center px-2 text-2xl font-bold text-primary compact:-mb-1">spk</div>
 
       <section class="rounded-lg bg-(--ui-bg-panel) p-1">
         <h2 class="flex h-8 items-center gap-1.5 px-2 text-sm font-semibold text-muted compact:h-6">
