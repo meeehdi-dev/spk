@@ -1,4 +1,4 @@
-import { cleanMime, MAX_FILE_BYTES, MAX_FILES } from '../../shared/utils/files'
+import { cleanMime, INLINE_IMAGE_MAX_BYTES, MAX_FILE_BYTES, MAX_FILES } from '../../shared/utils/files'
 
 export interface Upload {
   key: string
@@ -76,7 +76,7 @@ export function useUploads() {
         state: 'uploading',
         progress: 0,
       })
-      if (it.mime.startsWith('image/')) it.preview = URL.createObjectURL(file)
+      if (it.mime.startsWith('image/') && file.size <= INLINE_IMAGE_MAX_BYTES) it.preview = URL.createObjectURL(file)
       items.value.push(it)
       void start(it, file)
     }

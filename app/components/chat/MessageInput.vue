@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
 
-import { MAX_FILES } from '../../../shared/utils/files'
+import { MAX_FILE_BYTES, MAX_FILES } from '../../../shared/utils/files'
 
 const props = defineProps<{ channelId: string; channelName: string; replyTo?: { id: string; name: string; preview: string } | null }>()
 const emit = defineEmits<{ send: [markdown: string, draft: OutgoingDraft]; typing: []; cancelReply: []; editLast: [] }>()
@@ -218,7 +218,7 @@ defineExpose({
             ($event.target as HTMLInputElement).value = ''
           "
         />
-        <UTooltip :text="`Attach files (up to ${MAX_FILES}, 25 MB each)`">
+        <UTooltip :text="`Attach files (up to ${MAX_FILES}, ${formatBytes(MAX_FILE_BYTES)} each)`">
           <UButton icon="i-lucide-paperclip" color="neutral" variant="ghost" aria-label="Attach files" @click="fileInput?.click()" />
         </UTooltip>
         <UPopover v-model:open="gifOpen" :content="{ side: 'top', align: 'start', onCloseAutoFocus: (e: Event) => e.preventDefault() }">

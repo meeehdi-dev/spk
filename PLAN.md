@@ -180,7 +180,7 @@ Per-channel GIF selections, reply targets, attachment queues (including running 
 
 - Uploaded **directly to R2** with presigned PUT URLs. The server signs `Content-Length` and `Content-Type`, so the size limit can't be bypassed.
 - Files are downloaded through short-lived presigned GET URLs. The bucket stays private.
-- **Up to 10 files per message, 25 MB each.** Paste from the clipboard and drag and drop.
+- **Up to 10 files per message, 1 GB each.** Paste from the clipboard and drag and drop.
 - **Upload queue:** file type icon, name, human-readable size (`20 MB`, using `Intl.NumberFormat`), progress bar, cancel button (`XMLHttpRequest` for progress).
 - **File type icons:** `file-image`, `file-video`, `file-audio`, `file-archive`, `file-code`, `file-text` (PDF and text), `file-spreadsheet`, `file` (anything else).
 - **Display:** images inline, limited to about **350 px high**, click for full size in the **lightbox**. Native players for video and audio, a file card with icon, name and size for everything else.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AttachmentDto } from '../../../server/db/messages'
 
-import { TEXT_PREVIEW_RANGE } from '../../../shared/utils/files'
+import { INLINE_IMAGE_MAX_BYTES, TEXT_PREVIEW_RANGE } from '../../../shared/utils/files'
 
 const props = defineProps<{ file: AttachmentDto }>()
 const emit = defineEmits<{ open: [file: AttachmentDto] }>()
@@ -9,7 +9,13 @@ const media = ref<HTMLMediaElement>()
 useMediaOutput(media)
 const src = computed(() => `/api/attachments/${props.file.id}`)
 const kind = computed(() =>
-  props.file.mime.startsWith('image/') ? 'image' : props.file.mime.startsWith('video/') ? 'video' : props.file.mime.startsWith('audio/') ? 'audio' : 'file',
+  props.file.mime.startsWith('image/') && props.file.size <= INLINE_IMAGE_MAX_BYTES
+    ? 'image'
+    : props.file.mime.startsWith('video/')
+      ? 'video'
+      : props.file.mime.startsWith('audio/')
+        ? 'audio'
+        : 'file',
 )
 const revealed = ref(!props.file.spoiler)
 const imgLoaded = ref(false)

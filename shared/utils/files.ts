@@ -1,6 +1,8 @@
 // Attachment rules shared by the server (presign) and the client (upload queue, cards).
 
-export const MAX_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_FILE_BYTES = 1024 * 1024 * 1024
+/** Larger images show as a download card: decoding them inline would stall the browser. */
+export const INLINE_IMAGE_MAX_BYTES = 50 * 1024 * 1024
 export const MAX_FILES = 10
 const TEXT_PREVIEW_MAX_BYTES = 1024 * 1024
 export const TEXT_PREVIEW_RANGE = 64 * 1024

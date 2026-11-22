@@ -2,7 +2,7 @@ import type { Db } from './client'
 
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 
-import { cleanMime, MAX_FILE_BYTES } from '../../shared/utils/files'
+import { cleanMime, formatBytes, MAX_FILE_BYTES } from '../../shared/utils/files'
 
 import { ChatError } from './messages'
 import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
@@ -22,7 +22,7 @@ const cleanName = (v: unknown) =>
 export function createPendingAttachment(db: Db, userId: string, input: { filename?: unknown; mime?: unknown; size?: unknown }, now = Date.now()) {
   const size = input.size
   if (typeof size !== 'number' || !Number.isInteger(size) || size < 1) throw new ChatError(400, 'Bad file size')
-  if (size > MAX_FILE_BYTES) throw new ChatError(413, 'Files can be 25 MB at most')
+  if (size > MAX_FILE_BYTES) throw new ChatError(413, `Files can be ${formatBytes(MAX_FILE_BYTES)} at most`)
   const mime = cleanMime(input.mime)
   if (!mime) throw new ChatError(400, 'Bad file type')
   const pending =

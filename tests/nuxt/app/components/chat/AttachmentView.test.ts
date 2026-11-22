@@ -3,6 +3,7 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { INLINE_IMAGE_MAX_BYTES } from '#shared/utils/files'
 import AttachmentView from '~/components/chat/AttachmentView.vue'
 
 const mocks = await vi.hoisted(async () => {
@@ -41,6 +42,13 @@ describe('attachment image opening', () => {
     expect(button.attributes('aria-label')).toBe('Open image.png')
     await button.trigger('click')
     expect(wrapper.emitted('open')).toEqual([[file]])
+  })
+
+  it('shows an image over the inline limit as a download card', async () => {
+    const file = { id: 'big', filename: 'big.png', mime: 'image/png', size: INLINE_IMAGE_MAX_BYTES + 1, spoiler: false }
+    const wrapper = await mountSuspended(AttachmentView, { props: { file } })
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.find('a').attributes('href')).toBe('/api/attachments/big?download=1')
   })
 })
 
