@@ -76,6 +76,7 @@ const { media, MockRoom } = vi.hoisted(() => {
     connect = vi.fn(async () => {
       media.connect?.()
     })
+    prepareConnection = vi.fn(async () => {})
     startAudio = vi.fn(async () => {
       for (const p of this.remoteParticipants.values())
         for (const pub of p.audioTrackPublications.values()) for (const element of pub.track?.attachedElements ?? []) element.muted = false
@@ -797,7 +798,8 @@ describe('remote audio silence gate', () => {
     expect(screen.mediaStreamTrack.enabled).toBe(true)
     expect(mic.setVolume).toHaveBeenLastCalledWith(0.4)
     expect(screen.setVolume).toHaveBeenLastCalledWith(0.2)
-    for (const t of [remoteMuted, userMuted, zero]) expect(t.mediaStreamTrack.enabled).toBe(false)
+    for (const t of [userMuted, zero]) expect(t.mediaStreamTrack.enabled).toBe(false)
+    expect(remoteMuted.mediaStreamTrack.enabled).toBe(true) // a stale isMuted must not silence a speaker
     expect(r.mic.isMuted).toBe(initiallyMuted)
     expect(voice.volumes.value).toEqual(saved)
     expect(settings.value.outputVolume).toBe(0.8)

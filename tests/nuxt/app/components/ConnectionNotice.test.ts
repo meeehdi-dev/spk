@@ -55,8 +55,11 @@ it('announces only settled outages and notifies once per transition', async () =
   state.voice.lost.value = true
   await nextTick()
   expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'App connection lost. Reconnecting…' }))
-  expect(wrapper.text()).toContain('Voice interrupted')
+  expect(wrapper.text()).toContain('Reconnecting voice…')
   expect(wrapper.text()).toContain('Leave voice')
+  state.voice.connection.value = 'signalReconnecting'
+  await nextTick()
+  expect(wrapper.text()).toContain('Reconnecting voice…')
   state.socket.offline.value = true
   await nextTick()
   expect(wrapper.text()).toContain('Offline')
@@ -97,6 +100,7 @@ it('leaves blocked audio to the sidebar and offers an explicit terminal rejoin',
   expect(button('Rejoin voice').attributes('disabled')).toBeDefined()
   state.socket.connected.value = true
   await nextTick()
+  expect(wrapper.text()).toContain("Couldn't reconnect voice.")
   await button('Rejoin voice').trigger('click')
   expect(state.voice.reconnect).toHaveBeenCalledOnce()
   await button('Dismiss').trigger('click')

@@ -15,7 +15,9 @@ const voice = useVoice()
 const radioDirectory = useRadioDirectory()
 const settingsTab = useSettingsModal()
 const myStatus = useMyStatus()
-const voiceName = computed(() => allChannels.value.find(c => c.id === voice.channelId.value)?.name)
+const voiceId = computed(() => voice.channelId.value ?? voice.rejoining.value)
+const voiceName = computed(() => allChannels.value.find(c => c.id === voiceId.value)?.name)
+const joining = computed(() => voice.connecting.value || !!voice.rejoining.value)
 const DOT = { online: 'bg-success', away: 'bg-warning', busy: 'bg-error', offline: 'bg-neutral-400' } as const
 const statusMenu = computed(() => [
   (['online', 'away', 'busy', 'offline'] as const).map(s => ({
@@ -259,7 +261,7 @@ const onDrop = (channelId: string) => {
               <UTooltip v-if="voice.channelId.value === c.id" text="Leave voice">
                 <UButton icon="i-lucide-phone-off" color="error" variant="link" aria-label="Leave voice" class="self-stretch" @click="voice.leave()" />
               </UTooltip>
-              <UTooltip v-else-if="voice.pendingChannelId.value === c.id" text="Cancel voice join">
+              <UTooltip v-else-if="voice.pendingChannelId.value === c.id || voice.rejoining.value === c.id" text="Cancel voice join">
                 <UButton icon="i-lucide-x" color="neutral" variant="link" aria-label="Cancel voice join" @click="voice.leave(false)" />
               </UTooltip>
               <UTooltip v-else :text="`Join ${c.name}`">
@@ -280,7 +282,7 @@ const onDrop = (channelId: string) => {
                 <li
                   class="relative flex min-h-9 items-center gap-2 py-0.5 text-sm text-muted before:absolute before:top-0 before:-left-3 before:h-1/2 before:w-2.5 before:rounded-bl-md before:border-b-2 before:border-l-2 before:border-default after:absolute after:inset-y-0 after:-left-3 after:border-l-2 after:border-default last:after:hidden"
                   data-member
-                  :class="m.pending && 'opacity-50'"
+                  :class="(m.pending || voice.unheard.value.has(m.userId)) && 'opacity-50'"
                   :draggable="admin.isAdmin.value && !m.pending"
                   @dragstart="onMemberDragStart($event, m.userId, c.id)"
                   @dragend="dragged = dropTarget = undefined"
@@ -294,7 +296,7 @@ const onDrop = (channelId: string) => {
                     :class="m.speaking ? 'ring-success' : 'ring-transparent'"
                   />
                   <span class="truncate"><EmojiText :text="nameOf(m.userId)" /></span>
-                  <span v-if="m.pending" role="status" class="text-xs">Connecting…</span>
+                  <span v-if="m.pending || voice.unheard.value.has(m.userId)" role="status" class="text-xs">Connecting…</span>
                   <UTooltip v-if="m.screen" :text="`Watch ${nameOf(m.userId)}'s stream`" class="ml-auto">
                     <template #content="{ ui }"><EmojiText :text="`Watch ${nameOf(m.userId)}'s stream`" :class="ui.text()" /></template>
                     <UButton
@@ -329,7 +331,7 @@ const onDrop = (channelId: string) => {
     </nav>
 
     <div
-      v-if="voice.channelId.value || voice.connecting.value"
+      v-if="voice.channelId.value || joining"
       class="mx-2 mb-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-lg bg-(--ui-bg-panel) p-2"
     >
       <div class="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -338,25 +340,16 @@ const onDrop = (channelId: string) => {
           class="size-4 shrink-0"
           :class="{ ok: 'text-success', unstable: 'text-warning', lost: 'text-error' }[voice.health.value]"
         />
-        <NuxtLink v-if="voice.channelId.value" :to="`/c/${voice.channelId.value}`" class="truncate hover:underline"
-          ><EmojiText :text="voiceName ?? ''"
-        /></NuxtLink>
+        <NuxtLink v-if="voiceId" :to="`/c/${voiceId}`" class="truncate hover:underline"><EmojiText :text="voiceName ?? ''" /></NuxtLink>
         <span v-else class="truncate">Voice</span>
       </div>
       <div
         class="min-w-0 @min-[360px]/sidebar:col-start-1 @min-[360px]/sidebar:row-start-2"
-        :class="voice.connecting.value ? 'col-start-1 row-start-2' : 'col-start-2 row-start-1'"
+        :class="joining ? 'col-start-1 row-start-2' : 'col-start-2 row-start-1'"
       >
         <VoiceConnectionPopover />
       </div>
-      <UButton
-        v-if="voice.connecting.value"
-        label="Cancel"
-        color="neutral"
-        variant="outline"
-        class="col-start-2 row-span-2 row-start-1"
-        @click="voice.leave(false)"
-      />
+      <UButton v-if="joining" label="Cancel" color="neutral" variant="outline" class="col-start-2 row-span-2 row-start-1" @click="voice.leave(false)" />
       <div
         v-else
         role="group"

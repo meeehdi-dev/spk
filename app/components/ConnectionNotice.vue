@@ -13,10 +13,9 @@ watch(socket.lost, lost =>
 const message = computed(() => {
   const parts: string[] = []
   if (socket.offline.value) parts.push('Offline. Waiting for your network to return.')
-  if (v.lost.value && v.connection.value === 'reconnecting') parts.push('Voice interrupted. Reconnecting automatically…')
-  else if (v.lost.value && v.connection.value === 'signalReconnecting') parts.push('Voice signaling reconnecting. Audio may still work.')
+  if (v.lost.value && (v.connection.value === 'reconnecting' || v.connection.value === 'signalReconnecting')) parts.push('Reconnecting voice…')
   if (v.channelId.value && v.microphone.value === 'unavailable') parts.push('Your microphone is unavailable. You can still listen.')
-  if (v.retryChannelId.value) parts.push('Voice disconnected. Rejoin when you are ready.')
+  if (v.retryChannelId.value) parts.push("Couldn't reconnect voice.")
   return parts.join(' ')
 })
 </script>

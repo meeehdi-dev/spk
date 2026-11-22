@@ -34,6 +34,8 @@ afterEach(() => {
   useVoice().channelId.value = null
   useVoice().pendingChannelId.value = null
   useVoice().connecting.value = false
+  useVoice().rejoining.value = null
+  useVoice().unheard.value = new Set()
   useVoice().audioBlocked.value = false
   vi.restoreAllMocks()
 })
@@ -164,6 +166,26 @@ it('dims pending self, prevents admin dragging, and offers cancel instead of med
   await nextTick()
   expect(voice.pendingChannelId.value).toBeNull()
   expect(move).not.toHaveBeenCalled()
+})
+
+it('shows members I cannot hear as connecting while staying draggable', async () => {
+  useVoice().unheard.value = new Set(['user'])
+  const { row } = await mountSidebar(true)
+  expect(row.classList.contains('opacity-50')).toBe(true)
+  expect(row.getAttribute('draggable')).toBe('true')
+  expect(row.querySelector('[role="status"]')?.textContent).toBe('Connecting…')
+})
+
+it('keeps the voice card with Cancel while an automatic rejoin runs', async () => {
+  const voice = useVoice()
+  voice.rejoining.value = 'source'
+  const { row } = await mountSidebar(false)
+  const wrapper = row.closest('nav')!.parentElement!
+  expect(wrapper.querySelector('[aria-label="Video actions"]')).toBeNull()
+  expect(wrapper.querySelector('a[href="/c/source"]')).not.toBeNull()
+  expect(wrapper.querySelector('[aria-label="Cancel voice join"]')).not.toBeNull()
+  const cancel = [...wrapper.querySelectorAll('button')].find(b => b.textContent === 'Cancel')!
+  expect(cancel).toBeDefined()
 })
 
 describe('voice member dragging', () => {

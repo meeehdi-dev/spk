@@ -33,9 +33,9 @@ const toggleSidebar = () => {
 }
 const bottomVoice = computed(
   () =>
-    (voice.channelId.value || voice.connecting.value) &&
+    (voice.channelId.value || voice.connecting.value || voice.rejoining.value) &&
     (isLarge.value ? sidebarHidden.value : !open.value) &&
-    route.params.channelId !== voice.channelId.value,
+    route.params.channelId !== (voice.channelId.value ?? voice.rejoining.value),
 )
 const panel = ref<{ onKey: (e: KeyboardEvent) => void }>()
 const searchFocus = () => {

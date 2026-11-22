@@ -61,7 +61,7 @@ it('resets all presets and recovers from simulated errors and reconnects', async
   await v.enableMicrophone()
   expect(v.connectionLabel.value).toBe('Connected')
   resetVoiceScenario('reconnecting')
-  expect(v.connectionLabel.value).toBe('Voice reconnecting…')
+  expect(v.connectionLabel.value).toBe('Reconnecting…')
   expect(v.ping.value).toBeNull()
   await v.reconnect()
   expect(v.connection.value).toBe('connected')

@@ -88,6 +88,7 @@ const { media, MockRoom } = vi.hoisted(() => {
         this.rejectConnect = undefined
       }
     })
+    prepareConnection = vi.fn(async () => {})
     startAudio = vi.fn(async () => {})
     disconnect = vi.fn(async () => {
       this.rejectConnect?.(new Error('Connection cancelled'))
@@ -438,6 +439,43 @@ describe('acknowledged voice join', () => {
     expect(capture).not.toHaveBeenCalled()
     expect(media.rooms).toHaveLength(0)
     expect(b.send).not.toHaveBeenCalled()
+  })
+
+  it('sends voice:join before the token resolves and prepares the connection', async () => {
+    let authorize!: (token: { token: string; url: string }) => void
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn(
+        () =>
+          new Promise(resolve => {
+            authorize = resolve
+          }),
+      ),
+    )
+    const b = await browser('early')
+    const joining = b.v.join('c1')
+    await flush()
+    expect(b.send.mock.calls.some(([m]) => m.type === 'voice:join')).toBe(true)
+    expect(media.rooms).toHaveLength(0)
+    authorize({ token: 'tok', url: 'wss://x' })
+    await joining
+    expect(media.rooms[0]!.prepareConnection).toHaveBeenCalledWith('wss://x', 'tok')
+    expect(media.rooms[0]!.connect).toHaveBeenCalled()
+  })
+
+  it('releases the claim when the token fails after voice:join was sent', async () => {
+    vi.stubGlobal(
+      '$fetch',
+      vi.fn(async () => {
+        throw Object.assign(new Error('[POST] "/api/voice/token": 403 Forbidden'), { data: { message: 'Token failed' } })
+      }),
+    )
+    const b = await browser('early-fail')
+    await b.v.join('c1')
+    expect(b.send.mock.calls.map(([m]) => m.type)).toEqual(expect.arrayContaining(['voice:join', 'voice:leave']))
+    expect(sessions.sessionOf('early-fail')).toBeNull()
+    expect(b.handlers.size).toBe(1)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Token failed' }))
   })
 
   it('connects and starts listening while microphone permission is still pending', async () => {
@@ -894,7 +932,7 @@ describe('acknowledged voice join', () => {
     const b = await browser('middle')
     ack = false
     const joining = b.v.join('c1')
-    await vi.waitFor(() => expect(b.handlers.size).toBe(2))
+    await vi.waitFor(() => expect(media.rooms).toHaveLength(1))
     const r = media.rooms[0]!
     const nonce = b.send.mock.calls.find(([m]) => m.type === 'voice:join')![0].nonce
     b.receive({ type: 'voice:joined', sid: 'other', channelId: 'c1', nonce })
@@ -934,7 +972,7 @@ describe('acknowledged voice join', () => {
     const b = await browser('middle')
     ack = false
     const joining = b.v.join('c1')
-    await vi.waitFor(() => expect(b.handlers.size).toBe(2))
+    await vi.waitFor(() => expect(media.rooms).toHaveLength(1))
     handleVoiceFrame('middle', { type: 'voice:join', sid: 'successor', channelId: 'c1' }, { send: vi.fn() })
     await joining
     expect(media.rooms[0]!.connect).not.toHaveBeenCalled()
@@ -1199,9 +1237,9 @@ describe('voice reconnection', () => {
     const r = media.rooms.at(-1)!
     r.emit('Reconnecting')
     r.emit('Reconnecting')
-    expect(b.v.connectionLabel.value).toBe('Voice reconnecting…')
+    expect(b.v.connectionLabel.value).toBe('Reconnecting…')
     expect(b.v.ping.value).toBeNull()
-    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice interrupted. Reconnecting…' }))
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Reconnecting voice…' }))
     expect(b.v.health.value).toBe('unstable')
     dropVoiceSocket(b.owner)
     b.opened()
@@ -1232,26 +1270,153 @@ describe('voice reconnection', () => {
     expect(b.v.health.value).toBe('unstable')
     await vi.advanceTimersByTimeAsync(1)
     expect(b.v.health.value).toBe('lost')
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice signaling reconnecting. Audio may still work.' }))
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Reconnecting voice…' }))
     r.emit('Reconnected')
     expect(b.v.health.value).toBe('ok')
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Voice connection restored' }))
     await b.v.leave(false)
   })
 
-  it('offers a manual retry only for transport failures and preserves deafen on rejoin', async () => {
-    const b = await browser('retry')
-    await b.v.join('c1')
-    b.v.toggleHeadphones()
-    media.rooms.at(-1)!.emit('Disconnected', 9)
-    expect(b.v.retryChannelId.value).toBe('c1')
-    await b.v.reconnect()
-    expect(b.v.channelId.value).toBe('c1')
-    expect(b.v.mute.value.deafened).toBe(true)
-    media.rooms.at(-1)!.emit('Disconnected', 4)
-    expect(b.v.retryChannelId.value).toBeNull()
-    await b.v.reconnect()
-    expect(media.rooms).toHaveLength(2)
+  describe('auto-rejoin', () => {
+    const drop = (b: Awaited<ReturnType<typeof browser>>, reason = 9) => media.rooms.at(-1)!.emit('Disconnected', reason)
+
+    it('rejoins quietly after a transport drop, preserving deafen', async () => {
+      const b = await browser('retry')
+      await b.v.join('c1')
+      b.v.toggleHeadphones()
+      vi.useFakeTimers()
+      toast.mockClear()
+      sound.mockClear()
+      drop(b)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(toast).not.toHaveBeenCalled()
+      expect(b.v.rejoining.value).toBe('c1')
+      expect(b.v.connectionLabel.value).toBe('Reconnecting…')
+      await vi.advanceTimersByTimeAsync(999)
+      expect(media.rooms).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(media.rooms).toHaveLength(2)
+      expect(b.v.channelId.value).toBe('c1')
+      expect(b.v.rejoining.value).toBeNull()
+      expect(b.v.mute.value.deafened).toBe(true)
+      expect(sound).not.toHaveBeenCalled()
+    })
+
+    it('gives up after three failed attempts with one toast and a manual retry', async () => {
+      const b = await browser('retry-fail')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      media.connect = async () => {
+        throw new Error('down')
+      }
+      toast.mockClear()
+      drop(b)
+      await vi.advanceTimersByTimeAsync(1000 + 3000 + 8000 + 10)
+      expect(media.rooms).toHaveLength(4)
+      expect(b.v.rejoining.value).toBeNull()
+      expect(b.v.retryChannelId.value).toBe('c1')
+      expect(toast.mock.calls).toEqual([[expect.objectContaining({ title: 'You were disconnected from voice' })]])
+    })
+
+    it.each([403, 503])('stops retrying on a %s token error and shows its message', async statusCode => {
+      let fail = false
+      const fetch = vi.fn(async () => {
+        if (fail) throw Object.assign(new Error('Not allowed'), { statusCode, data: { message: 'Server says no' } })
+        return { token: 'token', url: 'url' }
+      })
+      vi.stubGlobal('$fetch', fetch)
+      const b = await browser('retry-fatal')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      fail = true
+      fetch.mockClear()
+      toast.mockClear()
+      drop(b)
+      await vi.advanceTimersByTimeAsync(1000 + 3000 + 8000 + 10)
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(b.v.retryChannelId.value).toBe('c1')
+      expect(toast.mock.calls).toEqual([[expect.objectContaining({ title: 'You were disconnected from voice', description: 'Server says no' })]])
+    })
+
+    it('ends in the chosen channel when joined manually during a quiet rejoin attempt', async () => {
+      let release = () => {}
+      const hold = new Promise<void>(resolve => {
+        release = resolve
+      })
+      let held = false
+      vi.stubGlobal(
+        '$fetch',
+        vi.fn(async () => {
+          if (held) await hold
+          return { token: 'token', url: 'url' }
+        }),
+      )
+      const b = await browser('retry-manual-join')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      held = true
+      drop(b)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(b.v.connecting.value).toBe(true) // quiet attempt is in flight
+      void b.v.move('c2')
+      await vi.advanceTimersByTimeAsync(0)
+      release()
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(b.v.channelId.value).toBe('c2')
+      expect(b.v.rejoining.value).toBeNull()
+    })
+
+    it('does not rejoin after a non-retryable disconnect', async () => {
+      const b = await browser('retry-no')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      drop(b, 4)
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(b.v.rejoining.value).toBeNull()
+      expect(b.v.retryChannelId.value).toBeNull()
+      expect(media.rooms).toHaveLength(1)
+    })
+
+    it.each(['leave', 'disconnect', 'kicked'])('stops during backoff on %s', async action => {
+      const b = await browser('retry-stop')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      drop(b)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(b.v.rejoining.value).toBe('c1')
+      if (action === 'leave') await b.v.leave(false)
+      else if (action === 'disconnect') b.receive({ type: 'voice:disconnect', sid: b.v.sid, reason: 'Admin' })
+      else b.receive({ type: 'voice:kicked', sid: 'other' })
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(b.v.rejoining.value).toBeNull()
+      expect(media.rooms).toHaveLength(1)
+    })
+
+    it('pauses while the app socket is down', async () => {
+      const b = await browser('retry-socket')
+      await b.v.join('c1')
+      vi.useFakeTimers()
+      drop(b)
+      b.connected.value = false
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(media.rooms).toHaveLength(1)
+      expect(b.v.retryChannelId.value).toBeNull()
+      b.connected.value = true
+      await vi.advanceTimersByTimeAsync(600)
+      expect(media.rooms).toHaveLength(2)
+      expect(b.v.channelId.value).toBe('c1')
+    })
+
+    it('manual reconnect still works after giving up', async () => {
+      const b = await browser('retry-manual')
+      await b.v.join('c1')
+      b.v.retryChannelId.value = 'c1'
+      await b.v.leave(false)
+      b.v.retryChannelId.value = 'c1'
+      await b.v.reconnect()
+      expect(b.v.channelId.value).toBe('c1')
+    })
   })
 
   it('cancels an explicit reconnect if another tab takes over during teardown', async () => {

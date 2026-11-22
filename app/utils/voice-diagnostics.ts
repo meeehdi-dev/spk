@@ -17,7 +17,7 @@ interface Counters {
   packetsLost?: number
 }
 
-async function readIncomingAudio(track: RemoteAudioTrack) {
+export async function readIncomingAudio(track: RemoteAudioTrack) {
   // LiveKit's getReceiverStats omits packet counters; use its public WebRTC report instead.
   const report = await track.getRTCStatsReport()
   return [...(report?.values() ?? [])].find(s => s.type === 'inbound-rtp') as RTCInboundRtpStreamStats | undefined

@@ -54,7 +54,7 @@ import {
 } from '#shared/utils/voice'
 import { LOST_MS, report, outageStart, type OutageKind, type OutageStart } from '~/utils/socket-browser'
 import { createTrackAudio } from '~/utils/track-audio'
-import { createVoiceDiagnostics, type VoiceDiagnostics } from '~/utils/voice-diagnostics'
+import { createVoiceDiagnostics, readIncomingAudio, type VoiceDiagnostics } from '~/utils/voice-diagnostics'
 
 // One voice session per tab. `sid` tells the server (and our other tabs) which tab owns the account's session.
 const sid = import.meta.client ? crypto.randomUUID() : ''
@@ -74,9 +74,18 @@ const microphone = ref<'idle' | 'starting' | 'ready' | 'unavailable'>('idle')
 let pendingMicrophone: AbortController | undefined
 // The session's single mic track; LiveKit keeps the same object across republish.
 let micPub: LocalAudioTrack | undefined
-// When each remote mic publication was first seen desired but unsubscribed.
-const stuck = new WeakMap<object, number>()
-const STUCK_MS = 10_000 // well past a normal (even TURN) subscribe, so a slow one is never reset mid-flight
+/** Members I can't hear (watchdog): missing, unsubscribed or stalled for 4 s while unmuted. */
+const unheard = ref<Set<string>>(new Set())
+/** Channel id while an automatic rejoin is running. */
+const rejoining = ref<string | null>(null)
+// Per bad member: when it began, and whether the one resubscribe was spent.
+const episodes = new Map<string, { since: number; resubscribed: boolean }>()
+let lastWatchdogRejoin = 0
+let rejoinError: unknown // why the last quiet rejoin attempt failed
+let healing = false
+const packets = new WeakMap<object, number>() // last inbound packetsReceived per remote track
+const REJOIN_DELAYS = [1000, 3000, 8000]
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 let stopVisibleHeal: (() => void) | undefined
 const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
@@ -264,8 +273,8 @@ export function useVoice() {
       settings.value.outputVolume,
     )
     // Element volume is ignored on some browsers (notably iOS); gate the received audio itself.
-    // Runs on every output change; keeping !isMuted stops it re-enabling a track LiveKit muted.
-    track.mediaStreamTrack.enabled = volume > 0 && !track.isMuted
+    // Runs on every output change. Not gated on isMuted: it can go stale after a missed unmute, and a muted remote sends nothing anyway.
+    track.mediaStreamTrack.enabled = volume > 0
     trackAudio.volume(track, volume)
   }
   function applyOutput() {
@@ -286,22 +295,83 @@ export function useVoice() {
       }
     }
   }
-  // Ping tick / tab visible: a mic still desired but unsubscribed after STUCK_MS gets resubscribed. Wall-clock, so throttled timers only delay it.
-  function heal() {
-    if (connection.value !== 'connected') return
-    for (const p of room?.remoteParticipants.values() ?? []) {
-      for (const pub of p.audioTrackPublications.values()) {
-        if (pub.source !== ('microphone' as Track.Source)) continue
-        const since = stuck.get(pub)
-        if (!pub.isDesired || pub.isSubscribed) stuck.delete(pub)
-        else if (since === undefined) stuck.set(pub, Date.now())
-        else if (Date.now() - since >= STUCK_MS) {
-          stuck.delete(pub)
+  const setUnheard = (next: Set<string>) => {
+    if (next.size !== unheard.value.size || [...next].some(id => !unheard.value.has(id))) unheard.value = next
+  }
+  // Ping tick / tab visible: verify I hear every member in my channel. Wall-clock, so throttled timers only delay it.
+  async function heal() {
+    const r = room
+    if (!r || connection.value !== 'connected' || healing) return
+    healing = true
+    try {
+      const members = Object.entries(presence.value).filter(([id, m]) => id !== me.value?.id && m.channelId === channelId.value)
+      const results = await Promise.all(
+        members.map(async ([id, m]) => {
+          const p = r.remoteParticipants.get(id)
+          const pub = p && [...p.audioTrackPublications.values()].find(x => x.source === ('microphone' as Track.Source))
+          const track = pub?.track as RemoteAudioTrack | undefined
+          for (const e of track?.attachedElements ?? []) if (e.paused) e.play().catch(notePlaybackFailure)
+          let bad = !p
+          if (p && !m.muted) {
+            if (!pub || !track || !pub.isSubscribed) bad = true
+            else {
+              // A failed or hung stats read counts as fine (n stays undefined) to avoid false alarms.
+              // Bounded so a hung stats read cannot hold `healing` forever.
+              let timer = 0
+              const timeout = new Promise<undefined>(resolve => (timer = window.setTimeout(resolve, 1500)))
+              const n = await Promise.race([
+                readIncomingAudio(track).then(
+                  s => s?.packetsReceived,
+                  () => undefined,
+                ),
+                timeout,
+              ]).finally(() => window.clearTimeout(timer))
+              const before = packets.get(track)
+              if (n !== undefined) packets.set(track, n)
+              if (n !== undefined && before !== undefined && n <= before) bad = true
+            }
+          }
+          return { id, bad, pub, audible: !!p && !m.muted }
+        }),
+      )
+      if (room !== r || connection.value !== 'connected') return
+      const now = Date.now()
+      const next = new Set<string>()
+      for (const id of episodes.keys()) if (!members.some(([m]) => m === id)) episodes.delete(id)
+      for (const { id, bad, pub } of results) {
+        if (!bad) {
+          episodes.delete(id)
+          continue
+        }
+        const episode = episodes.get(id) ?? { since: now, resubscribed: false }
+        episodes.set(id, episode)
+        const age = now - episode.since
+        if (age >= 4000) next.add(id)
+        if (age >= 8000 && !episode.resubscribed && pub) {
+          episode.resubscribed = true
           pub.setSubscribed(false)
           pub.setSubscribed(true)
           trackDiag('resubscribed', pub.trackSid)
         }
       }
+      // Only a fault on my side breaks every audible member at once; a missing or lone bad member could be theirs, so require two.
+      const audible = results.filter(x => x.audible)
+      if (
+        audible.length >= 2 &&
+        audible.every(x => x.bad && now - episodes.get(x.id)!.since >= 20_000) &&
+        now - lastWatchdogRejoin >= 60_000 &&
+        channelId.value
+      ) {
+        lastWatchdogRejoin = now
+        trackDiag('watchdogRejoin')
+        const channel = channelId.value
+        void leave(false)
+        void rejoin(channel)
+        return
+      }
+      setUnheard(next)
+    } finally {
+      healing = false
     }
   }
   function attachAudio(track: RemoteAudioTrack) {
@@ -495,8 +565,10 @@ export function useVoice() {
     }
   }
 
-  async function join(id: string) {
+  /** `quiet` is the auto-rejoin loop: no failure toast, no join sound, and it keeps `rejoining` alive. */
+  async function join(id: string, quiet = false) {
     if (channelId.value === id || connecting.value) return
+    if (!quiet) rejoining.value = null
     connecting.value = true
     const leaving = channelId.value ? leave(false) : undefined
     const epoch = ++moveEpoch
@@ -518,6 +590,7 @@ export function useVoice() {
     const signal = attempt.signal
     let r: Room | undefined
     let claimed = false
+    let stopHandshake = () => {}
     const stopSocketWatch = watchSocket(
       socket.connected,
       on => {
@@ -540,6 +613,27 @@ export function useVoice() {
         () => undefined,
         () => new Error('Microphone access was denied'),
       )
+      // Replace the server session before LiveKit can evict the previous browser; runs alongside the token fetch and import.
+      const nonce = crypto.randomUUID()
+      const handshake = new Promise<void>((resolve, reject) => {
+        const finish = (error?: unknown) => {
+          clearTimeout(timeout)
+          off()
+          signal.removeEventListener('abort', aborted)
+          if (error) reject(error)
+          else resolve()
+        }
+        stopHandshake = () => finish(new Error('Voice join cancelled'))
+        const aborted = () => finish(signal.reason)
+        const off = socket.on(m => {
+          if (m.type === 'voice:joined' && m.sid === sid && m.channelId === id && m.nonce === nonce) finish()
+        })
+        const timeout = setTimeout(() => finish(new Error('Voice join timed out')), 5000)
+        signal.addEventListener('abort', aborted, { once: true })
+        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: true, deafened: mute.value.deafened, watching: [] })
+        if (!claimed) finish(new Error('Voice socket is not connected'))
+      })
+      handshake.catch(() => {}) // surfaced at the await below; keep a token failure from leaving it unhandled
       const [{ token, url }, { Room, RoomEvent, Track, DisconnectReason }] = await Promise.all([
         $fetch<{ token: string; url: string }>('/api/voice/token', { method: 'POST', body: { channelId: id }, signal }),
         import('livekit-client'),
@@ -554,6 +648,7 @@ export function useVoice() {
         videoCaptureDefaults: cameraConstraints(settings.value.cameraResolution),
         audioCaptureDefaults: captureOptions(),
       })
+      void r.prepareConnection(url, token).catch(() => {})
       r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (signal.aborted || (room !== r && pendingJoin !== attempt) || track.kind !== Track.Kind.Audio || publication.track !== track) return
         applyTrackOutput(track as RemoteAudioTrack, participant.identity, publication.source)
@@ -562,7 +657,7 @@ export function useVoice() {
       })
       r.on(RoomEvent.TrackSubscriptionFailed, trackSid => {
         if (signal.aborted || (room !== r && pendingJoin !== attempt)) return
-        trackDiag('subFailed', trackSid) // heal() retries once it has been stuck long enough
+        trackDiag('subFailed', trackSid) // heal() retries once it has been bad long enough
       })
       // Firefox: LiveKit's own default-device pick sets every remote sink on devicechange; restore ours.
       r.on(RoomEvent.ActiveDeviceChanged, kind => {
@@ -626,13 +721,15 @@ export function useVoice() {
             if (room !== r || connection.value === 'connected') return
             lost.value = true
             toast.add({
-              title: connection.value === 'reconnecting' ? 'Voice interrupted. Reconnecting…' : 'Voice signaling reconnecting. Audio may still work.',
+              title: 'Reconnecting voice…',
               color: 'warning',
             })
           }, LOST_MS)
         }
         if (state === 'reconnecting' && voiceDown) voiceDown.kind = 'voice'
         if (connection.value !== 'reconnecting') connection.value = state
+        episodes.clear() // bad spells from before the outage must not count after it
+        setUnheard(new Set())
         stopPing(false)
         clearSpeaking()
         pushState()
@@ -682,29 +779,13 @@ export function useVoice() {
               DisconnectReason.SERVER_SHUTDOWN,
               DisconnectReason.MEDIA_FAILURE,
             ].includes(reason)
-          void leave(false, 'You were disconnected from voice')
-          if (retry) retryChannelId.value = id
+          if (retry) {
+            void leave(false)
+            void rejoin(id)
+          } else void leave(false, 'You were disconnected from voice')
         } else if (pendingJoin === attempt) attempt.abort(new Error('You were disconnected from voice'))
       })
-      // Replace the server session before LiveKit can evict the previous browser.
-      const nonce = crypto.randomUUID()
-      await new Promise<void>((resolve, reject) => {
-        const finish = (error?: unknown) => {
-          clearTimeout(timeout)
-          off()
-          signal.removeEventListener('abort', aborted)
-          if (error) reject(error)
-          else resolve()
-        }
-        const aborted = () => finish(signal.reason)
-        const off = socket.on(m => {
-          if (m.type === 'voice:joined' && m.sid === sid && m.channelId === id && m.nonce === nonce) finish()
-        })
-        const timeout = setTimeout(() => finish(new Error('Voice join timed out')), 5000)
-        signal.addEventListener('abort', aborted, { once: true })
-        claimed = socket.send({ type: 'voice:join', channelId: id, sid, nonce, muted: true, deafened: mute.value.deafened, watching: [] })
-        if (!claimed) finish(new Error('Voice socket is not connected'))
-      })
+      await handshake
       signal.throwIfAborted()
       const connected = r.connect(url, token, { autoSubscribe: false })
       void enableMicrophone(permission, r, connected)
@@ -720,9 +801,10 @@ export function useVoice() {
       lastSent = 0
       pushState()
       startPing(r)
-      playVoiceSound('join')
+      if (!quiet) playVoiceSound('join')
       void enableAudio()
     } catch (e) {
+      stopHandshake()
       pendingChannelId.value = null
       restoreSession?.()
       clearOutputListeners()
@@ -736,10 +818,11 @@ export function useVoice() {
       pendingJoin = undefined
       clearSpeaking()
       await r?.disconnect()
-      if (!signal.aborted || signal.reason?.name !== 'AbortError') {
+      if (quiet) rejoinError = signal.aborted ? signal.reason : e
+      if (!quiet && (!signal.aborted || signal.reason?.name !== 'AbortError')) {
         toast.add({
           title: 'Could not join voice',
-          description: ((signal.aborted ? signal.reason : e) as Error).message,
+          description: errorText(signal.aborted ? signal.reason : e),
           color: 'error',
           icon: 'i-lucide-circle-alert',
         })
@@ -780,10 +863,10 @@ export function useVoice() {
     void read()
     pingTimer = setInterval(() => {
       void read()
-      heal()
+      void heal()
     }, 2000)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') heal()
+      if (document.visibilityState === 'visible') void heal()
     }
     document.addEventListener('visibilitychange', onVisible)
     stopVisibleHeal = () => document.removeEventListener('visibilitychange', onVisible)
@@ -825,6 +908,9 @@ export function useVoice() {
   async function leave(sound = true, reason?: string) {
     moveEpoch++
     endOutage()
+    rejoining.value = null
+    episodes.clear()
+    setUnheard(new Set())
     pendingChannelId.value = null
     retryChannelId.value = null
     connection.value = 'disconnected'
@@ -859,6 +945,32 @@ export function useVoice() {
     rebuild()
     if (sound) playVoiceSound('leave')
     if (reason) toast.add({ title: reason, color: 'warning', icon: 'i-lucide-phone-off' })
+  }
+
+  /** Auto-rejoin after a transport drop: three attempts with backoff, paused while the app socket is down; only leave/move/join clear it. */
+  async function rejoin(id: string) {
+    rejoining.value = id
+    let fatal: Error | undefined
+    for (const delay of REJOIN_DELAYS) {
+      await sleep(delay)
+      while (rejoining.value === id && !socket.connected.value) await sleep(500)
+      if (rejoining.value !== id) return
+      rejoinError = undefined
+      await join(id, true)
+      if (rejoining.value !== id) return
+      if (channelId.value === id) {
+        rejoining.value = null
+        return
+      }
+      const status = (rejoinError as { statusCode?: number } | undefined)?.statusCode
+      if (status && ((status >= 400 && status < 500) || status === 503)) {
+        fatal = rejoinError as Error // retrying cannot help
+        break
+      }
+    }
+    rejoining.value = null
+    retryChannelId.value = id
+    toast.add({ title: 'You were disconnected from voice', description: errorText(fatal), color: 'warning', icon: 'i-lucide-phone-off' })
   }
 
   async function enableAudio() {
@@ -1265,10 +1377,11 @@ export function useVoice() {
     ),
     microphone,
     retryChannelId,
+    unheard,
+    rejoining,
     connectionLabel: computed(() => {
+      if (rejoining.value || connection.value === 'reconnecting' || connection.value === 'signalReconnecting') return 'Reconnecting…'
       if (connecting.value) return 'Connecting…'
-      if (connection.value === 'reconnecting') return 'Voice reconnecting…'
-      if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
       if (audioBlocked.value) return 'Audio blocked'
       if (microphone.value === 'starting') return 'Connected · Setting up microphone…'
       if (microphone.value === 'unavailable') return 'Connected · Microphone unavailable'
@@ -1504,7 +1617,7 @@ export function useVoiceLive() {
       const sound = sounds.value.find(x => x.id === m.soundId)
       if (sound) showSound(m.userId, `i-lucide-${sound.icon}`, sound.durationMs)
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)
-    } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value)) {
+    } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value || v.rejoining.value)) {
       void v.leave(false, m.reason)
     } else if (m.type === 'voice:move' && m.sid === sid && (v.channelId.value || v.connecting.value)) {
       // Settle a pending connection before joining the admin's destination.
@@ -1514,7 +1627,7 @@ export function useVoiceLive() {
           void navigateTo(`/c/${m.channelId}`)
         }
       })
-    } else if (m.type === 'voice:kicked' && m.sid !== sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value)) {
+    } else if (m.type === 'voice:kicked' && m.sid !== sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value || v.rejoining.value)) {
       void v.leave(false, 'You joined voice from another tab or device')
     }
   })

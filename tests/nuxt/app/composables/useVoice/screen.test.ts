@@ -50,6 +50,7 @@ const { media, MockRoom } = vi.hoisted(() => {
     }
     connect = vi.fn(async () => {})
     canPlaybackAudio = true
+    prepareConnection = vi.fn(async () => {})
     startAudio = vi.fn(async () => {})
     disconnect = vi.fn(async () => {
       this.emit('Disconnected')

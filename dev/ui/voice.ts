@@ -29,6 +29,8 @@ const connection = ref<'disconnected' | 'connected' | 'reconnecting' | 'signalRe
 const audioBlocked = ref(false)
 const microphone = ref<'idle' | 'starting' | 'ready' | 'unavailable'>('idle')
 const retryChannelId = ref<string | null>(null)
+const unheard = ref(new Set<string>())
+const rejoining = ref<string | null>(null)
 const mute = ref(initialMute())
 const presence = ref<Record<string, VoiceMember>>({})
 const watching = ref<string[]>([])
@@ -169,7 +171,8 @@ export function resetVoiceScenario(preset: string) {
   volumes.value = {}
   volumeFor.value = null
   playing.value = {}
-  pendingChannelId.value = retryChannelId.value = theater.value = null
+  pendingChannelId.value = retryChannelId.value = rejoining.value = theater.value = null
+  unheard.value = new Set()
   connecting.value = preset === 'connecting'
   pendingChannelId.value = connecting.value ? 'ui-voice' : null
   screenBusy.value = false
@@ -243,7 +246,8 @@ async function leave(_sound = true, _reason?: string) {
   clearMedia()
   const { [selfId]: _self, ...others } = presence.value
   presence.value = others
-  channelId.value = pendingChannelId.value = retryChannelId.value = theater.value = null
+  channelId.value = pendingChannelId.value = retryChannelId.value = rejoining.value = theater.value = null
+  unheard.value = new Set()
   connection.value = 'disconnected'
   connecting.value = audioBlocked.value = camOn.value = screenOn.value = screenBusy.value = false
   microphone.value = 'idle'
@@ -303,10 +307,11 @@ export function useVoice() {
     health: computed(() => (connection.value === 'reconnecting' ? 'lost' : connection.value === 'connected' && !audioBlocked.value ? 'ok' : 'unstable')),
     microphone,
     retryChannelId,
+    unheard,
+    rejoining,
     connectionLabel: computed(() => {
+      if (rejoining.value || connection.value === 'reconnecting' || connection.value === 'signalReconnecting') return 'Reconnecting…'
       if (connecting.value) return 'Connecting…'
-      if (connection.value === 'reconnecting') return 'Voice reconnecting…'
-      if (connection.value === 'signalReconnecting') return 'Voice signaling reconnecting…'
       if (audioBlocked.value) return 'Audio blocked or interrupted'
       if (microphone.value === 'starting') return 'Connected · Setting up microphone…'
       if (microphone.value === 'unavailable') return 'Connected · Microphone unavailable'

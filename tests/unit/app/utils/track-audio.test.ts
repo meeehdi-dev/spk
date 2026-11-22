@@ -13,6 +13,7 @@ let contexts: Array<{ state: string; onstatechange: (() => void) | null }>
 const resume = vi.fn(async () => {})
 const close = vi.fn(async () => {})
 const blocked = vi.fn()
+let keepers: Array<{ muted: boolean; srcObject: unknown; play: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn> }>
 let mixer: ReturnType<typeof createTrackAudio>
 
 function track() {
@@ -40,6 +41,19 @@ beforeEach(() => {
   stops = []
   outputs = []
   contexts = []
+  keepers = []
+  vi.stubGlobal(
+    'Audio',
+    class {
+      muted = false
+      srcObject: unknown = null
+      play = vi.fn(async () => {})
+      pause = vi.fn()
+      constructor() {
+        keepers.push(this)
+      }
+    },
+  )
   vi.stubGlobal(
     'MediaStream',
     class {
@@ -128,6 +142,31 @@ describe('remote playback amplification', () => {
     mixer.close()
     expect(stops[1]).toHaveBeenCalledOnce()
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a muted keeper on the raw track only while boosted, follows replacements and releases it', () => {
+    const t = track()
+    const first = t.mediaStreamTrack
+    mixer.volume(t, 1)
+    expect(keepers).toHaveLength(0)
+    mixer.volume(t, 2)
+    const keeper = keepers[0]!
+    expect(keeper.muted).toBe(true)
+    expect((keeper.srcObject as { tracks: unknown[] }).tracks).toEqual([first])
+    expect(keeper.play).toHaveBeenCalledOnce()
+    const next = { enabled: true }
+    Object.defineProperty(t, 'mediaStreamTrack', { value: next })
+    mixer.volume(t, 2)
+    expect((keeper.srcObject as { tracks: unknown[] }).tracks).toEqual([next])
+    expect(keeper.play).toHaveBeenCalledTimes(2)
+    mixer.forget(t)
+    expect(keeper.pause).toHaveBeenCalledOnce()
+    expect(keeper.srcObject).toBeNull()
+    mixer.volume(t, 2)
+    const second = keepers[1]!
+    mixer.close()
+    expect(second.pause).toHaveBeenCalledOnce()
+    expect(second.srcObject).toBeNull()
   })
 
   it('reports later context interruption even at ordinary volume and resumes through retry', async () => {

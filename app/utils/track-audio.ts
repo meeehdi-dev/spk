@@ -5,8 +5,13 @@ export function createTrackAudio(blocked: () => void) {
   let context: AudioContext | undefined
   const graphs = new Map<
     RemoteAudioTrack,
-    { source: MediaStreamAudioSourceNode; gain: GainNode; destination: MediaStreamAudioDestinationNode; native: MediaStreamTrack }
+    { source: MediaStreamAudioSourceNode; gain: GainNode; destination: MediaStreamAudioDestinationNode; native: MediaStreamTrack; keeper: HTMLAudioElement }
   >()
+
+  function keep(keeper: HTMLAudioElement, native: MediaStreamTrack) {
+    keeper.srcObject = new MediaStream([native])
+    void keeper.play().catch(() => {})
+  }
 
   function wire(track: RemoteAudioTrack) {
     const graph = graphs.get(track)
@@ -35,7 +40,11 @@ export function createTrackAudio(blocked: () => void) {
         const gain = context.createGain()
         const destination = context.createMediaStreamDestination()
         source.connect(gain).connect(destination)
-        graphs.set(track, { source, gain, destination, native: track.mediaStreamTrack })
+        // Chromium bug 40094084: a remote WebRTC stream is silent in WebAudio unless attached to a media element.
+        const keeper = new Audio()
+        keeper.muted = true
+        keep(keeper, track.mediaStreamTrack)
+        graphs.set(track, { source, gain, destination, native: track.mediaStreamTrack, keeper })
         const current = context
         void current
           .resume()
@@ -56,6 +65,7 @@ export function createTrackAudio(blocked: () => void) {
         graph.native = track.mediaStreamTrack
         graph.source = context!.createMediaStreamSource(new MediaStream([graph.native]))
         graph.source.connect(graph.gain)
+        keep(graph.keeper, graph.native)
       }
       graph.gain.gain.value = volume
       wire(track)
@@ -77,6 +87,8 @@ export function createTrackAudio(blocked: () => void) {
       if (!graph) return
       graph.source.disconnect()
       graph.gain.disconnect()
+      graph.keeper.pause()
+      graph.keeper.srcObject = null
       graph.destination.stream.getTracks().forEach(native => native.stop())
       graphs.delete(track)
     },

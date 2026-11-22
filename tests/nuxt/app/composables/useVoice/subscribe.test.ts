@@ -48,6 +48,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       for (const fn of this.events.get(event) ?? []) fn(...args)
     }
     connect = vi.fn(async () => {})
+    prepareConnection = vi.fn(async () => {})
     startAudio = vi.fn(async () => {})
     disconnect = vi.fn(async () => {})
     constructor() {
@@ -90,15 +91,6 @@ vi.mock('livekit-client', () => ({
   DisconnectReason: {},
 }))
 
-function pub(source: string, trackSid: string, subscribed: boolean) {
-  const p = { source, trackSid, isDesired: false, isSubscribed: subscribed, setSubscribed: vi.fn() }
-  p.setSubscribed.mockImplementation((on: boolean) => {
-    p.isDesired = on
-  })
-  return p
-}
-const heal = () => document.dispatchEvent(new Event('visibilitychange'))
-
 let voice: ReturnType<typeof import('~/composables/useVoice').useVoice>
 beforeEach(async () => {
   vi.resetModules()
@@ -140,46 +132,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-describe('mic subscription healing', () => {
-  const peer = (...pubs: ReturnType<typeof pub>[]) => {
-    const r = media.rooms[0]!
-    const map = new Map(pubs.map(p => [p.trackSid, p]))
-    r.remoteParticipants.set('peer', {
-      identity: 'peer',
-      isLocal: false,
-      trackPublications: map,
-      audioTrackPublications: map,
-      getTrackPublication: () => undefined,
-    })
-    r.emit('ParticipantConnected')
-    return r
-  }
-
-  it('resubscribes a mic stuck for 10 s once, leaves healthy and unwatched pubs alone', async () => {
-    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
-    let now = 1_000_000
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const stuck = pub('microphone', 'TR_stuck', false)
-    const healthy = pub('microphone', 'TR_ok', true)
-    const video = pub('camera', 'TR_video', false)
-    peer(stuck, healthy, video)
-    stuck.setSubscribed.mockClear()
-    healthy.setSubscribed.mockClear()
-    heal()
-    now += 9_999
-    heal()
-    expect(stuck.setSubscribed).not.toHaveBeenCalled()
-    now += 1
-    heal()
-    expect(stuck.setSubscribed.mock.calls).toEqual([[false], [true]])
-    now += 1
-    heal()
-    expect(stuck.setSubscribed).toHaveBeenCalledTimes(2)
-    expect(healthy.setSubscribed).not.toHaveBeenCalled()
-    expect(video.setSubscribed).not.toHaveBeenCalledWith(true)
-    expect(info).toHaveBeenCalledWith('[spk] connection outage', expect.objectContaining({ cause: 'resubscribed', track: 'TR_stuck' }))
-  })
-
+describe('subscription failures', () => {
   it('reports a subscription failure', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     media.rooms[0]!.emit('TrackSubscriptionFailed', 'TR_bad', {})

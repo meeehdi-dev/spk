@@ -60,3 +60,22 @@ it('follows the current text channel, voice channel and DM, and updates the tota
   wrapper.unmount()
   await vi.waitFor(() => expect(unreadMetadata()).toBeUndefined())
 })
+
+it('hides the bottom voice bar on the channel being rejoined and shows it elsewhere', async () => {
+  useCookie<{ collapsed?: boolean }>('dashboard-sidebar-main').value = { collapsed: true }
+  const voice = useVoice()
+  voice.rejoining.value = 'text'
+  try {
+    const wrapper = await mountSuspended(DefaultLayout, {
+      route: '/c/text',
+      shallow: true,
+      global: { stubs: { UDashboardGroup: { template: '<div><slot /></div>' }, VoiceBar: true } },
+    })
+    const bar = () => wrapper.findComponent({ name: 'VoiceBar' }).exists()
+    expect(bar()).toBe(false)
+    await useRouter().push('/c/voice')
+    await vi.waitFor(() => expect(bar()).toBe(true))
+  } finally {
+    voice.rejoining.value = null
+  }
+})
