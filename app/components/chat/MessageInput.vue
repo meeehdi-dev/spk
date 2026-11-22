@@ -162,6 +162,7 @@ defineExpose({
     </div>
     <div class="rounded-lg bg-default ring-1 ring-transparent" :class="dragging ? 'bg-primary/5 ring-primary' : ''" @paste.capture="onPaste">
       <ChatUploadQueue v-if="uploads.items.value.length || gif" :uploads="uploads.items.value" :gif="gif" @cancel="uploads.cancel" @remove-gif="gif = null" />
+      <!-- sm:px-3 overrides Nuxt UI's sm:px-8 on desktop; px-3 alone only covers phones. -->
       <UEditor
         ref="editorRef"
         :model-value="model"
@@ -178,7 +179,7 @@ defineExpose({
           trailingNode: { notAfter: ['blockquote', 'codeBlock', 'bulletList', 'orderedList'] },
         }"
         :extensions="extensions"
-        :ui="{ base: 'max-h-64 overflow-y-auto px-3 py-2', content: 'min-h-10' }"
+        :ui="{ base: 'max-h-64 overflow-y-auto px-3 py-2 sm:px-3', content: 'min-h-10' }"
         @update:model-value="onUpdate"
       >
         <template #default="{ editor }">

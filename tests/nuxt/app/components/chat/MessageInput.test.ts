@@ -159,3 +159,10 @@ it('inserts quotes with one editable paragraph after the quote', async () => {
   editor.commands.insertContent('reply')
   expect(editor.state.doc.lastChild?.textContent).toBe('reply')
 })
+
+it('keeps the same editor side padding on phones and desktop', async () => {
+  const wrapper = await mountInApp(MessageInput, { channelId: crypto.randomUUID(), channelName: 'general' })
+  const classes = wrapper.get('.ProseMirror').classes()
+  expect(classes).toEqual(expect.arrayContaining(['px-3', 'sm:px-3']))
+  expect(classes).not.toContain('sm:px-8')
+})
