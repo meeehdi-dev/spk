@@ -26,11 +26,20 @@ watch(settingsTab, t => {
 const search = useSearch()
 const isLarge = useMediaQuery('(min-width: 1024px)')
 // Desktop sidebar: UDashboardSidebar persists its width and collapsed state in this cookie (storage key + id), so SSR renders it right. While it (or the drawer) is out of sight and you're in voice, the controls show as the bottom bar.
-const sidebarCookie = useCookie<{ collapsed?: boolean } | null>('dashboard-sidebar-main', { default: () => null })
+const sidebarCookie = useCookie<{ collapsed?: boolean; size?: number } | null>('dashboard-sidebar-main', { default: () => null })
 const sidebarHidden = ref(sidebarCookie.value?.collapsed ?? false)
 const toggleSidebar = () => {
   sidebarHidden.value = !sidebarHidden.value
 }
+// Pin the content width while the sidebar animates shut/open, so its container queries don't reflow mid-slide. Pre-flush: the DOM still has the open width.
+const sidebarContent = ref<HTMLElement>()
+const sidebarPin = ref<number | null>(sidebarHidden.value ? (sidebarCookie.value?.size ?? 288) : null)
+let unpin: ReturnType<typeof setTimeout> | undefined
+watch(sidebarHidden, hidden => {
+  clearTimeout(unpin)
+  if (hidden) sidebarPin.value = sidebarContent.value?.offsetWidth || sidebarPin.value
+  else unpin = setTimeout(() => (sidebarPin.value = null), 200)
+})
 const bottomVoice = computed(
   () =>
     (voice.channelId.value || voice.connecting.value || voice.rejoining.value) &&
@@ -116,7 +125,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       :ui="{
         header: 'relative lg:hidden',
         content: 'bg-(--ui-bg-base)',
-        root: 'min-w-0 border-e-0 bg-(--ui-bg-base) data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56',
+        root: 'min-w-0 overflow-hidden border-e-0 bg-(--ui-bg-base) transition-[width,min-width,visibility] duration-200 ease-out data-[collapsed=true]:invisible data-[collapsed=true]:border-0 data-[dragging=true]:transition-none motion-reduce:transition-none lg:data-[collapsed=false]:min-w-56',
         body: 'gap-0 p-0 sm:p-0 compact:p-0 compact:sm:p-0',
       }"
     >
@@ -124,7 +133,9 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       <template #header>
         <span class="absolute left-1/2 -translate-x-1/2 text-2xl font-bold text-primary">spk</span>
       </template>
-      <AppSidebar class="w-full" />
+      <div ref="sidebarContent" class="h-full shrink-0" :style="{ width: isLarge && sidebarPin ? `${sidebarPin}px` : '100%' }">
+        <AppSidebar class="w-full" />
+      </div>
     </UDashboardSidebar>
 
     <div class="flex min-w-0 flex-1 flex-col">
@@ -192,9 +203,18 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       <VoiceBar v-if="bottomVoice" />
     </div>
 
-    <aside v-if="search.open && isLarge" class="w-80 shrink-0 xl:w-96">
-      <SearchPanel ref="panel" external />
-    </aside>
+    <Transition
+      enter-active-class="overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none"
+      leave-active-class="overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none"
+      enter-from-class="w-0!"
+      leave-to-class="w-0!"
+    >
+      <aside v-if="search.open && isLarge" class="w-80 shrink-0 xl:w-96">
+        <div class="h-full w-80 xl:w-96">
+          <SearchPanel ref="panel" external />
+        </div>
+      </aside>
+    </Transition>
     <USlideover
       :open="search.open && !isLarge"
       side="right"
