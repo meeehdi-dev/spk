@@ -26,7 +26,7 @@ const toggleTheater = (id: string) => {
     <p
       v-if="here && v.connectionLabel.value !== 'Connected'"
       role="status"
-      class="pointer-events-none absolute inset-x-2 top-2 z-10 mx-auto w-fit max-w-[calc(100%_-_1rem)] rounded bg-default/90 px-2 py-1 text-sm text-muted"
+      class="pointer-events-none absolute inset-x-2 top-2 z-10 mx-auto w-fit max-w-[calc(100%_-_1rem)] rounded bg-(--ui-bg-base)/90 px-2 py-1 text-sm text-muted"
     >
       {{ v.connectionLabel.value }}
     </p>
@@ -72,7 +72,10 @@ const toggleTheater = (id: string) => {
             </span>
             <span v-if="m.pending" role="status" class="text-sm text-muted">Connecting…</span>
             <Transition leave-active-class="transition-opacity duration-300 motion-reduce:transition-none" leave-to-class="opacity-0">
-              <div v-if="v.playing.value[m.userId]" class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-default/70">
+              <div
+                v-if="v.playing.value[m.userId]"
+                class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-(--ui-bg-base)/70"
+              >
                 <UIcon :name="v.playing.value[m.userId]!" class="size-12 text-primary" />
               </div>
             </Transition>
@@ -83,7 +86,7 @@ const toggleTheater = (id: string) => {
 
     <div
       class="mx-2 mb-2 flex w-fit max-w-[calc(100%_-_1rem)] shrink-0 flex-wrap items-center justify-center gap-2 self-center"
-      :class="here && 'rounded-lg bg-neutral-50 p-2 dark:bg-neutral-900'"
+      :class="here && 'rounded-lg bg-(--ui-bg-base) p-2'"
     >
       <UButton v-if="pending" label="Cancel" color="neutral" variant="outline" @click="v.leave(false)" />
       <UButton v-else-if="!here" label="Join voice" icon="i-lucide-phone" :loading="v.connecting.value" @click="v.join(channelId)" />

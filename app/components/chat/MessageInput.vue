@@ -160,7 +160,7 @@ defineExpose({
         <UButton class="ml-auto" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
       </UTooltip>
     </div>
-    <div class="rounded-lg bg-default ring-1 ring-transparent" :class="dragging ? 'bg-primary/5 ring-primary' : ''" @paste.capture="onPaste">
+    <div class="rounded-lg bg-(--ui-bg-base) ring-1 ring-transparent" :class="dragging ? 'bg-primary/5 ring-primary' : ''" @paste.capture="onPaste">
       <ChatUploadQueue v-if="uploads.items.value.length || gif" :uploads="uploads.items.value" :gif="gif" @cancel="uploads.cancel" @remove-gif="gif = null" />
       <!-- sm:px-3 overrides Nuxt UI's sm:px-8 on desktop; px-3 alone only covers phones. -->
       <UEditor

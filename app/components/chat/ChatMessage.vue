@@ -347,7 +347,7 @@ function onKey(e: KeyboardEvent) {
         v-if="!editing"
         ref="toolbar"
         :style="toolbarStyle"
-        class="fixed z-10 hidden w-max -translate-x-full -translate-y-1/2 gap-0.5 overflow-x-auto rounded-md border border-default bg-default p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
+        class="fixed z-10 hidden w-max -translate-x-full -translate-y-1/2 gap-0.5 overflow-x-auto rounded-md bg-(--ui-bg-base) p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
         :class="picker || moreOpen ? '!flex' : ''"
       >
         <UTooltip v-for="e in quickReactions" :key="e" :text="`React ${e}`">

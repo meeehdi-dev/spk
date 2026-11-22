@@ -162,7 +162,7 @@ const soundRows = [
 
 <template>
   <div class="flex flex-col gap-6 compact:gap-4">
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Devices</h2>
       </template>
@@ -253,7 +253,7 @@ const soundRows = [
       </div>
     </UCard>
 
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Voice processing</h2>
       </template>
@@ -283,7 +283,7 @@ const soundRows = [
       </div>
     </UCard>
 
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Sounds</h2>
       </template>

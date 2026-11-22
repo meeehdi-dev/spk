@@ -31,7 +31,7 @@ async function changePassword() {
 
 <template>
   <div class="flex flex-col gap-6 compact:gap-4">
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Profile</h2>
       </template>
@@ -45,7 +45,7 @@ async function changePassword() {
         </form>
       </div>
     </UCard>
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Change password</h2>
       </template>

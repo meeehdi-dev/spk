@@ -11,6 +11,8 @@
   --ui-primary: var(--color-amber-700);
   /* Main content panel and sidebar cards (`bg-(--ui-bg-panel)`). Light: between neutral-100 and 200, so it stands out from the neutral-50 sidebar. */
   --ui-bg-panel: color-mix(in oklab, var(--ui-color-neutral-100) 50%, var(--ui-color-neutral-200));
+  /* Sidebar, header, overlays, and surfaces inside the panel (`bg-(--ui-bg-base)`). Base and panel alternate at each nesting level. */
+  --ui-bg-base: var(--ui-color-neutral-50);
 }
 .dark {
   --ui-primary: var(--color-amber-400);
@@ -23,6 +25,7 @@
   --ui-border-muted: var(--ui-color-neutral-600);
   --ui-border-accented: var(--ui-color-neutral-600);
   --ui-bg-panel: color-mix(in oklab, var(--ui-bg-elevated) 25%, var(--ui-color-neutral-900));
+  --ui-bg-base: var(--ui-color-neutral-900);
 }
 
 /* Code blocks (ProsePre, text file previews) */

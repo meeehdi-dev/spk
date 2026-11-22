@@ -115,8 +115,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       :menu="{ description: 'Channels and direct messages' }"
       :ui="{
         header: 'relative lg:hidden',
-        content: 'bg-neutral-50 dark:bg-neutral-900',
-        root: 'min-w-0 border-e-0 bg-neutral-50 data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56 dark:bg-neutral-900',
+        content: 'bg-(--ui-bg-base)',
+        root: 'min-w-0 border-e-0 bg-(--ui-bg-base) data-[collapsed=true]:invisible data-[collapsed=true]:border-0 lg:data-[collapsed=false]:min-w-56',
         body: 'gap-0 p-0 sm:p-0 compact:p-0 compact:sm:p-0',
       }"
     >
@@ -128,7 +128,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     </UDashboardSidebar>
 
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex h-12 shrink-0 items-center gap-2 bg-neutral-50 px-3 dark:bg-neutral-900">
+      <header class="flex h-12 shrink-0 items-center gap-2 bg-(--ui-bg-base) px-3">
         <UButton class="lg:hidden" icon="i-lucide-menu" color="neutral" variant="ghost" aria-label="Open sidebar" @click="open = true" />
         <UTooltip :text="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'" :kbds="['meta', 'B']" class="max-lg:hidden">
           <UButton
@@ -182,7 +182,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         class="min-h-0 flex-1"
         :class="[
           route.path.startsWith('/c/') ? 'overflow-hidden' : 'overflow-y-auto',
-          (route.path.startsWith('/c/') || route.path === '/') && 'bg-neutral-50 dark:bg-neutral-900',
+          (route.path.startsWith('/c/') || route.path === '/') && 'bg-(--ui-bg-base)',
           (route.path.startsWith('/c/') || route.path === '/') && search.open && isLarge && '*:rounded-tr-lg',
         ]"
       >
@@ -201,7 +201,6 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       title="Search"
       description="Search messages"
       class="lg:hidden"
-      :ui="{ content: 'bg-neutral-50 dark:bg-neutral-900' }"
       @update:open="!$event && search.close()"
     >
       <template #body>

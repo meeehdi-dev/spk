@@ -37,7 +37,7 @@ const extensions = [
 </script>
 
 <template>
-  <div class="rounded-md border border-primary bg-default">
+  <div class="rounded-md border border-primary bg-(--ui-bg-base)">
     <UEditor
       v-model="model"
       content-type="markdown"

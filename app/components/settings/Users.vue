@@ -88,7 +88,7 @@ const items = (u: Row) => [
 
 <template>
   <div class="flex flex-col gap-6 compact:gap-4">
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Storage</h2>
       </template>
@@ -110,7 +110,7 @@ const items = (u: Row) => [
       </template>
     </UAlert>
 
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Users</h2>
       </template>

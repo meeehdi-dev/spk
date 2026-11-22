@@ -22,7 +22,7 @@ const message = computed(() => {
 
 <template>
   <div role="status" aria-live="polite" aria-atomic="true" class="relative z-20 h-0 shrink-0">
-    <div v-if="message" class="absolute inset-x-0 top-0 max-h-[50dvh] overflow-y-auto bg-default shadow-lg">
+    <div v-if="message" class="absolute inset-x-0 top-0 max-h-[50dvh] overflow-y-auto bg-(--ui-bg-base) shadow-lg">
       <UAlert :title="message" icon="i-lucide-wifi-off" color="warning" variant="soft" class="rounded-none">
         <template #actions>
           <UButton

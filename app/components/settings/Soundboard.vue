@@ -270,7 +270,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
 <template>
   <div class="flex flex-col gap-6 compact:gap-4">
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Add a sound</h2>
       </template>
@@ -329,7 +329,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
       </div>
     </UCard>
 
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Sounds</h2>
       </template>

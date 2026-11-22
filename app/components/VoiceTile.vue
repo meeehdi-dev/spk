@@ -81,7 +81,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     <div
       ref="root"
       tabindex="0"
-      class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-neutral-50 ring-2 transition outline-none focus-visible:ring-primary dark:bg-neutral-900"
+      class="group relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-(--ui-bg-base) ring-2 transition outline-none focus-visible:ring-primary"
       :class="tile.speaking ? 'ring-success' : 'ring-transparent'"
       @mouseenter="hovered = true"
       @mouseleave="hovered = false"
@@ -103,7 +103,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         <UButton v-else-if="!tile.local && live && !tile.watching" label="Watch" icon="i-lucide-eye" @click="watchToggle" />
       </div>
 
-      <span class="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded bg-default/80 px-1.5 py-0.5 text-xs">
+      <span class="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded bg-(--ui-bg-base)/80 px-1.5 py-0.5 text-xs">
         <span class="min-w-0 truncate"><EmojiText :text="tile.local ? 'You' : nameOf(tile.userId)" /></span>
         <UIcon v-if="member?.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
         <UIcon v-else-if="member?.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
@@ -149,7 +149,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
       </UAvatarGroup>
 
       <Transition leave-active-class="transition-opacity duration-300 motion-reduce:transition-none" leave-to-class="opacity-0">
-        <div v-if="soundIcon" class="pointer-events-none absolute inset-0 flex items-center justify-center bg-default/50">
+        <div v-if="soundIcon" class="pointer-events-none absolute inset-0 flex items-center justify-center bg-(--ui-bg-base)/50">
           <UIcon :name="soundIcon" class="size-16 text-primary" />
         </div>
       </Transition>

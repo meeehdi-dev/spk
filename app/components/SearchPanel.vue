@@ -132,7 +132,7 @@ watch(
 </script>
 
 <template>
-  <aside class="flex h-full w-full flex-col bg-neutral-50 dark:bg-neutral-900" aria-label="Search">
+  <aside class="flex h-full w-full flex-col bg-(--ui-bg-base)" aria-label="Search">
     <div class="flex items-center gap-2 p-2">
       <template v-if="external">
         <span class="size-8 shrink-0" aria-hidden="true" />

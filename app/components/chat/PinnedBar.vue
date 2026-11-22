@@ -54,7 +54,7 @@ onClickOutside(root, close)
 </script>
 
 <template>
-  <div v-if="latest" ref="root" class="relative z-20 shrink-0 border-b border-default bg-default" @keydown.esc="onEsc">
+  <div v-if="latest" ref="root" class="relative z-20 shrink-0 bg-(--ui-bg-base)" @keydown.esc="onEsc">
     <div class="flex h-9 items-center gap-2 px-4 text-sm">
       <UIcon name="i-lucide-pin" class="size-4 shrink-0 text-primary" />
       <button
@@ -79,7 +79,7 @@ onClickOutside(root, close)
         @click="toggleAll"
       />
     </div>
-    <div v-if="open" class="absolute inset-x-0 top-full max-h-[60vh] overflow-y-auto border-b border-default bg-default shadow-md">
+    <div v-if="open" class="absolute inset-x-0 top-full max-h-[60vh] overflow-y-auto bg-(--ui-bg-base) shadow-md">
       <div v-for="p in visible" :key="p.id" class="border-t border-default px-4 py-2 text-sm compact:py-1">
         <button
           v-if="all"

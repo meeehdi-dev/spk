@@ -23,7 +23,7 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
 
 <template>
   <div class="flex flex-col gap-6 compact:gap-4">
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">System notifications</h2>
       </template>
@@ -57,7 +57,7 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
         </template>
       </div>
     </UCard>
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">What notifies you</h2>
       </template>
@@ -66,7 +66,7 @@ const disablePush = () => push.unsubscribe().catch(() => toast.add({ title: 'Cou
         <USwitch v-model="s.pings" label="Mentions and replies" icon="i-lucide-at-sign" description="In channels, only when you are mentioned or replied to." />
       </div>
     </UCard>
-    <UCard variant="soft" class="dark:bg-elevated/25">
+    <UCard variant="soft">
       <template #header>
         <h2 class="font-bold">Sound</h2>
       </template>
