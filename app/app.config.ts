@@ -32,6 +32,8 @@ export default defineAppConfig({
     slideover: {
       slots: { content: 'divide-y-0', header: 'compact:p-3 compact:sm:px-4', body: 'compact:p-3 compact:sm:p-4', footer: 'compact:p-3 compact:sm:px-4' },
     },
+    // Toasts take the sidebar color.
+    toast: { slots: { root: 'bg-neutral-50 dark:bg-neutral-900' } },
     // Fields have no border and use the panel color, or --ui-bg-field (sidebar color) inside cards.
     input: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
     inputMenu: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
