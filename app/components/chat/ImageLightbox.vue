@@ -36,7 +36,7 @@ function restoreFocus(event: Event) {
     <template #footer>
       <UButton label="Open original" icon="i-lucide-external-link" color="neutral" variant="soft" :href="src" target="_blank" rel="noopener noreferrer" />
       <UButton v-if="typeof file === 'string'" label="Download" icon="i-lucide-download" color="neutral" variant="soft" @click="saveImage(src, 'image')" />
-      <UButton v-else label="Download" icon="i-lucide-download" color="neutral" variant="soft" :href="`${src}?download=1`" external />
+      <UButton v-else label="Download" icon="i-lucide-download" color="neutral" variant="soft" :href="`${src}?download=1`" download external />
     </template>
   </UModal>
 </template>

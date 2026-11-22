@@ -50,6 +50,14 @@ export async function copyImage(url: string) {
   }
 }
 
+/** Downloads without navigating, so the voice beforeunload guard doesn't prompt. */
+export function downloadFile(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = ''
+  a.click()
+}
+
 /** Saves a cross-origin image through a blob so the `download` attribute works. */
 export async function saveImage(url: string, name: string) {
   try {

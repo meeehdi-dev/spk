@@ -19,6 +19,7 @@ describe('image lightbox', () => {
     expect(dialog).not.toBeNull()
     expect(dialog.querySelector('img')?.getAttribute('src')).toBe(src)
     expect(dialog.querySelector('img')?.getAttribute('alt')).toBe(alt)
+    if (typeof file !== 'string') expect(dialog.querySelector('a[href$="?download=1"]')?.hasAttribute('download')).toBe(true)
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flushPromises()
     expect(wrapper.emitted('close')).toEqual([[]])

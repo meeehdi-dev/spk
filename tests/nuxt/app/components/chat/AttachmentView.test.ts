@@ -49,6 +49,8 @@ describe('attachment image opening', () => {
     const wrapper = await mountSuspended(AttachmentView, { props: { file } })
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.find('a').attributes('href')).toBe('/api/attachments/big?download=1')
+    // Downloads must not navigate, or the voice beforeunload guard prompts.
+    expect(wrapper.find('a').attributes('download')).toBeDefined()
   })
 })
 

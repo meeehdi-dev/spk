@@ -89,9 +89,7 @@ onMounted(() => {
       {
         label: kind.value === 'image' ? 'Save' : 'Download',
         icon: 'i-lucide-download',
-        onSelect: () => {
-          location.href = `${src.value}?download=1`
-        },
+        onSelect: () => downloadFile(`${src.value}?download=1`),
       },
       { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => copyText(new URL(src.value, location.origin).href) },
     ],
@@ -139,7 +137,7 @@ onMounted(() => {
           aria-label="Copy file text"
           @click="copy(shown)"
         />
-        <UButton icon="i-lucide-download" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" external />
+        <UButton icon="i-lucide-download" color="neutral" variant="ghost" aria-label="Download file" :href="`${src}?download=1`" download external />
       </div>
       <!-- eslint-disable vue/no-v-html -- HTML comes from Shiki or the escaped plainHtml fallback. -->
       <div class="code-body overflow-x-auto" v-html="html" />
@@ -155,6 +153,7 @@ onMounted(() => {
     <a
       v-else
       :href="`${src}?download=1`"
+      download
       class="inline-flex max-w-full items-center gap-2 rounded-md border border-default bg-elevated/50 px-3 py-2 text-sm hover:bg-elevated"
     >
       <UIcon :name="fileIcon(file.mime, file.filename)" class="size-6 shrink-0" />
