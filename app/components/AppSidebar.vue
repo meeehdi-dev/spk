@@ -103,9 +103,9 @@ const onDrop = (channelId: string) => {
 <template>
   <div class="@container/sidebar flex h-full flex-col">
     <!-- Mobile: the bottom margin separates the scrolling list from the voice and user cards. -->
-    <nav class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2 max-lg:mb-2 compact:gap-1">
+    <nav class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 max-lg:mb-2">
       <!-- h-12 matching the header, minus nav padding and gap, so the first card lines up with the main panel. On mobile the logo sits in the drawer header (default layout). -->
-      <div class="-mt-2 -mb-3 flex h-12 shrink-0 items-center justify-center px-2 text-2xl font-bold text-primary max-lg:hidden compact:-mb-1">spk</div>
+      <div class="-mt-2 -mb-2 flex h-12 shrink-0 items-center justify-center px-2 text-2xl font-bold text-primary max-lg:hidden">spk</div>
 
       <section class="rounded-lg bg-(--ui-bg-panel) p-1">
         <h2 class="flex h-8 items-center gap-1.5 px-2 text-sm font-semibold text-muted compact:h-6">
