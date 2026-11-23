@@ -327,7 +327,7 @@ describe('live screen settings', () => {
         frameRate: { ideal: preset.resolution.frameRate, max: preset.resolution.frameRate },
       })
       expect(video.mediaStreamTrack.contentHint).toBe(preset.contentHint)
-      expect(p.unpublishTrack).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'video' }))
+      expect(p.unpublishTrack).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'video' }), false)
       expect(p.publishTrack).toHaveBeenLastCalledWith(
         p.getTrackPublication('screen_share')!.track,
         expect.objectContaining({
@@ -573,20 +573,67 @@ describe('live screen settings', () => {
       return publish(t, options)
     })
     p.unpublishTrack.mockImplementation(async (t, stop) => {
-      if (t === next && stop !== false) await cleanup.promise
+      if (t === next) await cleanup.promise
       return unpublish(t, stop)
     })
     const update = v.setScreenAudio(true)
     await flush()
-    await vi.waitFor(() => expect(next.stop).toHaveBeenCalled())
+    await vi.waitFor(() => expect(p.unpublishTrack).toHaveBeenCalledWith(next, false))
     const stopping = v.stopScreen()
-    expect(video.mediaStreamTrack.readyState).toBe('ended')
     cleanup.resolve()
     await stopping
+    expect(video.mediaStreamTrack.readyState).toBe('ended')
     await update
     expect(p.publishTrack.mock.calls.map(([t]) => t.kind)).toEqual(['video', 'audio'])
     expect(video.stop).toHaveBeenCalled()
     expect(v.screenOn.value).toBe(false)
+  })
+
+  it('unpublishes every screen track before stopping capture, source last', async () => {
+    const { video, sound, publication } = await share(true)
+    const order: string[] = []
+    const name = (t: TestTrack) => (t === video ? 'source' : t === sound ? 'audio' : t === publication ? 'clone' : 'other')
+    const unpublish = p.unpublishTrack.getMockImplementation()!
+    p.unpublishTrack.mockImplementation(async (t, stop) => {
+      order.push(`unpublish ${name(t)}`)
+      expect(stop).toBe(false)
+      return unpublish(t, stop)
+    })
+    for (const t of [video, sound!, publication as TestTrack]) {
+      const stop = (t as { stop: () => void }).stop
+      ;(t as { stop: () => void }).stop = () => {
+        order.push(`stop ${name(t)}`)
+        stop.call(t)
+      }
+    }
+    await v.stopScreen()
+    expect(order.slice(0, 3).every(o => o.startsWith('unpublish'))).toBe(true)
+    expect(order.slice(3)).toEqual(['stop audio', 'stop clone', 'stop source'])
+  })
+
+  it('stops capture even when unpublishing hangs', async () => {
+    const { video, sound } = await share(true)
+    p.unpublishTrack.mockImplementation(() => new Promise(() => {}))
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const stopping = v.stopScreen()
+      await flush()
+      expect(video.stop).not.toHaveBeenCalled()
+      vi.runOnlyPendingTimers()
+      await stopping
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(video.stop).toHaveBeenCalled()
+    expect(sound!.stop).toHaveBeenCalled()
+  })
+
+  it('stops capture and reports when unpublishing fails', async () => {
+    const { video } = await share()
+    p.unpublishTrack.mockRejectedValue(new Error('room gone'))
+    await v.stopScreen()
+    expect(video.stop).toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not stop screen track', description: 'room gone' }))
   })
 
   it('cleans a successful late video publication after stop during replacement', async () => {

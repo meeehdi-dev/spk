@@ -89,6 +89,7 @@ const REJOIN_DELAYS = [1000, 3000, 8000]
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const DEVICE_SETTLE_MS = 300
 const AUDIO_RESUME_MS = 3000
+const SCREEN_UNPUBLISH_MS = 1500
 let stopVisibleHeal: (() => void) | undefined
 const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
@@ -1157,10 +1158,20 @@ export function useVoice() {
     ...(s.publication ? [s.publication] : []),
     ...(s.audio ? [s.audio] : []),
   ]
+  /** Detaches senders/encoders before stopping capture (stopping a live encoder's source crashed Firefox on macOS).
+   * Bounded so a hung unpublish (dead room) never keeps capture running; stops even when unpublishing fails. */
+  async function unpublishThenStop(r: Room, tracks: LocalTrack[]) {
+    // Unpublish forgets the backup-codec clones, so collect them first.
+    const backups = tracks.flatMap(t => ('simulcastCodecs' in t ? [...(t as LocalVideoTrack).simulcastCodecs.values()].map(c => c.mediaStreamTrack) : []))
+    try {
+      await Promise.all(tracks.map(t => Promise.race([r.localParticipant.unpublishTrack(t, false), sleep(SCREEN_UNPUBLISH_MS)])))
+    } finally {
+      for (const b of backups) b.stop()
+      for (const t of tracks.toReversed()) t.stop() // screenTracks lists the source first: it stops last
+    }
+  }
   async function discardScreen(r: Room, tracks: LocalTrack[]) {
-    // Stop capture even if unpublishing fails (or the room has already disconnected).
-    for (const t of tracks) t.stop()
-    await Promise.all(tracks.map(t => r.localParticipant.unpublishTrack(t).catch(fail('Could not stop screen track'))))
+    await unpublishThenStop(r, tracks).catch(fail('Could not stop screen track'))
   }
   function capturedScreen(video: LocalVideoTrack, audio?: LocalAudioTrack): NonNullable<typeof screenSession> {
     const s = { video, audio }
@@ -1175,9 +1186,7 @@ export function useVoice() {
   }
   async function unpublishScreenVideo(r: Room, s: NonNullable<typeof screenSession>) {
     if (!s.publication) return
-    // Stop primary AND backup clones before unpublish forgets them; the source stays owned.
-    s.publication.stop()
-    await r.localParticipant.unpublishTrack(s.publication)
+    await unpublishThenStop(r, [s.publication]) // primary AND backup clones; the source stays owned
     s.publication = undefined
   }
   async function publishScreenVideo(r: Room, s: NonNullable<typeof screenSession>, quality: ScreenQuality) {
