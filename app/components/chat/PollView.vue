@@ -19,13 +19,13 @@ const mine = (o: PollDto['options'][number]) => !!me.value && o.userIds.includes
       :aria-pressed="mine(o)"
       :aria-label="`${o.label}, ${plural(o.userIds.length)}, ${pct(o.userIds.length)}%`"
       class="relative flex items-center justify-between gap-3 overflow-hidden rounded-md border px-3 py-1.5 text-left text-sm text-default"
-      :class="mine(o) ? 'border-primary/40 bg-primary/5' : 'border-default bg-elevated hover:bg-accented'"
+      :class="mine(o) ? 'border-primary/40 bg-primary/5' : 'border-default bg-(--ui-bg-base) hover:bg-accented'"
       @click="actions.vote(messageId, mine(o) ? null : o.id)"
     >
       <span
         aria-hidden="true"
         class="absolute inset-y-0 left-0 transition-[width] motion-reduce:transition-none"
-        :class="mine(o) ? 'bg-primary/20' : 'bg-accented'"
+        :class="mine(o) ? 'bg-primary/20' : 'bg-(--ui-bg-panel)'"
         :style="{ width: `${pct(o.userIds.length)}%` }"
       />
       <span class="relative flex min-w-0 items-center gap-1.5">

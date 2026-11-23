@@ -20,7 +20,7 @@ async function submit() {
 </script>
 
 <template>
-  <UCard class="w-full max-w-sm">
+  <UCard variant="soft" class="w-full max-w-sm">
     <template #header>
       <h1 class="font-bold">Sign in to spk</h1>
     </template>

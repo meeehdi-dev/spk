@@ -112,11 +112,11 @@ onMounted(() => {
           :gif="file.mime === 'image/gif'"
           loading="lazy"
           class="max-h-[350px] max-w-full object-contain transition"
-          :class="[revealed ? '' : 'opacity-30 blur-[48px]', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-elevated']"
+          :class="[revealed ? '' : 'opacity-30 blur-[48px]', imgLoaded ? '' : 'h-48 w-64 animate-pulse bg-(--ui-bg-base)']"
           @load="imgLoaded = true"
           @error="imgLoaded = true"
         />
-        <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-default/60 text-xs font-bold">
+        <span v-if="!revealed" class="absolute inset-0 flex items-center justify-center bg-(--ui-bg-panel)/60 text-xs font-bold">
           <UIcon name="i-lucide-eye" class="mr-1 size-4" aria-hidden="true" /> Spoiler: click to reveal
         </span>
       </button>
@@ -124,7 +124,7 @@ onMounted(() => {
     <video v-else-if="kind === 'video'" ref="media" :src="src" controls preload="metadata" class="max-h-[350px] max-w-full rounded-md border border-default" />
     <audio v-else-if="kind === 'audio'" ref="media" :src="src" controls preload="none" class="max-w-full" />
     <USkeleton v-else-if="lang && text === undefined && !failed" class="h-24 w-full max-w-xl" />
-    <div v-else-if="lang && text !== undefined" class="overflow-hidden rounded-md border border-default bg-muted text-sm">
+    <div v-else-if="lang && text !== undefined" class="overflow-hidden rounded-md border border-default bg-(--ui-bg-base) text-sm">
       <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">
         <UIcon :name="fileIcon(file.mime, file.filename)" class="size-4" />
         <span class="truncate"><EmojiText :text="file.filename" /></span>
@@ -154,7 +154,7 @@ onMounted(() => {
       v-else
       :href="`${src}?download=1`"
       download
-      class="inline-flex max-w-full items-center gap-2 rounded-md border border-default bg-elevated/50 px-3 py-2 text-sm hover:bg-elevated"
+      class="inline-flex max-w-full items-center gap-2 rounded-md border border-default bg-(--ui-bg-base) px-3 py-2 text-sm hover:bg-elevated"
     >
       <UIcon :name="fileIcon(file.mime, file.filename)" class="size-6 shrink-0" />
       <span class="min-w-0">

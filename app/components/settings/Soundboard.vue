@@ -282,7 +282,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
           <!-- The input is visually hidden, not display:none, so it stays reachable from the keyboard. -->
           <label
             class="flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accented p-8 text-center text-sm text-muted transition hover:border-primary has-[:focus-visible]:border-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary compact:p-6"
-            :class="over ? 'border-primary bg-elevated/50' : ''"
+            :class="over ? 'border-primary bg-(--ui-bg-base)' : ''"
             @dragover.prevent="over = true"
             @dragleave="over = false"
             @drop.prevent="drop"

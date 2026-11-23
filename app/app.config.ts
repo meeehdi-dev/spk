@@ -68,6 +68,16 @@ export default defineAppConfig({
     },
     // Keys take the panel color without a ring, like fields on a base surface.
     kbd: { compoundVariants: [{ color: 'neutral', variant: 'outline', class: 'bg-(--ui-bg-panel) ring-0' }] },
+    // Filled neutral buttons take the field color too, so they alternate with the surface they sit on.
+    button: {
+      compoundVariants: [
+        {
+          color: 'neutral',
+          variant: ['soft', 'subtle'],
+          class: 'bg-(--ui-bg-field,var(--ui-bg-panel)) disabled:bg-(--ui-bg-field,var(--ui-bg-panel)) aria-disabled:bg-(--ui-bg-field,var(--ui-bg-panel))',
+        },
+      ],
+    },
     // Fields have no border and use the panel color, or --ui-bg-field (sidebar color) inside cards.
     // Focus outline is neutral, not primary.
     input: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },

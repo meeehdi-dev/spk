@@ -166,7 +166,7 @@ defineExpose({
 
 <template>
   <div class="p-3 compact:p-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
-    <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-elevated px-2 py-1 text-xs">
+    <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-(--ui-bg-base) px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
       <span class="truncate"
         >Replying to <b><EmojiText :text="replyTo.name" /></b> <span class="text-muted"><EmojiText :text="replyTo.preview" /></span
@@ -277,7 +277,7 @@ defineExpose({
   font-weight: 500;
 }
 span[data-spoiler] {
-  background: var(--ui-bg-elevated);
+  background: var(--ui-bg-panel);
   border-radius: 0.25rem;
 }
 </style>

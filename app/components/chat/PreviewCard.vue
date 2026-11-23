@@ -41,7 +41,7 @@ onMounted(() => {
         alt=""
         loading="lazy"
         class="mt-1 max-h-48 max-w-full rounded object-cover"
-        :class="imgLoaded ? 'w-fit' : 'h-32 w-full animate-pulse bg-elevated'"
+        :class="imgLoaded ? 'w-fit' : 'h-32 w-full animate-pulse bg-(--ui-bg-panel)'"
         @load="imgLoaded = true"
         @error="imgLoaded = true"
       />

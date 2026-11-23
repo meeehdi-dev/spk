@@ -26,12 +26,12 @@ onMounted(() =>
 </script>
 
 <template>
-  <span v-if="noAccess" class="rounded bg-elevated px-1 text-muted">No access</span>
+  <span v-if="noAccess" class="rounded bg-(--ui-bg-base) px-1 text-muted">No access</span>
   <NuxtLink
     v-else
     ref="el"
     :to="`/c/${link.channelId}${link.messageId ? `/m/${link.messageId}` : ''}`"
-    class="inline-flex items-center gap-1 rounded bg-elevated px-1 text-primary"
+    class="inline-flex items-center gap-1 rounded bg-(--ui-bg-base) px-1 text-primary"
   >
     <UIcon :name="channel?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'" class="size-3" /><EmojiText :text="label.replace(/^#/, '')" />
   </NuxtLink>

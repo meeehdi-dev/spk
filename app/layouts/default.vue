@@ -105,7 +105,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <UDashboardGroup unit="px" :storage-options="{ maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' }" class="bg-default text-default">
+  <UDashboardGroup unit="px" :storage-options="{ maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' }" class="bg-(--ui-bg-base) text-default">
     <NicknameModal v-if="me && !me.displayName" />
     <QuickSwitcher v-model:open="switcher" />
     <ShortcutsOverlay />

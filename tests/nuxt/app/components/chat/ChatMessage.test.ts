@@ -179,7 +179,7 @@ describe('emoji rendering', () => {
       { global: { provide: { [chatActionsKey as symbol]: actions } } },
     )
     const other = wrapper.find('button[aria-pressed="false"]')
-    expect(other.classes()).toEqual(expect.arrayContaining(['bg-elevated', 'hover:bg-accented', 'border-default', 'text-default']))
+    expect(other.classes()).toEqual(expect.arrayContaining(['bg-(--ui-bg-base)', 'hover:bg-accented', 'border-default', 'text-default']))
     expect(other.classes()).not.toContain('bg-primary/10')
     const quick = wrapper.find('button[aria-label="React with 👍"]')
     expect(quick.classes()).toEqual(expect.arrayContaining(['bg-primary/10', 'hover:bg-primary/20']))

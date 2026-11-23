@@ -22,7 +22,7 @@ onMounted(() => {
     :aria-pressed="mine"
     :aria-label="`${reaction.emoji} ${reaction.userIds.length}, ${mine ? 'remove your reaction' : 'react'}`"
     class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-default transition"
-    :class="mine ? 'border-primary/40 bg-primary/10 hover:bg-primary/20' : 'border-default bg-elevated hover:bg-accented'"
+    :class="mine ? 'border-primary/40 bg-primary/10 hover:bg-primary/20' : 'border-default bg-(--ui-bg-base) hover:bg-accented'"
     @click="emit('toggle')"
   >
     <EmojiGlyph :emoji="reaction.emoji" aria-hidden="true" class="text-base" /><span>{{ reaction.userIds.length }}</span>

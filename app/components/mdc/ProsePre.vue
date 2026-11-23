@@ -71,7 +71,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="root" :data-codeblock="code" class="my-1 overflow-hidden rounded-md border border-default bg-muted text-sm">
+  <div ref="root" :data-codeblock="code" class="my-1 overflow-hidden rounded-md border border-default bg-(--ui-bg-base) text-sm">
     <div class="flex items-center gap-1 border-b border-default px-2 py-1 text-xs text-muted">
       <USelectMenu
         v-model:open="pickerOpen"

@@ -25,7 +25,7 @@ async function submit() {
 </script>
 
 <template>
-  <UCard class="w-full max-w-sm">
+  <UCard variant="soft" class="w-full max-w-sm">
     <template #header>
       <h1 class="font-bold">Create your spk account</h1>
     </template>

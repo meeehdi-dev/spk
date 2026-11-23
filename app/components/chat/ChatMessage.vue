@@ -324,7 +324,7 @@ function onKey(e: KeyboardEvent) {
             <span class="shrink-0 text-[10px] text-muted">(edited)</span>
           </UTooltip>
         </div>
-        <div v-if="long && !editing" class="mt-1 flex gap-1">
+        <div v-if="long && !editing" class="mt-1 flex gap-1 [--ui-bg-field:var(--ui-bg-base)]">
           <template v-if="!expandedAll">
             <UButton label="Show 50 more" icon="i-lucide-chevrons-down" color="neutral" variant="soft" @click="visibleLines += 50" />
             <UButton label="Show all" icon="i-lucide-unfold-vertical" color="neutral" variant="soft" @click="visibleLines = Infinity" />

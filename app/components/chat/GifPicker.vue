@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
             <div v-for="g in visibleItems" :key="g.id" class="relative">
               <button
                 type="button"
-                class="w-full overflow-hidden rounded bg-elevated hover:ring-2 hover:ring-primary"
+                class="w-full overflow-hidden rounded bg-(--ui-bg-panel) hover:ring-2 hover:ring-primary"
                 :aria-label="g.title || 'GIF'"
                 @click="emit('pick', g.url)"
               >

@@ -534,7 +534,7 @@ socket.onOpen(() => {
             </template>
           </div>
         </div>
-        <div class="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-2">
+        <div class="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-2 [--ui-bg-field:var(--ui-bg-base)]">
           <Transition v-bind="fade">
             <UButton
               v-if="dividerSide"
