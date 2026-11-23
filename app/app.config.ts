@@ -1,5 +1,7 @@
 // Floating menus, popovers and tooltips: base color, a soft ring and a deeper shadow (black in dark mode, where the default shadow is invisible).
 const floating = 'bg-(--ui-bg-base) shadow-xl shadow-black/10 ring-default/60 dark:shadow-black/50'
+const field = 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0'
+const focus = 'outline-inverted/25'
 
 export default defineAppConfig({
   ui: {
@@ -67,11 +69,20 @@ export default defineAppConfig({
     // Keys take the panel color without a ring, like fields on a base surface.
     kbd: { compoundVariants: [{ color: 'neutral', variant: 'outline', class: 'bg-(--ui-bg-panel) ring-0' }] },
     // Fields have no border and use the panel color, or --ui-bg-field (sidebar color) inside cards.
-    input: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
-    inputMenu: { slots: { content: floating }, variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
-    inputNumber: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
-    select: { slots: { content: floating }, variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
-    selectMenu: { slots: { content: floating }, variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
-    textarea: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
+    // Focus outline is neutral, not primary.
+    input: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
+    inputMenu: {
+      slots: { content: floating },
+      variants: { variant: { outline: field } },
+      compoundVariants: [{ variant: 'outline', class: focus }],
+    },
+    inputNumber: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
+    select: { slots: { content: floating }, variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
+    selectMenu: {
+      slots: { content: floating },
+      variants: { variant: { outline: field } },
+      compoundVariants: [{ variant: 'outline', class: focus }],
+    },
+    textarea: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
   },
 })
