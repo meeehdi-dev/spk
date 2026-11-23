@@ -4,8 +4,8 @@ import { sql } from 'drizzle-orm'
 import { describe, expect } from 'vitest'
 
 import { createPendingAttachment } from '~~/server/db/attachments'
-import { accessibleChannel, ChatError, createMessage, deleteMessage, editMessage, isEmoji, listMessages, setReaction } from '~~/server/db/messages'
-import { attachments, messageMentions, reactions } from '~~/server/db/schema'
+import { accessibleChannel, ChatError, createMessage, deleteMessage, editMessage, isEmoji, listMessages, setReaction, setVote } from '~~/server/db/messages'
+import { attachments, messageMentions, pollVotes, reactions } from '~~/server/db/schema'
 import { seedChat, test } from '~~/tests/fixtures/db'
 
 const fts = (db: Db, q: string) => db.all<{ rowid: number }>(sql`SELECT rowid FROM messages_fts WHERE messages_fts MATCH ${q}`).length
@@ -167,5 +167,70 @@ describe('isEmoji', () => {
   test('accepts a single emoji, including modifiers, flags and keycaps', () => {
     expect(isEmoji('👍🏽') && isEmoji('🇫🇷') && isEmoji('1️⃣') && isEmoji('❤️')).toBe(true)
     expect(isEmoji('a') || isEmoji('👍👍') || isEmoji('')).toBe(false)
+  })
+})
+
+describe('polls', () => {
+  const opts = (...labels: string[]) => labels.map(label => ({ label }))
+  const poll = (db: Db) => createMessage(db, 'a', 't', 'Lunch?', 1000, { poll: opts('Pizza', 'Sushi') })
+  const ids = (m: { poll: { options: { id: string }[] } | null }) => m.poll!.options.map(o => o.id)
+
+  test('create validates options and question', ({ db }) => {
+    const m = poll(db)
+    expect(m.poll!.options.map(o => [o.label, o.userIds])).toEqual([
+      ['Pizza', []],
+      ['Sushi', []],
+    ])
+    const bad = (o: unknown, body = 'Q?') => expect(() => createMessage(db, 'a', 't', body, 1, { poll: o })).toThrow(ChatError)
+    bad(opts('only'))
+    bad(opts(...Array.from({ length: 11 }, (_, i) => `o${i}`)))
+    bad(opts('a', '  '))
+    bad(opts('Pizza', ' pizza '))
+    bad(opts('a', 'x'.repeat(101)))
+    bad(opts('a', 'b'), '  ')
+    bad(opts('a', 'b'), 'q'.repeat(301))
+  })
+  test('vote, change and remove', ({ db }) => {
+    const m = poll(db)
+    const [p, s] = ids(m)
+    expect(setVote(db, 'b', m.id, p).poll.options[0]!.userIds).toEqual(['b'])
+    const changed = setVote(db, 'b', m.id, s)
+    expect(changed).toMatchObject({ channelId: 't', messageId: m.id })
+    expect(changed.poll.options.map(o => o.userIds)).toEqual([[], ['b']])
+    expect(setVote(db, 'b', m.id, null).poll.options.map(o => o.userIds)).toEqual([[], []])
+  })
+  test('vote rejects non-polls, unknown choices and inaccessible channels', ({ db }) => {
+    const plain = createMessage(db, 'a', 't', 'hi')
+    expect(() => setVote(db, 'b', plain.id, 'x')).toThrow(/Not a poll/)
+    const m = poll(db)
+    expect(() => setVote(db, 'b', m.id, 'nope')).toThrow(/Unknown choice/)
+    expect(() => setVote(db, 'b', m.id, undefined)).toThrow(ChatError)
+    const dm = createMessage(db, 'a', 'dm', 'Q?', 1, { poll: opts('x', 'y') })
+    expect(() => setVote(db, 'c', dm.id, ids(dm)[0])).toThrow(/not found/)
+  })
+  test('edit keeps votes of surviving choices, or resets them', ({ db }) => {
+    const m = poll(db)
+    const [p, s] = ids(m)
+    setVote(db, 'b', m.id, p)
+    setVote(db, 'c', m.id, s)
+    expect(() => editMessage(db, 'b', m.id, 'Q', 2, { poll: opts('x', 'y') })).toThrow(/own messages/)
+    const kept = editMessage(db, 'a', m.id, 'Lunch?', 5, { poll: [{ id: p, label: 'Pizza!' }, { label: 'Tacos' }] })
+    expect(kept.editedAt).toBe(5)
+    expect(kept.poll!.options.map(o => [o.label, o.userIds])).toEqual([
+      ['Pizza!', ['b']],
+      ['Tacos', []],
+    ])
+    expect(ids(kept)[0]).toBe(p)
+    expect(db.select().from(pollVotes).all()).toHaveLength(1)
+    const reset = editMessage(db, 'a', m.id, 'Lunch?', 6, { poll: kept.poll!.options, resetVotes: true })
+    expect(reset.poll!.options.map(o => o.userIds)).toEqual([[], []])
+    expect(() => editMessage(db, 'a', createMessage(db, 'a', 't', 'hi').id, 'hi', 7, { poll: opts('x', 'y') })).toThrow(/become a poll/)
+  })
+  test('delete clears votes and poll', ({ db }) => {
+    const m = poll(db)
+    setVote(db, 'b', m.id, ids(m)[0])
+    deleteMessage(db, 'a', false, m.id)
+    expect(db.select().from(pollVotes).all()).toEqual([])
+    expect(() => setVote(db, 'b', m.id, ids(m)[0])).toThrow(/not found/)
   })
 })

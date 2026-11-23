@@ -88,6 +88,7 @@ const message: SocketFrame = {
     reactions: [],
     previews: [],
     pinned: false,
+    poll: null,
   },
 }
 

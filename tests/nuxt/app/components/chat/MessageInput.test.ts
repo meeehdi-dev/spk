@@ -166,3 +166,13 @@ it('keeps the same editor side padding on phones and desktop', async () => {
   expect(classes).toEqual(expect.arrayContaining(['px-3', 'sm:px-3']))
   expect(classes).not.toContain('sm:px-8')
 })
+
+it('opens the poll composer and clears the editor on /poll ', async () => {
+  const wrapper = await mountInApp(MessageInput, { channelId: crypto.randomUUID(), channelName: 'general' })
+  await flushPromises()
+  const editor = (wrapper.findComponent(UEditor).vm as unknown as { editor: Editor }).editor
+  editor.commands.insertContent('/poll ')
+  await flushPromises()
+  expect(editor.getText()).toBe('')
+  expect(document.body.textContent).toContain('Create poll')
+})

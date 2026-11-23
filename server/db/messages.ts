@@ -7,7 +7,19 @@ import { extractUrls } from '../../shared/utils/links'
 import { extractMentionIds, MAX_BODY_BYTES } from '../../shared/utils/markdown'
 
 import { enqueueObjectDeletion, UPLOAD_DELETE_GRACE_MS } from './objectDeletions'
-import { attachments, channelMembers, channels, linkPreviews, messageMentions, messagePins, messagePreviews, messages, reactions, user } from './schema'
+import {
+  attachments,
+  channelMembers,
+  channels,
+  linkPreviews,
+  messageMentions,
+  messagePins,
+  messagePreviews,
+  messages,
+  pollVotes,
+  reactions,
+  user,
+} from './schema'
 
 /** A database or a transaction handle. */
 type Conn = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>
@@ -22,6 +34,9 @@ export interface AttachmentDto {
 export interface ReactionDto {
   emoji: string
   userIds: string[]
+}
+export interface PollDto {
+  options: { id: string; label: string; userIds: string[] }[]
 }
 /** Preview of the message this one replies to; `deleted` when it's gone. */
 interface ReplyRef {
@@ -52,6 +67,7 @@ export interface MessageDto {
   reactions: ReactionDto[]
   previews: PreviewDto[]
   pinned: boolean
+  poll: PollDto | null
 }
 
 export class ChatError extends Error {
@@ -91,6 +107,33 @@ export function channelMemberIds(db: Db, ch: { id: string; type: string }, onlin
   return onlineIds.filter(id => members.includes(id))
 }
 
+const MAX_POLL_OPTIONS = 10
+const MAX_POLL_LABEL = 100
+const MAX_POLL_QUESTION = 300
+
+/** Validates poll options; keeps the ids found in `existing`, mints new ones for the rest. */
+function parsePoll(input: unknown, existing: { id: string }[] = []): { id: string; label: string }[] {
+  if (!Array.isArray(input) || input.length < 2 || input.length > MAX_POLL_OPTIONS) throw new ChatError(400, `A poll needs 2 to ${MAX_POLL_OPTIONS} options`)
+  const known = new Set(existing.map(o => o.id))
+  const seenLabels = new Set<string>()
+  const seenIds = new Set<string>()
+  return input.map(o => {
+    const label = typeof o?.label === 'string' ? o.label.trim() : ''
+    if (!label) throw new ChatError(400, 'Poll options cannot be blank')
+    if (label.length > MAX_POLL_LABEL) throw new ChatError(400, `Poll options are at most ${MAX_POLL_LABEL} characters`)
+    if (seenLabels.has(label.toLowerCase())) throw new ChatError(400, 'Poll options must be different')
+    seenLabels.add(label.toLowerCase())
+    const id = typeof o.id === 'string' && known.has(o.id) && !seenIds.has(o.id) ? o.id : crypto.randomUUID()
+    seenIds.add(id)
+    return { id, label }
+  })
+}
+
+function checkQuestion(body: string) {
+  if (!body.trim()) throw new ChatError(400, 'A poll needs a question')
+  if (body.trim().length > MAX_POLL_QUESTION) throw new ChatError(400, `The question is at most ${MAX_POLL_QUESTION} characters`)
+}
+
 const preview = (body: string) => (body.split('\n').find(l => l.trim()) ?? '').trim().slice(0, 120)
 
 /** Rows -> DTOs with their attachments, reactions and reply previews (3-4 queries for the whole page). */
@@ -107,6 +150,12 @@ export function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): Me
     .select()
     .from(reactions)
     .where(inArray(reactions.messageId, ids))
+    .orderBy(sql`rowid`)
+    .all()
+  const votes = db
+    .select()
+    .from(pollVotes)
+    .where(inArray(pollVotes.messageId, ids))
     .orderBy(sql`rowid`)
     .all()
   const cards = db
@@ -146,6 +195,9 @@ export function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): Me
         .filter(c => c.messageId === m.id)
         .map(c => ({ url: c.p.url, title: c.p.title, description: c.p.description, siteName: c.p.siteName, image: !!c.p.imageKey })),
       pinned: pins.has(m.id),
+      poll: m.poll
+        ? { options: m.poll.map(o => ({ ...o, userIds: votes.filter(v => v.messageId === m.id && v.choiceId === o.id).map(v => v.userId) })) }
+        : null,
     }
   })
 }
@@ -155,6 +207,7 @@ export const messageDto = (db: Conn, row: typeof messages.$inferSelect) => hydra
 export interface SendOptions {
   replyToId?: string | null
   attachments?: Array<{ id: string; spoiler?: boolean }>
+  poll?: unknown
 }
 
 /** Mentions = real users in the body, plus the author of the message being replied to (a reply pings). */
@@ -185,6 +238,8 @@ export function createMessage(db: Db, userId: string, channelId: string, body: u
   if (typeof body !== 'string' || (!body.trim() && !files.length)) throw new ChatError(400, 'Message is empty')
   if (Buffer.byteLength(body) > MAX_BODY_BYTES) throw new ChatError(413, 'Message is over 200 KB')
   if (files.length > MAX_FILES) throw new ChatError(400, `At most ${MAX_FILES} files per message`)
+  const poll = opts.poll == null ? null : parsePoll(opts.poll)
+  if (poll) checkQuestion(body)
   const ch = accessibleChannel(db, userId, channelId)
   if (!ch) throw new ChatError(403, 'No access to this channel')
   return db.transaction(tx => {
@@ -200,7 +255,7 @@ export function createMessage(db: Db, userId: string, channelId: string, body: u
     }
     const row = tx
       .insert(messages)
-      .values({ id: crypto.randomUUID(), channelId, userId, body, replyToId: opts.replyToId ?? null, createdAt: new Date(now) })
+      .values({ id: crypto.randomUUID(), channelId, userId, body, poll, replyToId: opts.replyToId ?? null, createdAt: new Date(now) })
       .returning()
       .get()
     // The attachment rows are linked in the same transaction as the message.
@@ -240,7 +295,14 @@ export const liveMessage = (db: Db, id: unknown) =>
     : undefined
 
 /** Edit your own message, forever. Admins can't edit other people's words. */
-export function editMessage(db: Db, userId: string, messageId: unknown, body: unknown, now = Date.now()): MessageDto {
+export function editMessage(
+  db: Db,
+  userId: string,
+  messageId: unknown,
+  body: unknown,
+  now = Date.now(),
+  opts: { poll?: unknown; resetVotes?: boolean } = {},
+): MessageDto {
   const m = liveMessage(db, messageId)
   if (!m || !accessibleChannel(db, userId, m.channelId)) throw new ChatError(404, 'Message not found')
   if (m.userId !== userId) throw new ChatError(403, 'You can only edit your own messages')
@@ -248,11 +310,25 @@ export function editMessage(db: Db, userId: string, messageId: unknown, body: un
   const hasFiles = !!db.select({ id: attachments.id }).from(attachments).where(eq(attachments.messageId, m.id)).get()
   if (!body.trim() && !hasFiles) throw new ChatError(400, 'Message is empty')
   if (Buffer.byteLength(body) > MAX_BODY_BYTES) throw new ChatError(413, 'Message is over 200 KB')
-  if (body === m.body) return messageDto(db, m)
+  if (opts.poll != null && !m.poll) throw new ChatError(400, "A message can't become a poll")
+  const poll = opts.poll == null ? null : parsePoll(opts.poll, m.poll ?? [])
+  if (m.poll) checkQuestion(body)
+  if (body === m.body && !poll) return messageDto(db, m)
   return db.transaction(tx => {
+    if (poll) {
+      const gone = opts.resetVotes
+        ? undefined
+        : notInArray(
+            pollVotes.choiceId,
+            poll.map(o => o.id),
+          )
+      tx.delete(pollVotes)
+        .where(gone ? and(eq(pollVotes.messageId, m.id), gone) : eq(pollVotes.messageId, m.id))
+        .run()
+    }
     const row = tx
       .update(messages)
-      .set({ body, editedAt: new Date(now) })
+      .set({ body, editedAt: new Date(now), ...(poll && { poll }) })
       .where(eq(messages.id, m.id))
       .returning()
       .get()!
@@ -283,11 +359,12 @@ export function deleteMessage(db: Db, userId: string, isAdmin: boolean, messageI
     for (const file of files) enqueueObjectDeletion(tx, file.key, now + UPLOAD_DELETE_GRACE_MS)
     tx.delete(attachments).where(eq(attachments.messageId, m.id)).run()
     tx.delete(reactions).where(eq(reactions.messageId, m.id)).run()
+    tx.delete(pollVotes).where(eq(pollVotes.messageId, m.id)).run()
     tx.delete(messageMentions).where(eq(messageMentions.messageId, m.id)).run()
     tx.delete(messagePreviews).where(eq(messagePreviews.messageId, m.id)).run()
     tx.delete(messagePins).where(eq(messagePins.messageId, m.id)).run()
     tx.update(messages)
-      .set({ body: '', deletedAt: new Date(now) })
+      .set({ body: '', poll: null, deletedAt: new Date(now) })
       .where(eq(messages.id, m.id))
       .run()
     return { id: m.id, channelId: m.channelId, r2Keys: files.map(f => f.key) }
@@ -325,6 +402,24 @@ export function setReaction(db: Db, userId: string, messageId: unknown, emoji: u
     db.insert(reactions).values({ messageId: m.id, userId, emoji }).onConflictDoNothing().run()
   } else db.delete(reactions).where(mine).run()
   return { channelId: m.channelId, messageId: m.id, reactions: messageDto(db, m).reactions }
+}
+
+/** Casts, changes or (choiceId null) removes the user's vote. Returns the poll after the change. */
+export function setVote(db: Db, userId: string, messageId: unknown, choiceId: unknown) {
+  const m = liveMessage(db, messageId)
+  if (!m || !accessibleChannel(db, userId, m.channelId)) throw new ChatError(404, 'Message not found')
+  if (!m.poll) throw new ChatError(400, 'Not a poll')
+  if (choiceId === null)
+    db.delete(pollVotes)
+      .where(and(eq(pollVotes.messageId, m.id), eq(pollVotes.userId, userId)))
+      .run()
+  else if (typeof choiceId === 'string' && m.poll.some(o => o.id === choiceId))
+    db.insert(pollVotes)
+      .values({ messageId: m.id, userId, choiceId })
+      .onConflictDoUpdate({ target: [pollVotes.messageId, pollVotes.userId], set: { choiceId } })
+      .run()
+  else throw new ChatError(400, 'Unknown choice')
+  return { channelId: m.channelId, messageId: m.id, poll: messageDto(db, m).poll! }
 }
 
 export interface HistoryResult {

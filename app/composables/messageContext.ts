@@ -19,6 +19,8 @@ export interface ChatActions {
   edit: (id: string, body: string) => Promise<boolean>
   remove: (id: string) => Promise<void>
   react: (id: string, emoji: string, on: boolean) => Promise<void>
+  /** Casts, moves or clears (null) the current user's poll vote. */
+  vote: (id: string, choiceId: string | null) => Promise<void>
   reply: (id: string) => void
   pin: (id: string, on: boolean) => Promise<void>
   /** Scroll to a message, loading its surroundings if needed. */

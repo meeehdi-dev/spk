@@ -57,6 +57,7 @@ function message(channelId: string, userId: string, body: string): MessageDto {
     reactions: [],
     previews: [],
     pinned: false,
+    poll: null,
   }
 }
 
@@ -137,7 +138,15 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
     code.attachments = [
       { id: 'ui-example-code', filename: 'sandbox.ts', mime: 'text/plain', size: new TextEncoder().encode(exampleCode).length, spoiler: false },
     ]
-    messages.push(token, paragraphs, edited, reply, deletedReply, spoiler, reactions, link, code)
+    const poll = message('ui-showcase', 'ui-me', 'Where should we have the team lunch?')
+    poll.poll = {
+      options: [
+        { id: 'ui-choice-ramen', label: 'Ramen place', userIds: ['ui-alex', 'ui-sam', 'ui-riley'] },
+        { id: 'ui-choice-tacos', label: 'Taco truck', userIds: ['ui-jordan'] },
+        { id: 'ui-choice-salad', label: 'Salad bar', userIds: [] },
+      ],
+    }
+    messages.push(token, paragraphs, edited, reply, deletedReply, spoiler, reactions, link, code, poll)
   }
   unread = {
     'ui-general': { unread: 0, mentions: 0 },
@@ -186,6 +195,18 @@ export function receiveMessage(channelId: string) {
   updateUnread(channelId, { unread: counts.unread + 1, mentions: counts.mentions })
   dispatchSocketFrame({ type: 'message:new', message: m })
   return structuredClone(m)
+}
+
+// shortcut: lighter checks than server parsePoll; the sandbox only needs the UI flows.
+function sandboxPoll(input: unknown, old: NonNullable<MessageDto['poll']>['options'] = [], resetVotes = false): MessageDto['poll'] {
+  if (!Array.isArray(input) || input.length < 2 || input.length > 10) fail(400, 'A poll needs 2–10 choices')
+  return {
+    options: input.map((o: { id?: unknown; label?: unknown }) => {
+      if (typeof o?.label !== 'string' || !o.label.trim()) fail(400, 'Choices cannot be empty')
+      const prev = old.find(x => x.id === o.id)
+      return { id: prev?.id ?? `ui-choice-${++sequence}`, label: o.label.trim(), userIds: prev && !resetVotes ? prev.userIds : [] }
+    }),
+  }
 }
 
 function validBody(body: unknown): string {
@@ -294,7 +315,7 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
     dispatchSocketFrame({ type: 'users:changed' })
     return { ok: true }
   }
-  const target = path.match(/^\/api\/messages\/([^/]+)(?:\/(reactions|previews|pin))?$/)
+  const target = path.match(/^\/api\/messages\/([^/]+)(?:\/(reactions|previews|pin|vote))?$/)
   if (target) {
     const m = messages.find(m => m.id === target[1]) ?? fail(404, 'Sandbox message not found')
     if (method === 'GET' && !target[2]) return structuredClone(m)
@@ -302,6 +323,7 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
     if (method === 'PATCH' && !target[2]) {
       if (m.userId !== me.id) fail(403, 'You can only edit your own messages')
       m.body = validBody(body.body)
+      if (m.poll && body.poll !== undefined) m.poll = sandboxPoll(body.poll, m.poll.options, body.resetVotes === true)
       m.editedAt = epoch + ++sequence * 60_000
       dispatchSocketFrame({ type: 'message:edit', message: m })
       return structuredClone(m)
@@ -327,6 +349,14 @@ export function sandboxApi(url: URL, method = 'GET', body: Record<string, unknow
       dispatchSocketFrame({ type: 'reaction:update', channelId: m.channelId, messageId: m.id, reactions: m.reactions })
       return structuredClone({ reactions: m.reactions })
     }
+    if (method === 'POST' && target[2] === 'vote') {
+      if (!m.poll) fail(400, 'This message is not a poll')
+      if (body.choiceId !== null && !m.poll.options.some(o => o.id === body.choiceId)) fail(400, 'Unknown choice')
+      for (const o of m.poll.options) o.userIds = [...o.userIds.filter(id => id !== me.id), ...(o.id === body.choiceId ? [me.id] : [])]
+      const result = { channelId: m.channelId, messageId: m.id, poll: m.poll }
+      dispatchSocketFrame({ type: 'poll:update', ...result })
+      return structuredClone(result)
+    }
     if (method === 'POST' && target[2] === 'pin') {
       m.pinned = body.on !== false
       dispatchSocketFrame({ type: 'pin:update', channelId: m.channelId, messageId: m.id, pinned: m.pinned })
@@ -351,6 +381,7 @@ export function sandboxSocketSend(data: unknown) {
       const channelId = String(frame.channelId)
       channelMessages(channelId)
       const m = message(channelId, me.id, validBody(frame.body))
+      if (frame.poll !== undefined) m.poll = sandboxPoll(frame.poll)
       const reply = messages.find(m => m.id === frame.replyToId && m.channelId === channelId)
       if (reply) m.replyTo = { id: reply.id, userId: reply.userId, preview: reply.body.slice(0, 160), deleted: false }
       messages.push(m)

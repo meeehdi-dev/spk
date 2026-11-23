@@ -71,6 +71,13 @@
       "when": 1795215545719,
       "tag": "0009_message_pins",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795423905378,
+      "tag": "0010_oval_madrox",
+      "breakpoints": true
     }
   ]
 }

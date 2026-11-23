@@ -32,6 +32,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
     nonce?: string
     replyToId?: string | null
     attachments?: Array<{ id: string; spoiler?: boolean }>
+    poll?: unknown
     events?: unknown
   }
   try {
@@ -59,6 +60,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
       const message = createMessage(useDb(), userId, String(m.channelId), m.body, Date.now(), {
         replyToId: typeof m.replyToId === 'string' ? m.replyToId : null,
         attachments: files,
+        poll: m.poll,
       })
       const db = useDb()
       queuePreviews(message)

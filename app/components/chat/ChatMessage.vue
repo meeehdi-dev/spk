@@ -22,6 +22,9 @@ const pinged = computed(
 const canDelete = computed(() => own.value || me.value?.role === 'admin')
 const pinnable = computed(() => canPin(channels.value.find(c => c.id === props.message.channelId)?.type, me.value?.role))
 
+const pollEditOpen = ref(false)
+const startEdit = () => (props.message.poll ? (pollEditOpen.value = true) : emit('editStart', props.message.id))
+
 provide(
   messageCtxKey,
   reactive({
@@ -151,7 +154,7 @@ const messageItems = (point?: { x: number; y: number }) => [
           icon: 'i-lucide-pencil',
           onSelect: () => {
             skipRefocus = true
-            emit('editStart', props.message.id)
+            startEdit()
           },
         },
       ]
@@ -339,6 +342,7 @@ function onKey(e: KeyboardEvent) {
           :can-remove="canDelete"
           @remove="(url: string) => actions.removePreview(message.id, url)"
         />
+        <ChatPollView v-if="message.poll" :message-id="message.id" :poll="message.poll" />
         <div v-if="message.reactions.length" class="mt-1 flex flex-wrap gap-1">
           <ChatReactionChip v-for="r in message.reactions" :key="r.emoji" :reaction="r" :mine="mineOf(r)" @toggle="react(r.emoji)" @who="whoOpen = r.emoji" />
         </div>
@@ -379,7 +383,7 @@ function onKey(e: KeyboardEvent) {
           <UButton icon="i-lucide-reply" color="neutral" variant="ghost" aria-label="Reply" @click="actions.reply(message.id)" />
         </UTooltip>
         <UTooltip v-if="own" text="Edit" :kbds="['arrowup']">
-          <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="Edit message" @click="emit('editStart', message.id)" />
+          <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="Edit message" @click="startEdit" />
         </UTooltip>
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">
           <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="ghost" aria-label="Copy message" @click="copy(message.body)" />
@@ -414,6 +418,7 @@ function onKey(e: KeyboardEvent) {
           </ul>
         </template>
       </UModal>
+      <ChatPollComposer v-if="message.poll" v-model:open="pollEditOpen" :channel-id="message.channelId" :message="message" />
     </div>
   </UContextMenu>
 </template>

@@ -143,6 +143,7 @@ export const messages = sqliteTable(
     editedAt: ts('edited_at'),
     deletedAt: ts('deleted_at'),
     suppressPreviews: integer('suppress_previews', { mode: 'boolean' }).notNull().default(false),
+    poll: text('poll', { mode: 'json' }).$type<{ id: string; label: string }[]>(),
   },
   t => [index('messages_channel_created').on(t.channelId, t.createdAt)],
 )
@@ -203,6 +204,20 @@ export const reactions = sqliteTable(
     emoji: text('emoji').notNull(),
   },
   t => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })],
+)
+
+export const pollVotes = sqliteTable(
+  'poll_votes',
+  {
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    choiceId: text('choice_id').notNull(),
+  },
+  t => [primaryKey({ columns: [t.messageId, t.userId] })],
 )
 
 export const linkPreviews = sqliteTable('link_previews', {

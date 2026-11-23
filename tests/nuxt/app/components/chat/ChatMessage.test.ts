@@ -39,6 +39,7 @@ const message: MessageDto = {
   reactions: [],
   previews: [],
   pinned: false,
+  poll: null,
 }
 const actions = { edit: vi.fn(), remove: vi.fn(), react: vi.fn(), reply: vi.fn(), pin: vi.fn(), jump: vi.fn(), removePreview: vi.fn(), openImage: vi.fn() }
 
@@ -91,6 +92,20 @@ function stubResizeObserver() {
   }
   return { observers, notify }
 }
+
+describe('poll', () => {
+  it('renders the poll above reactions', async () => {
+    const poll = { options: [{ id: 'o1', label: 'Yes', userIds: ['a'] }] }
+    const wrapper = await mountInApp(
+      ChatMessage,
+      { message: { ...message, poll }, grouped: false },
+      { global: { provide: { [chatActionsKey as symbol]: actions } } },
+    )
+    await flushPromises()
+    expect(wrapper.find('button[aria-pressed="true"]').text()).toContain('Yes')
+    expect(wrapper.text()).toContain('1 vote')
+  })
+})
 
 describe('grouped timestamps', () => {
   it.each(['hello', 'first line\nsecond line', 'hello 👍', '👍', '> quoted text', '```\ncode\n```'])(

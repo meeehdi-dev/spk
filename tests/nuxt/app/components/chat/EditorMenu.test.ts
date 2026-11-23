@@ -75,3 +75,39 @@ it('renders emoji in mention suggestions without changing the inserted user ID',
     host.remove()
   }
 })
+
+it('suggests slash commands at the start of the line and emits the chosen one', async () => {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const element = document.createElement('div')
+  host.append(element)
+  const editor = new Editor({ element, extensions: [StarterKit, Markdown] })
+  editor.appContext = useNuxtApp().vueApp._context
+  const wrapper = await mountSuspended(EditorMenu, {
+    props: {
+      kind: 'command',
+      editor,
+      items: [
+        { label: 'gif', description: 'Search for a GIF', icon: 'i-lucide-image-play' },
+        { label: 'poll', description: 'Create a poll', icon: 'i-lucide-chart-bar' },
+      ],
+    },
+  })
+  try {
+    await flushPromises()
+    editor.commands.insertContent('/po')
+    await vi.waitFor(() => expect(host.querySelectorAll('[role="option"]')).toHaveLength(1))
+    expect(host.querySelector('[role="option"]')?.textContent).toContain('/poll')
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.emitted('command')).toEqual([['poll']])
+    expect(editor.getText()).toBe('')
+    editor.commands.insertContent('hi /po')
+    await flushPromises()
+    expect(host.querySelector('[role="listbox"]')).toBeNull()
+  } finally {
+    wrapper.unmount()
+    editor.destroy()
+    host.remove()
+  }
+})

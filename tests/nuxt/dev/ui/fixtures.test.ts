@@ -86,6 +86,10 @@ it('keeps the original nine IDs stable and adds useful showcase messages after t
   const deleted = showcase.find(m => m.replyTo?.deleted)
   expect([...original, ...showcase].some(m => m.id === deleted?.replyTo?.id)).toBe(false)
   expect(showcase.some(m => m.reactions.length >= 10 && m.reactions.every(r => r.userIds.length > 1))).toBe(true)
+  const poll = showcase.find(m => m.poll)
+  assert(poll?.poll)
+  expect(poll.userId).toBe('ui-me')
+  expect(poll.poll.options.some(o => o.userIds.length)).toBe(true)
   const previews = showcase.flatMap(m => m.previews)
   expect(previews).toEqual([
     { url: 'https://example.test/ui-sandbox', title: 'UI sandbox guide', description: expect.any(String), siteName: 'Sandbox', image: false },
@@ -176,4 +180,38 @@ it('resets data deterministically along with voice and supports empty and error 
   const profile = api('/api/profile/me') as { displayName: string }
   profile.displayName = 'Changed externally'
   expect(api('/api/profile/me')).toMatchObject({ displayName: 'You' })
+})
+
+it('votes on, creates, and edits polls locally', () => {
+  const frames: SocketFrame[] = []
+  const off = subscribeSocket(f => frames.push(f))
+  try {
+    const showcase = (api('/api/channels/ui-showcase/messages') as { messages: MessageDto[] }).messages
+    const seeded = showcase.find(m => m.poll)!
+    const [ramen, tacos] = seeded.poll!.options
+    const vote = (choiceId: string | null) => api(`/api/messages/${seeded.id}/vote`, 'POST', { choiceId }) as { poll: NonNullable<MessageDto['poll']> }
+    expect(vote(tacos!.id).poll.options[1]!.userIds).toEqual(['ui-jordan', 'ui-me'])
+    expect(vote(ramen!.id).poll.options.map(o => o.userIds.includes('ui-me'))).toEqual([true, false, false])
+    expect(vote(null).poll.options.some(o => o.userIds.includes('ui-me'))).toBe(false)
+    expect(frames.at(-1)).toMatchObject({ type: 'poll:update', messageId: seeded.id })
+    expect(() => vote('missing')).toThrow('Unknown choice')
+
+    sandboxSocketSend({ type: 'message:send', channelId: 'ui-general', body: 'Tea or coffee?', poll: [{ label: 'Tea' }, { label: 'Coffee' }], nonce: 'p' })
+    const sent = frames.at(-1)
+    assert(sent?.type === 'message:new')
+    expect(sent.message.poll?.options.map(o => o.label)).toEqual(['Tea', 'Coffee'])
+
+    const kept = api(`/api/messages/${seeded.id}`, 'PATCH', {
+      body: seeded.body,
+      poll: [{ id: ramen!.id, label: 'Noodles' }, { label: 'Pizza' }],
+    }) as MessageDto
+    expect(kept.poll?.options).toMatchObject([
+      { id: ramen!.id, label: 'Noodles', userIds: ramen!.userIds },
+      { label: 'Pizza', userIds: [] },
+    ])
+    const reset = api(`/api/messages/${seeded.id}`, 'PATCH', { body: seeded.body, poll: kept.poll!.options, resetVotes: true }) as MessageDto
+    expect(reset.poll?.options.every(o => !o.userIds.length)).toBe(true)
+  } finally {
+    off()
+  }
 })

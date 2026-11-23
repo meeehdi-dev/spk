@@ -17,6 +17,7 @@ export type SocketFrame =
   | { type: 'message:edit'; message: MessageDto }
   | { type: 'message:delete'; channelId: string; id: string }
   | { type: 'message:previews'; channelId: string; messageId: string; previews: MessageDto['previews'] }
+  | { type: 'poll:update'; channelId: string; messageId: string; poll: MessageDto['poll'] }
   | { type: 'reaction:update'; channelId: string; messageId: string; reactions: MessageDto['reactions'] }
   | { type: 'pin:update'; channelId: string; messageId: string; pinned: boolean }
   | { type: 'typing'; channelId: string; userId: string }

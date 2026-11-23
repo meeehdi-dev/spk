@@ -65,6 +65,7 @@ const message = (id: string, createdAt = 1): MessageDto => ({
   reactions: [],
   previews: [],
   pinned: false,
+  poll: null,
 })
 const page = (messages: MessageDto[], hasMoreBefore = false, hasMoreAfter = false): HistoryResult => ({ messages, hasMoreBefore, hasMoreAfter })
 const settle = async () => {
@@ -138,6 +139,14 @@ describe('chat reconnect recovery', () => {
     await settle()
     expect(state.messages).toEqual(messages)
     expect(state.recoveryFailed).toBe(false)
+  })
+
+  it('applies poll updates to the message', async () => {
+    const { state } = await loaded()
+    const poll = { options: [{ id: 'o1', label: 'Yes', userIds: ['a'] }] }
+    receive({ type: 'poll:update', channelId: 't', messageId: 'anchor', poll })
+    await settle()
+    expect(state.messages.find(m => m.id === 'anchor')?.poll).toEqual(poll)
   })
 
   it('replays live changes after the snapshot and deduplicates/sorts new messages by timestamp and ID', async () => {

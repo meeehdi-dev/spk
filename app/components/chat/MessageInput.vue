@@ -68,6 +68,15 @@ const extensions = [
 
 // Files: paste, drop, or the paperclip button.
 const gifOpen = ref(false)
+const pollOpen = ref(false)
+const commands = [
+  { label: 'gif', description: 'Search for a GIF', icon: 'i-lucide-image-play' },
+  { label: 'poll', description: 'Create a poll', icon: 'i-lucide-chart-bar' },
+]
+const runCommand = (label: string) => {
+  if (label === 'gif') gifOpen.value = true
+  else pollOpen.value = true
+}
 const fileInput = ref<HTMLInputElement>()
 const dragging = ref(false)
 const onFiles = (list?: FileList | null) => {
@@ -104,6 +113,12 @@ function onUpdate(v: string) {
     editor.commands.clearContent()
     model.value = ''
     gifOpen.value = true
+    return
+  }
+  if (editor?.getText() === '/poll ') {
+    editor.commands.clearContent()
+    model.value = ''
+    pollOpen.value = true
     return
   }
   model.value = v
@@ -184,6 +199,7 @@ defineExpose({
       >
         <template #default="{ editor }">
           <ChatEditorMenu kind="mention" :editor="editor" :items="mentionItems" />
+          <ChatEditorMenu kind="command" :editor="editor" :items="commands" @command="runCommand" />
           <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
         </template>
       </UEditor>
@@ -251,6 +267,7 @@ defineExpose({
         </UTooltip>
       </div>
     </div>
+    <ChatPollComposer v-model:open="pollOpen" :channel-id="channelId" />
   </div>
 </template>
 

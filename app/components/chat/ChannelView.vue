@@ -312,7 +312,7 @@ const typingText = computed(() => {
 socket.on(m => {
   const channelId = 'message' in m ? m.message.channelId : 'channelId' in m ? m.channelId : undefined
   if (channelId !== props.channelId) return
-  if (bufferedEvents && (m.type.startsWith('message:') || m.type === 'reaction:update' || m.type === 'pin:update')) {
+  if (bufferedEvents && (m.type.startsWith('message:') || m.type === 'reaction:update' || m.type === 'poll:update' || m.type === 'pin:update')) {
     bufferedEvents.push(m)
     return
   }
@@ -345,6 +345,9 @@ function applyEvent(m: SocketFrame) {
   } else if (m.type === 'reaction:update' && m.channelId === props.channelId) {
     const x = byIdMsg(m.messageId)
     if (x) x.reactions = m.reactions
+  } else if (m.type === 'poll:update' && m.channelId === props.channelId) {
+    const x = byIdMsg(m.messageId)
+    if (x) x.poll = m.poll
   } else if (m.type === 'pin:update' && m.channelId === props.channelId) {
     const x = byIdMsg(m.messageId)
     if (x) x.pinned = m.pinned
@@ -399,6 +402,15 @@ provide(chatActionsKey, {
       if (x) x.reactions = r.reactions
     } catch (e) {
       apiError(e, 'Could not react')
+    }
+  },
+  async vote(id, choiceId) {
+    try {
+      const r = await $fetch<{ poll: MessageDto['poll'] }>(`/api/messages/${id}/vote`, { method: 'POST', body: { choiceId } })
+      const x = byIdMsg(id)
+      if (x) x.poll = r.poll
+    } catch (e) {
+      apiError(e, 'Could not vote')
     }
   },
   reply(id) {

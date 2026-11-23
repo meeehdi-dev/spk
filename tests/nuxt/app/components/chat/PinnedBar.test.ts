@@ -22,6 +22,7 @@ const pin = (id: string, body: string): PinDto => ({
   reactions: [],
   previews: [],
   pinned: true,
+  poll: null,
   pinnedAt: 0,
   pinnedBy: 'a',
 })
