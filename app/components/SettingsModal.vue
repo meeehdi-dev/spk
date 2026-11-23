@@ -67,7 +67,7 @@ const view = computed(() =>
     description="Your profile and preferences"
     :fullscreen="!wide"
     :ui="{
-      content: ['divide-y-0', wide ? 'h-[85dvh] max-w-6xl' : ''],
+      content: wide ? 'h-[85dvh] max-w-6xl' : '',
       body: 'flex min-h-0 flex-col p-0 sm:p-0 md:flex-row compact:p-0 compact:sm:p-0',
     }"
   >

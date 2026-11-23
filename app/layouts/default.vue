@@ -181,7 +181,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
             @keydown="panel?.onKey($event)"
           >
             <template #trailing>
-              <UKbd value="/" />
+              <!-- The search field is panel-colored, so its key takes the base color. -->
+              <UKbd value="/" class="bg-(--ui-bg-base)" />
             </template>
           </UInput>
         </div>

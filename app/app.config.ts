@@ -36,9 +36,15 @@ export default defineAppConfig({
     contextMenu: { slots: { content: floating } },
     tooltip: { slots: { content: floating } },
     drawer: { slots: { content: 'bg-(--ui-bg-base) ring-0' } },
+    // Nothing separates a modal's header from its body.
     modal: {
       variants: { fullscreen: { false: { content: 'ring-0' } } },
-      slots: { content: 'bg-(--ui-bg-base)', header: 'compact:p-3 compact:sm:px-4', body: 'compact:p-3 compact:sm:p-4', footer: 'compact:p-3 compact:sm:px-4' },
+      slots: {
+        content: 'divide-y-0 bg-(--ui-bg-base)',
+        header: 'compact:p-3 compact:sm:px-4',
+        body: 'compact:p-3 compact:sm:p-4',
+        footer: 'compact:p-3 compact:sm:px-4',
+      },
     },
     // The mobile sidebar and search menus are slideovers: no divider under their header.
     slideover: {
@@ -50,6 +56,16 @@ export default defineAppConfig({
       },
     },
     toast: { slots: { root: 'bg-(--ui-bg-base) ring-0' } },
+    // Quick switcher: no dividers, and the highlighted row takes the panel color on the base modal.
+    commandPalette: {
+      slots: { root: 'divide-y-0' },
+      variants: {
+        virtualize: { false: { viewport: 'divide-y-0' } },
+        active: { true: { item: 'before:bg-(--ui-bg-panel)' }, false: { item: 'data-highlighted:not-data-disabled:before:bg-(--ui-bg-panel)' } },
+      },
+    },
+    // Keys take the panel color without a ring, like fields on a base surface.
+    kbd: { compoundVariants: [{ color: 'neutral', variant: 'outline', class: 'bg-(--ui-bg-panel) ring-0' }] },
     // Fields have no border and use the panel color, or --ui-bg-field (sidebar color) inside cards.
     input: { variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
     inputMenu: { slots: { content: floating }, variants: { variant: { outline: 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0' } } },
