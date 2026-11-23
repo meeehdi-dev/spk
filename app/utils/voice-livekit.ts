@@ -29,6 +29,7 @@ import {
   playVoiceSound,
   navigateTo,
 } from '#imports'
+import { MAX_SOUND_MS, SOUND_REST_MS } from '#shared/utils/sounds'
 import {
   effectiveVolume,
   initialMute,
@@ -102,6 +103,9 @@ let theaterTimer: { id: string | null; timer: ReturnType<typeof setTimeout> } | 
 /** Sound icon per user while their soundboard sound plays. */
 const playing = ref<Record<string, string>>({})
 const playingOff = new Map<string, ReturnType<typeof setTimeout>>()
+/** True for SOUND_REST_MS after your own sound ends, so others get the next turn. */
+const soundRest = ref(false)
+let soundRestTimer: ReturnType<typeof setTimeout> | undefined
 /** Round-trip time to the LiveKit server in ms, null while unknown. */
 const ping = ref<number | null>(null)
 let pingTimer: ReturnType<typeof setInterval> | undefined
@@ -1419,6 +1423,7 @@ export function useVoice() {
     watching,
     theater,
     playing,
+    soundRest,
     ping,
     pingHistory,
     diagnostics,
@@ -1465,9 +1470,11 @@ export const watchersOf = (userId: string) => {
     .map(([id]) => id)
 }
 
-/** Shows a sound's icon for its duration (2–10 s), whatever your own audio settings. */
-function showSound(userId: string, icon: string, durationMs: number) {
+/** Shows a sound's icon for its duration (10 s at most), whatever your own audio settings. The soundboard stays disabled meanwhile, then rests for its player (`mine`). */
+function showSound(userId: string, icon: string, durationMs: number, mine: boolean) {
   clearTimeout(playingOff.get(userId))
+  clearTimeout(soundRestTimer)
+  soundRest.value = false
   playing.value = { ...playing.value, [userId]: icon }
   playingOff.set(
     userId,
@@ -1476,8 +1483,13 @@ function showSound(userId: string, icon: string, durationMs: number) {
         playingOff.delete(userId)
         const { [userId]: _gone, ...rest } = playing.value
         playing.value = rest
+        if (!mine) return
+        soundRest.value = true
+        soundRestTimer = setTimeout(() => {
+          soundRest.value = false
+        }, SOUND_REST_MS)
       },
-      Math.min(10_000, Math.max(2000, durationMs)),
+      Math.min(MAX_SOUND_MS, durationMs),
     ),
   )
 }
@@ -1615,7 +1627,7 @@ export function useVoiceLive() {
       }
     } else if (m.type === 'voice:sound') {
       const sound = sounds.value.find(x => x.id === m.soundId)
-      if (sound) showSound(m.userId, `i-lucide-${sound.icon}`, sound.durationMs)
+      if (sound) showSound(m.userId, `i-lucide-${sound.icon}`, sound.durationMs, m.userId === v.me.value?.id)
       if (v.channelId.value && !v.mute.value.deafened) void playSound(m.soundId)
     } else if (m.type === 'voice:disconnect' && m.sid === sid && (v.channelId.value || v.connecting.value || v.retryChannelId.value || v.rejoining.value)) {
       void v.leave(false, m.reason)

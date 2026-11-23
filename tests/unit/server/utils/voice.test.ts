@@ -1,7 +1,7 @@
 import { ServerError } from 'livekit-server-sdk'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import { dropVoiceSocket } from '~~/server/utils/voice'
+import { dropVoiceSocket, handleVoiceFrame } from '~~/server/utils/voice'
 import * as presence from '~~/server/utils/voicePresence'
 
 const { getParticipant } = vi.hoisted(() => ({ getParticipant: vi.fn() }))
@@ -11,7 +11,9 @@ vi.mock('livekit-server-sdk', async importOriginal => ({
     getParticipant = getParticipant
   },
 }))
+vi.mock('~~/server/db/sounds', () => ({ getSound: (_db: unknown, id: string) => (id === 'missing' ? undefined : { id, durationMs: 2000 }) }))
 const broadcast = vi.fn()
+const sendToUser = vi.fn()
 const gone = () => new ServerError('Not Found', 'participant not found', 404, 'not_found')
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve()
@@ -21,7 +23,10 @@ beforeEach(() => {
   vi.useFakeTimers()
   getParticipant.mockReset().mockResolvedValue({ identity: 'u' })
   broadcast.mockClear()
+  sendToUser.mockClear()
   vi.stubGlobal('broadcast', broadcast)
+  vi.stubGlobal('sendToUser', sendToUser)
+  vi.stubGlobal('useDb', () => ({}))
   vi.stubGlobal('useRuntimeConfig', () => ({ livekit: { apiKey: 'key', apiSecret: 'secret' }, public: { livekitUrl: 'wss://rtc.example.com' } }))
   for (const [name, fn] of Object.entries(presence)) vi.stubGlobal(name, fn)
 })
@@ -106,4 +111,44 @@ it('does not resurrect an explicit leave while a membership check is pending', a
   await flush()
   expect(presence.sessionOf('u')).toBeNull()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('plays one soundboard sound at a time per channel; the first frame wins', async () => {
+  for (const [u, ch] of [
+    ['a', 'room'],
+    ['b', 'room'],
+    ['z', 'other'],
+  ] as const)
+    presence.joinVoice(u, ch, u, {})
+  const sound = (u: string, soundId = 'snd') => handleVoiceFrame(u, { type: 'voice:sound', sid: u, soundId }, {})
+  const relayed = () => sendToUser.mock.calls.filter(([to]) => to !== 'z').map(([, f]) => (f as { userId: string }).userId)
+
+  sound('b', 'missing')
+  sound('a')
+  sound('b')
+  expect(relayed()).toEqual(['a', 'a'])
+  sound('z')
+  expect(sendToUser).toHaveBeenCalledWith('z', { type: 'voice:sound', userId: 'z', soundId: 'snd' })
+
+  await vi.advanceTimersByTimeAsync(1999)
+  sound('b')
+  expect(relayed()).toEqual(['a', 'a'])
+  await vi.advanceTimersByTimeAsync(1)
+  sendToUser.mockClear()
+  sound('a') // the last player rests 1 s after their sound ends; others go first
+  expect(relayed()).toEqual([])
+  sound('b')
+  expect(relayed()).toEqual(['b', 'b'])
+  await vi.advanceTimersByTimeAsync(2000)
+  sendToUser.mockClear()
+  sound('a') // b played last, so a is free
+  expect(relayed()).toEqual(['a', 'a'])
+  await vi.advanceTimersByTimeAsync(2999)
+  sendToUser.mockClear()
+  sound('a')
+  expect(relayed()).toEqual([])
+  await vi.advanceTimersByTimeAsync(1)
+  sound('a') // rest over
+  expect(relayed()).toEqual(['a', 'a'])
+  for (const u of ['a', 'b', 'z']) presence.leaveVoice(u, u)
 })

@@ -2,7 +2,8 @@
 export const MAX_SOUND_MS = 10_000
 export const MAX_SOUND_BYTES = 3 * 1024 * 1024
 export const MAX_SOUND_SOURCE_BYTES = 20 * 1024 * 1024
-export const SOUND_COOLDOWN_MS = 3_000
+/** After their sound ends, its player waits this long so others get the next turn. */
+export const SOUND_REST_MS = 1_000
 export const SOUND_RATE = 48_000
 export const SOUND_MIME = 'audio/wav'
 

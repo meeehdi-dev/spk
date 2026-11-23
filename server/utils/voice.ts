@@ -3,14 +3,14 @@ import type { Peer } from 'crossws'
 import { and, eq } from 'drizzle-orm'
 import { RoomServiceClient, ServerError } from 'livekit-server-sdk'
 
-import { SOUND_COOLDOWN_MS } from '../../shared/utils/sounds'
+import { MAX_SOUND_MS, SOUND_REST_MS } from '../../shared/utils/sounds'
 import { channels } from '../db/schema'
 import { getSound } from '../db/sounds'
 
-import { createLimiter } from './limiter'
 import { handleRadioFrame } from './radio'
 
-const allowSound = createLimiter(1, SOUND_COOLDOWN_MS) // one soundboard sound per user per 3 s
+/** Voice channel -> its last soundboard sound: one at a time per channel (the first frame wins), and its player waits SOUND_REST_MS more. */
+const lastSound = new Map<string, { until: number; by: string }>()
 
 const presenceFrame = (
   p: { userId: string; channelId: string; muted: boolean; deafened: boolean; speaking: boolean; cam: boolean; screen: boolean; watching: string[] } | null,
@@ -52,8 +52,15 @@ export function handleVoiceFrame(userId: string, m: Record<string, unknown>, own
     if (p) broadcast(presenceFrame(p, userId))
   } else if (m.type === 'voice:sound') {
     const audience = soundAudience(userId, sid)
-    if (!audience || typeof m.soundId !== 'string' || !getSound(useDb(), m.soundId) || !allowSound(userId)) return
-    for (const id of audience) sendToUser(id, { type: 'voice:sound', userId, soundId: m.soundId })
+    if (!audience || typeof m.soundId !== 'string') return
+    const now = Date.now()
+    for (const [ch, last] of lastSound) if (last.until + SOUND_REST_MS <= now) lastSound.delete(ch)
+    const last = lastSound.get(audience.channelId)
+    if (last && (now < last.until || last.by === userId)) return
+    const sound = getSound(useDb(), m.soundId)
+    if (!sound) return
+    lastSound.set(audience.channelId, { until: now + Math.min(sound.durationMs, MAX_SOUND_MS), by: userId })
+    for (const id of audience.userIds) sendToUser(id, { type: 'voice:sound', userId, soundId: m.soundId })
   } else if (m.type === 'voice:leave') {
     if (leaveVoice(userId, sid)?.ready) broadcast(presenceFrame(null, userId))
   }

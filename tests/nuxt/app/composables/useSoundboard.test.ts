@@ -2,7 +2,7 @@ import { mockNuxtImport, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { closeSoundboardAudio, forgetSound, playSound, setSoundboardOutput } from '~/composables/useSoundboard'
+import { closeSoundboardAudio, forgetSound, playSound, setSoundboardOutput, useSoundboard } from '~/composables/useSoundboard'
 
 const media = vi.hoisted(() => ({
   settings: { value: { soundboard: { on: true, volume: 0.4 } } },
@@ -13,6 +13,12 @@ const media = vi.hoisted(() => ({
   setSinkId: vi.fn(),
 }))
 mockNuxtImport('useVoiceSettings', () => () => media.settings)
+const board = vi.hoisted(() => ({
+  send: vi.fn(),
+  voice: { sid: 'sid', channelId: { value: 'ch' }, playing: { value: {} as Record<string, string> }, soundRest: { value: false } },
+}))
+mockNuxtImport('useVoice', () => () => board.voice)
+mockNuxtImport('useSocket', () => () => ({ send: board.send }))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -203,5 +209,28 @@ describe('direct soundboard playback', () => {
     expect(media.players.every(player => !player.hasAttribute('src'))).toBe(true)
     await playSound('sound')
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useSoundboard', () => {
+  it('disables pressing exactly while a sound plays in the channel, yours included', () => {
+    board.voice.playing = ref({})
+    board.voice.soundRest = ref(false)
+    const { cooling, press } = useSoundboard()
+    press('sound')
+    expect(board.send).toHaveBeenCalledExactlyOnceWith({ type: 'voice:sound', sid: 'sid', soundId: 'sound' })
+    expect(cooling.value).toBe(false) // until the server relays it back
+
+    board.voice.playing.value = { me: 'i-lucide-bell' }
+    expect(cooling.value).toBe(true)
+    press('sound')
+    expect(board.send).toHaveBeenCalledOnce()
+    board.voice.playing.value = {}
+    board.voice.soundRest.value = true
+    expect(cooling.value).toBe(true)
+    board.voice.soundRest.value = false
+    expect(cooling.value).toBe(false)
+    press('sound')
+    expect(board.send).toHaveBeenCalledTimes(2)
   })
 })

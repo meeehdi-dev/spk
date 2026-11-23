@@ -1,4 +1,4 @@
-import { MAX_SOUND_MS, SOUND_COOLDOWN_MS } from '#shared/utils/sounds'
+import { MAX_SOUND_MS } from '#shared/utils/sounds'
 import { routeMediaOutput } from '~/utils/media-output'
 
 export interface SoundEntry {
@@ -95,19 +95,14 @@ export async function playSound(id: string, force = false) {
   }
 }
 
-let lastSent = 0
-/** Sends a sound to everyone in your voice channel (the server checks and relays it). Mirrors the server's 3 s cooldown so the button shows it. */
+/** Sends a sound to everyone in your voice channel (the server checks and relays it). Mirrors the server's rules so the buttons show them: one sound at a time per channel, and a short rest for whoever played last. */
 export function useSoundboard() {
   const v = useVoice()
   const socket = useSocket()
-  const cooling = ref(false)
+  // `playing` holds every sound relayed to your channel, yours included, until it ends.
+  const cooling = computed(() => v.soundRest.value || Object.keys(v.playing.value).length > 0)
   function press(id: string) {
-    if (!v.channelId.value || Date.now() - lastSent < SOUND_COOLDOWN_MS) return
-    lastSent = Date.now()
-    cooling.value = true
-    setTimeout(() => {
-      cooling.value = false
-    }, SOUND_COOLDOWN_MS)
+    if (!v.channelId.value || cooling.value) return
     socket.send({ type: 'voice:sound', sid: v.sid, soundId: id })
     void load(id).catch(() => {}) // warm the cache; the relay frame plays it
   }

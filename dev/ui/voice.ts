@@ -338,6 +338,7 @@ export function useVoice() {
     watching,
     theater,
     playing,
+    soundRest: ref(false),
     ping,
     pingHistory,
     diagnostics,

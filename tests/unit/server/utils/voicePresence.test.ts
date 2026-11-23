@@ -149,7 +149,8 @@ describe('soundAudience', () => {
     joinVoice('s1', 'ch', 'x', {})
     joinVoice('s2', 'ch', 'y', {})
     joinVoice('s3', 'other', 'z', {})
-    expect(soundAudience('s1', 'x')?.sort()).toEqual(['s1', 's2'])
+    expect(soundAudience('s1', 'x')?.channelId).toBe('ch')
+    expect(soundAudience('s1', 'x')?.userIds.sort()).toEqual(['s1', 's2'])
     expect(soundAudience('s1', 'stale')).toBeNull()
     expect(soundAudience('nobody', 'x')).toBeNull()
     for (const [u, s] of [

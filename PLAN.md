@@ -333,7 +333,7 @@ Screen share quality has two options. **Eco** is the default (tuned for sharp te
 
 - **How sounds play:** pressing a sound sends `voice:sound { soundId }` over the WebSocket. The server checks the user is in that voice channel and relays it to everyone in it. Each client plays the sound **locally** with Web Audio (from a cached R2 file), so it respects each person's own volume and deafen. It isn't mixed into anyone's mic, which avoids echo and encoding.
 - **Voice bar:** a `i-lucide-audio-lines` button opens a popover with a grid of sounds (icon and name), with a search box once there are many. Right-click a sound to preview it just for you.
-- **Limits:** a cooldown of about 3 s per user, and a sound plays at most 10 s. A setting turns soundboard sounds off for you, with its own volume slider.
+- **Limits:** one sound at a time per voice channel: the server ignores others until it ends, and the buttons are disabled meanwhile. Whoever played it waits 1 s more, so others get the next turn. A sound plays at most 10 s. A setting turns soundboard sounds off for you, with its own volume slider.
 - **Admin tab "Soundboard"** (`i-lucide-audio-lines`), unlimited sounds:
   1. Choose an audio file (mp3, ogg, wav, m4a, anything the browser can decode; max 20 MB). It never leaves the browser.
   2. **Crop it:** a waveform with draggable start/end handles and a play button, using **`wavesurfer.js`** with its Regions plugin. The selection can't be longer than 10 s.

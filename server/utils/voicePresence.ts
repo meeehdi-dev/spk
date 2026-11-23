@@ -100,7 +100,7 @@ export const voiceSnapshot = (): VoicePresence[] => [...sessions.values()].filte
 export function soundAudience(userId: string, sid: string) {
   const s = sessions.get(userId)
   if (!s || s.sid !== sid) return null
-  return [...sessions.values()].filter(x => x.channelId === s.channelId).map(x => x.userId)
+  return { channelId: s.channelId, userIds: [...sessions.values()].filter(x => x.channelId === s.channelId).map(x => x.userId) }
 }
 
 /** The user's current session, if any. */
