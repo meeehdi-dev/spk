@@ -122,6 +122,7 @@ describe('MicProcessor', () => {
     expect(processor.processedTrack).toBe(output)
     expect(settings.enhanced).toBe(true)
     expect(ctx.options.sampleRate).toBe(48_000)
+    expect(ctx.options).toMatchObject({ sinkId: { type: 'none' } })
   })
 
   it('ignores readiness failure after overload and allows a fresh processor to load', async () => {

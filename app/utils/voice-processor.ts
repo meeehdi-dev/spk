@@ -60,7 +60,12 @@ export class MicProcessor implements TrackProcessor<Track.Kind.Audio, AudioProce
 
   async init(opts: AudioProcessorOptions) {
     this.signal?.throwIfAborted() // setProcessor may acquire its SDK lock only after the join was cancelled.
-    const ctx = (this.ctx = new AudioContext({ sampleRate: DEEPFILTERNET_SAMPLE_RATE, latencyHint: 'interactive' }))
+    // Never played: no output device keeps it running through speaker changes (Chromium; other browsers ignore sinkId).
+    const ctx = (this.ctx = new AudioContext({
+      sampleRate: DEEPFILTERNET_SAMPLE_RATE,
+      latencyHint: 'interactive',
+      sinkId: { type: 'none' },
+    } as AudioContextOptions))
     const reportState = () => {
       if (this.ctx === ctx) this.onAudioBlocked?.(ctx.state !== 'running' && ctx.state !== 'closed')
     }

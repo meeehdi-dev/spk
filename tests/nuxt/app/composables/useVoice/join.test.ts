@@ -793,7 +793,7 @@ describe('acknowledged voice join', () => {
           order.push('processor')
         })
         r.mic.mute.mockImplementation(async () => {
-          expect(r.mic.stopOnMute).toBe(true)
+          expect(r.mic.stopOnMute).toBe(false)
           order.push('mute')
         })
         return [r.mic]

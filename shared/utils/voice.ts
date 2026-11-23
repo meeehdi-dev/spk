@@ -73,12 +73,13 @@ export function screenShareOptions({ height, fps }: ScreenQuality) {
   } as const
 }
 
-/** Room-wide publish/capture defaults: one layer per track, camera up to 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED. */
+/** Room-wide publish/capture defaults: one layer per track, camera up to 6 Mbps, mic Opus 128 kbps without DTX (no comfort-noise gaps) and with RED.
+ * Mute keeps the mic open: reopening it on unmute cuts audio and flips Bluetooth headsets between A2DP and HFP. */
 export const VOICE_PUBLISH_DEFAULTS = {
   simulcast: false,
   videoEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 },
   audioPreset: { maxBitrate: 128_000 },
-  stopMicTrackOnMute: true,
+  stopMicTrackOnMute: false,
   dtx: false,
   red: true,
 } as const

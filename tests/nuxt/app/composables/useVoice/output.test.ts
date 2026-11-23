@@ -46,6 +46,7 @@ const { media, MockRoom } = vi.hoisted(() => {
       stopOnMute: false,
       isMuted: false,
       restartTrack: this.restartTrack,
+      getSourceTrackSettings: vi.fn((): { deviceId?: string } => ({})),
       applyConstraints: vi.fn(async () => {}),
       setProcessor: vi.fn(() => mocks.prepareProcessor()),
       mute: vi.fn(async () => {
@@ -234,6 +235,13 @@ describe('microphone lifecycle', () => {
     expect(media.rooms[0]!.localParticipant.createTracks).toHaveBeenCalledWith({ audio: expect.objectContaining({ deviceId: 'mac' }) })
   })
 
+  it('hides the Windows communications entry', async () => {
+    available.push(mic('communications'), mic('mac'))
+    voice = (await import('~/composables/useVoice')).useVoice()
+    await voice.refreshDevices()
+    expect(voice.devices.value.mics.map(d => d.deviceId)).toEqual(['mac'])
+  })
+
   it('targets the saved input for permission and releases the temporary stream', async () => {
     settings.value.mic = { deviceId: 'mac', label: 'MacBook' }
     const stop = vi.fn()
@@ -243,13 +251,15 @@ describe('microphone lifecycle', () => {
     expect(stop).toHaveBeenCalledOnce()
   })
 
-  it('stores settings without restarting capture while muted and reports unmute failure', async () => {
+  it('keeps the mic open across mute, reopens it only for changed options and reports unmute failure', async () => {
     const r = await setup()
     voice.toggleMic()
     await Promise.resolve()
     await voice.applySettings()
-    expect(r.mic.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({ noiseSuppression: true }))
     expect(r.restartTrack).not.toHaveBeenCalled()
+    settings.value.noise = 'off'
+    await voice.applySettings()
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ noiseSuppression: false, deviceId: undefined }))
     r.mic.unmute.mockRejectedValueOnce(new Error('Microphone unavailable'))
     voice.toggleMic()
     await Promise.resolve()
@@ -1037,6 +1047,44 @@ describe('audio recovery', () => {
     expect(voice.audioBlocked.value).toBe(false)
   })
 
+  it('gives up on a hanging resume and offers a rejoin instead of waiting forever', async () => {
+    const r = await setup()
+    mocks.processorState!(true)
+    mocks.resumeProcessor.mockImplementationOnce(() => new Promise<void>(() => {}))
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const retry = voice.enableAudio()
+      vi.runOnlyPendingTimers()
+      await retry
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(voice.audioBlocked.value).toBe(true)
+    const shown = toast.mock.calls.at(-1)![0]
+    expect(shown).toMatchObject({ title: 'Could not enable audio', description: 'Audio did not resume in time' })
+    r.disconnect.mockClear()
+    shown.actions[0].onClick()
+    await vi.waitFor(() => expect(r.disconnect).toHaveBeenCalled())
+  })
+
+  it('retries blocked audio quietly once a device change has settled', async () => {
+    const r = await setup()
+    r.startAudio.mockRejectedValueOnce(new Error('Device busy'))
+    await voice.enableAudio()
+    expect(voice.audioBlocked.value).toBe(true)
+    toast.mockClear()
+    await deviceChange()
+    await vi.waitFor(() => expect(voice.audioBlocked.value).toBe(false))
+    r.startAudio.mockRejectedValueOnce(new Error('Device busy'))
+    await voice.enableAudio()
+    toast.mockClear()
+    r.startAudio.mockRejectedValueOnce(new Error('Still busy'))
+    await deviceChange()
+    await vi.waitFor(() => expect(r.startAudio).toHaveBeenCalledTimes(5))
+    expect(voice.audioBlocked.value).toBe(true)
+    expect(toast).not.toHaveBeenCalled()
+  })
+
   it('exposes initial and later playback failures and retries audio on demand', async () => {
     media.connect = () => {
       const r = media.rooms.at(-1)!
@@ -1062,73 +1110,104 @@ describe('audio recovery', () => {
 })
 
 describe('microphone device changes', () => {
-  it('shows the unplugged toast without switching when no mic is saved (Firefox: LiveKit recovers)', async () => {
-    const r = await setup()
+  it('follows a new OS default when no mic is saved (Firefox, Safari: listed first) without pinning it', async () => {
     available = [mic('a'), mic('b')]
+    const r = await setup()
     await deviceChange()
-    r.getActiveDevice.mockReturnValue('a')
-    available = [mic('b')]
+    expect(r.restartTrack).not.toHaveBeenCalled()
+    available = [mic('b'), mic('a')]
     await deviceChange()
-    expect(r.switchActiveDevice).not.toHaveBeenCalled()
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Your microphone was unplugged' }))
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ deviceId: undefined }))
+    await deviceChange()
+    expect(r.restartTrack).toHaveBeenCalledOnce()
+    expect(toast).not.toHaveBeenCalled()
   })
 
-  it('falls back with a non-exact default when the saved mic is unplugged, keeping the preference, and switches back on replug', async () => {
+  it('reopens the mic once for a burst of device events', async () => {
+    available = [mic('a'), mic('b')]
+    const r = await setup()
+    available = [mic('b'), mic('a')]
+    await Promise.all([deviceChange(), deviceChange(), deviceChange()])
+    expect(r.restartTrack).toHaveBeenCalledOnce()
+  })
+
+  it('does not reopen a mic that LiveKit already moved to the new default', async () => {
+    available = [mic('a'), mic('b')]
+    const r = await setup()
+    r.mic.getSourceTrackSettings.mockReturnValue({ deviceId: 'b' })
+    available = [mic('b'), mic('a')]
+    await deviceChange()
+    expect(r.restartTrack).not.toHaveBeenCalled()
+  })
+
+  it('moves a saved mic back after LiveKit switched it to the new first device', async () => {
     available = [mic('a'), mic('b')]
     settings = ref({ ...settings.value, mic: mic('a') })
     const r = await setup()
-    r.getActiveDevice.mockReturnValue('a')
-    available = [mic('b')]
+    r.mic.getSourceTrackSettings.mockReturnValue({ deviceId: 'a' })
     await deviceChange()
-    expect(r.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'default', false)
-    expect(settings.value.mic!.deviceId).toBe('a')
-    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Your microphone was unplugged' }))
-    r.getActiveDevice.mockReturnValue('b')
-    available = [mic('a'), mic('b')]
+    expect(r.restartTrack).not.toHaveBeenCalled()
+    r.mic.getSourceTrackSettings.mockReturnValue({ deviceId: 'b' })
+    available = [mic('b'), mic('a')]
     await deviceChange()
-    expect(r.switchActiveDevice).toHaveBeenLastCalledWith('audioinput', 'a')
-    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Switched back to a', color: 'info' }))
-    expect(settings.value.mic!.deviceId).toBe('a')
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ deviceId: 'a' }))
   })
 
-  it('clears the saved mic and switches the live input non-exactly when System default is picked', async () => {
-    settings = ref({ ...settings.value, mic: mic('a') })
-    const r = await setup()
-    await voice.pickDevice('mic', device('default'))
-    expect(settings.value.mic).toBeUndefined()
-    expect(r.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'default', false)
-  })
-
-  it('shows the switch-failure toast without throwing when switching back fails', async () => {
-    available = [mic('b')]
-    settings = ref({ ...settings.value, mic: mic('a') })
-    const r = await setup()
-    r.switchActiveDevice.mockRejectedValue(new Error('Busy'))
-    available = [mic('a'), mic('b')]
-    await deviceChange()
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not switch device', description: 'Busy' }))
-  })
-
-  it('restarts the mic when the label of the default entry changes and no mic is saved', async () => {
+  it('restarts the mic when the label of the default entry changes and no mic is saved (Chromium)', async () => {
     available = [mic('default', 'Earbuds'), mic('a')]
     const r = await setup()
     await deviceChange()
     expect(r.restartTrack).not.toHaveBeenCalled()
     available = [mic('default', 'Speakers'), mic('a')]
     await deviceChange()
-    expect(r.restartTrack).toHaveBeenCalledTimes(1)
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ deviceId: undefined }))
     expect(toast).not.toHaveBeenCalled()
   })
 
-  it('restarts the mic when the default label changes even if "System default" was picked explicitly', async () => {
+  it('treats an old saved "default" entry as System default', async () => {
     available = [mic('default', 'Earbuds'), mic('a')]
     settings = ref({ ...settings.value, mic: mic('default', 'Earbuds') })
     const r = await setup()
-    await deviceChange()
     available = [mic('default', 'Speakers'), mic('a')]
     await deviceChange()
-    expect(r.restartTrack).toHaveBeenCalledTimes(1)
-    expect(toast).not.toHaveBeenCalled()
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ deviceId: undefined }))
+  })
+
+  it('falls back to the default when the saved mic is unplugged, keeping the preference, and switches back on replug', async () => {
+    available = [mic('a'), mic('b')]
+    settings = ref({ ...settings.value, mic: mic('a') })
+    const r = await setup()
+    expect(r.localParticipant.createTracks).toHaveBeenCalledWith({ audio: expect.objectContaining({ deviceId: 'a' }) })
+    available = [mic('b')]
+    await deviceChange()
+    expect(r.restartTrack).toHaveBeenLastCalledWith(expect.objectContaining({ deviceId: undefined }))
+    expect(settings.value.mic!.deviceId).toBe('a')
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Your microphone was unplugged' }))
+    available = [mic('a'), mic('b')]
+    await deviceChange()
+    expect(r.restartTrack).toHaveBeenLastCalledWith(expect.objectContaining({ deviceId: 'a' }))
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Switched back to a', color: 'info' }))
+  })
+
+  it('clears the saved mic and reopens the OS default when System default is picked', async () => {
+    available = [mic('a'), mic('b')]
+    settings = ref({ ...settings.value, mic: mic('b') })
+    const r = await setup()
+    r.switchActiveDevice.mockClear()
+    await voice.pickDevice('mic', device('default'))
+    expect(settings.value.mic).toBeUndefined()
+    expect(r.restartTrack).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ deviceId: undefined }))
+    expect(r.switchActiveDevice).not.toHaveBeenCalled()
+  })
+
+  it('shows the switch-failure toast without throwing when reopening fails', async () => {
+    available = [mic('b')]
+    settings = ref({ ...settings.value, mic: mic('a') })
+    const r = await setup()
+    r.restartTrack.mockRejectedValue(new Error('Busy'))
+    available = [mic('a'), mic('b')]
+    await deviceChange()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not switch device', description: 'Busy' }))
   })
 })
 

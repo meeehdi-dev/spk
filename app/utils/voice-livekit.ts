@@ -87,6 +87,8 @@ let healing = false
 const packets = new WeakMap<object, number>() // last inbound packetsReceived per remote track
 const REJOIN_DELAYS = [1000, 3000, 8000]
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+const DEVICE_SETTLE_MS = 300
+const AUDIO_RESUME_MS = 3000
 let stopVisibleHeal: (() => void) | undefined
 const retryChannelId = ref<string | null>(null)
 const mute = ref(initialMute())
@@ -138,6 +140,8 @@ export const SPEAKING_HOLD_MS = 500
 const speakingIds = new Set<string>()
 const speakingOff = new Map<string, ReturnType<typeof setTimeout>>()
 let processor: MicProcessor | undefined
+let opened: { options: string; device?: string } = { options: '' } // what the live mic was opened with, see micTarget
+let micQueue = Promise.resolve()
 let pendingJoin: AbortController | undefined
 let pendingJoinDone: Promise<void> | undefined
 let moveEpoch = 0
@@ -172,7 +176,8 @@ const asSaved = (d: SavedDevice): SavedDevice => ({ deviceId: d.deviceId, label:
 
 async function refreshDevices() {
   if (!navigator.mediaDevices?.enumerateDevices) return
-  const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.deviceId)
+  // Windows Chromium's 'communications' entry duplicates a real device; it is not a choice.
+  const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.deviceId && d.deviceId !== 'communications')
   devices.value = {
     mics: all.filter(d => d.kind === 'audioinput'),
     speakers: all.filter(d => d.kind === 'audiooutput'),
@@ -200,6 +205,18 @@ export function useVoice() {
     noiseSuppression: settings.value.noise === 'standard',
     channelCount: 1,
   })
+
+  // An old saved 'default' (Chromium's entry) means System default too.
+  const savedMic = () => (settings.value.mic?.deviceId === 'default' ? undefined : settings.value.mic)
+  /** The mic to open: the saved one, else the OS default. Leaving deviceId unset lets the browser pick its current default instead of pinning the old device. */
+  function micTarget() {
+    const mics = devices.value.mics
+    const deviceId = matchDevice(savedMic(), mics).deviceId
+    // The OS default is Chromium's 'default' entry (same id, new label) or the first input elsewhere (Firefox, Safari list it first).
+    const chromium = mics.find(d => d.deviceId === 'default')
+    const capture = captureOptions(deviceId)
+    return { capture, options: JSON.stringify(capture), device: deviceId ?? (chromium ? `default:${chromium.label}` : mics[0]?.deviceId) }
+  }
 
   async function allowMicrophone() {
     await refreshDevices()
@@ -514,9 +531,10 @@ export function useVoice() {
       ])
       signal.throwIfAborted()
       if (error) throw error
-      const mic = matchDevice(settings.value.mic, devices.value.mics)
+      const mic = matchDevice(savedMic(), devices.value.mics)
       if (mic.deviceId) await r.switchActiveDevice('audioinput', mic.deviceId, false)
       signal.throwIfAborted()
+      opened = micTarget()
       const tracks = await r.localParticipant.createTracks({ audio: captureOptions(mic.deviceId) })
       track = tracks[0] as LocalAudioTrack
       signal.throwIfAborted()
@@ -538,7 +556,6 @@ export function useVoice() {
         throw e
       }
       signal.throwIfAborted()
-      track.stopOnMute = true
       await connected // Prepare during connection, but never publish before the session is established.
       signal.throwIfAborted()
       if (mute.value.muted) await track.mute()
@@ -977,20 +994,31 @@ export function useVoice() {
     toast.add({ title: 'You were disconnected from voice', description: errorText(fatal), color: 'warning', icon: 'i-lucide-phone-off' })
   }
 
-  async function enableAudio() {
+  /** `quiet`: an automatic retry (after a device change), which shows nothing when it fails. */
+  async function enableAudio(quiet = false) {
     const r = room
     if (!r) return
     const failureEpoch = playbackFailureEpoch
     try {
       // Start both resumes before awaiting: mobile browsers require the original tap's activation.
-      await Promise.all([r.startAudio(), processor?.resume(), trackAudio.resume()])
+      // Bounded: a context bound to a device that is switching (Bluetooth profile change) can hang its resume.
+      await Promise.race([
+        Promise.all([r.startAudio(), processor?.resume(), trackAudio.resume()]),
+        sleep(AUDIO_RESUME_MS).then(() => Promise.reject(new Error('Audio did not resume in time'))),
+      ])
       if (room !== r) return
       if (playbackFailureEpoch === failureEpoch) playbackNeedsRetry = false
       updateAudioBlocked(r)
     } catch (e) {
       if (room !== r) return
       notePlaybackFailure()
-      toast.add({ title: 'Could not enable audio', description: (e as Error).message, color: 'error' })
+      if (!quiet)
+        toast.add({
+          title: 'Could not enable audio',
+          description: (e as Error).message,
+          color: 'error',
+          actions: [{ label: 'Rejoin', onClick: () => void reconnect() }],
+        })
     }
   }
 
@@ -1020,15 +1048,27 @@ export function useVoice() {
     playVoiceSound('deafen', !mute.value.deafened)
   }
 
-  /** Live changes from the dropdowns and the settings page. */
-  async function applySettings() {
-    if (!room) return
+  /** Live changes from the dropdowns, the settings page and device changes. Reopens the mic only when its options or target device changed. */
+  function applySettings() {
+    if (!room) return Promise.resolve()
     void processor?.update(processing())
-    const track = micTrack()
-    const options = captureOptions(room.getActiveDevice('audioinput'))
-    if (track?.isMuted) await track.applyConstraints(options) // stores constraints for reacquisition without opening the muted input
-    else await track?.restartTrack(options)
     applyOutput()
+    // One reopen at a time: overlapping device events and picks must not reopen the mic twice.
+    const run = micQueue.then(async () => {
+      const track = micTrack()
+      if (!track) return
+      const next = micTarget()
+      const live = track.getSourceTrackSettings().deviceId
+      // LiveKit's own devicechange handler moves the input too: it may already be on the new default (never reopen twice),
+      // or it may have moved a saved mic that was listed first onto the new first device (Firefox, Safari).
+      const reopen =
+        next.options !== opened.options ||
+        (next.capture.deviceId ? !!live && live !== next.capture.deviceId : next.device !== opened.device && live !== next.device)
+      if (reopen) await track.restartTrack(next.capture)
+      opened = next
+    })
+    micQueue = run.catch(() => {})
+    return run
   }
   const routeOutputs = (kind: 'speaker' | 'mediaSpeaker') =>
     Promise.all(
@@ -1045,7 +1085,7 @@ export function useVoice() {
     try {
       if (output) {
         await routeOutputs(kind)
-      } else if (kind === 'mic') await room?.switchActiveDevice('audioinput', d.deviceId, !system) // non-exact: Firefox has no device with id 'default'
+      } else if (kind === 'mic') await applySettings()
       else if (camOn.value) await room?.switchActiveDevice('videoinput', d.deviceId, !system)
     } catch (e) {
       toast.add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
@@ -1664,20 +1704,25 @@ export function useVoiceLive() {
     () => !!v.channelId.value,
     on => (on ? wakeLock.request('screen') : wakeLock.release()).catch(() => {}),
   )
+  // Bluetooth headsets go through several device lists while switching profile; act once the list has settled.
+  let deviceEpoch = 0
   useEventListener(navigator.mediaDevices, 'devicechange', async () => {
+    const epoch = ++deviceEpoch
+    await sleep(DEVICE_SETTLE_MS)
+    if (epoch !== deviceEpoch) return
     const outputs = (['speaker', 'mediaSpeaker'] as const).map(kind => ({
       kind,
       active: matchDevice(v.settings.value[kind], devices.value.speakers).deviceId,
     }))
-    const micBefore = matchDevice(v.settings.value.mic, devices.value.mics).deviceId
-    const defaultLabel = devices.value.mics.find(d => d.deviceId === 'default')?.label
+    const savedMic = v.settings.value.mic?.deviceId === 'default' ? undefined : v.settings.value.mic
+    const micBefore = matchDevice(savedMic, devices.value.mics).deviceId
     await v.refreshDevices()
     const r = v.activeRoom()
     if (v.canPickOutput)
       for (const { kind, active } of outputs) {
         if (kind === 'speaker' && !r) continue
         const saved = v.settings.value[kind]
-        if (!saved) continue
+        if (!saved) continue // '' already follows the OS default output
         const now = matchDevice(saved, devices.value.speakers).deviceId
         if (active === now) continue
         await v.routeOutputs(kind)
@@ -1690,26 +1735,19 @@ export function useVoiceLive() {
         )
       }
     if (!r) return
-    const active = r.getActiveDevice('audioinput')
-    const savedMic = v.settings.value.mic?.deviceId === 'default' ? undefined : v.settings.value.mic // Chromium's 'default' entry means follow the OS
+    // Device switches can suspend audio contexts; retry once settled instead of leaving the "Audio blocked" banner to a click.
+    if (v.audioBlocked.value) void v.enableAudio(true)
     const micNow = matchDevice(savedMic, devices.value.mics).deviceId
-    const unplugged = () =>
-      useToast().add({ title: 'Your microphone was unplugged', description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' })
-    if (savedMic && micBefore && !micNow) {
-      await r.switchActiveDevice('audioinput', 'default', false).catch(() => {}) // non-exact: Firefox has no device with id 'default'
-      unplugged()
-    } else if (savedMic && !micBefore && micNow && active !== micNow) {
-      await r
-        .switchActiveDevice('audioinput', micNow)
-        .then(() =>
-          useToast().add({ title: `Switched back to ${savedMic.label}`, description: 'Your microphone is back.', icon: 'i-lucide-headphones', color: 'info' }),
-        )
-        .catch((e: Error) => useToast().add({ title: 'Could not switch device', description: e.message, color: 'error', icon: 'i-lucide-circle-alert' }))
-    } else if (!savedMic && active && active !== 'default' && !devices.value.mics.some(d => d.deviceId === active)) {
-      unplugged() // LiveKit recovers the track itself
-    } else if (!savedMic && active === 'default' && defaultLabel && defaultLabel !== devices.value.mics.find(d => d.deviceId === 'default')?.label) {
-      await v.applySettings().catch(() => {}) // Chromium keeps the old physical device when the OS default changes
+    try {
+      await v.applySettings() // follows a new OS default, an unplugged saved mic or its return
+    } catch (e) {
+      useToast().add({ title: 'Could not switch device', description: (e as Error).message, color: 'error', icon: 'i-lucide-circle-alert' })
+      return
     }
+    if (savedMic && micBefore && !micNow)
+      useToast().add({ title: 'Your microphone was unplugged', description: 'Switched to the default device.', icon: 'i-lucide-headphones', color: 'warning' })
+    else if (savedMic && !micBefore && micNow)
+      useToast().add({ title: `Switched back to ${savedMic.label}`, description: 'Your microphone is back.', icon: 'i-lucide-headphones', color: 'info' })
   })
   onMounted(() => v.refreshDevices())
 }

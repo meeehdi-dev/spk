@@ -55,35 +55,22 @@ describe('microphone publish defaults through LiveKit', () => {
       }),
     })
 
-  it('releases muted capture and reacquires the selected input with updated constraints', async () => {
+  it('keeps muted capture open so unmute does not reacquire the input', async () => {
     vi.spyOn(LocalAudioTrack.prototype, 'checkForSilence').mockResolvedValue(false)
-    vi.stubGlobal(
-      'MediaStream',
-      class {
-        constructor(public tracks: MediaStreamTrack[] = []) {}
-        getTracks() {
-          return this.tracks
-        }
-      },
-    )
-    const first = nativeTrack(),
-      replacement = nativeTrack()
-    const capture = vi.fn(async () => ({ getTracks: () => [replacement] }))
+    const first = nativeTrack()
+    const capture = vi.fn()
     vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: capture } })
     const track = new LocalAudioTrack(first as unknown as MediaStreamTrack, { deviceId: 'mac' }, false)
     track.source = Track.Source.Microphone
     track.stopOnMute = VOICE_PUBLISH_DEFAULTS.stopMicTrackOnMute
     try {
       await track.mute()
-      expect(first.readyState).toBe('ended')
-      await track.setDeviceId('external')
-      await track.applyConstraints({ echoCancellation: false, noiseSuppression: true })
-      expect(capture).not.toHaveBeenCalled()
+      expect(first.readyState).toBe('live')
+      expect(first.enabled).toBe(false)
       await track.unmute()
-      expect(capture).toHaveBeenCalledExactlyOnceWith({ audio: { deviceId: 'external', echoCancellation: false, noiseSuppression: true }, video: false })
+      expect(capture).not.toHaveBeenCalled()
+      expect(first.enabled).toBe(true)
       expect(track.isMuted).toBe(false)
-      await track.mute()
-      expect(replacement.readyState).toBe('ended')
     } finally {
       track.stop()
     }
