@@ -154,7 +154,7 @@ watch(
         <UButton icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Close search" @click="search.close()" />
       </UTooltip>
     </div>
-    <div class="p-2">
+    <div class="px-2 pb-2">
       <USelect v-model="search.scope" :items="scopes" class="w-full" aria-label="Search scope" />
     </div>
     <ul v-if="suggestions.length" class="p-1" role="listbox" aria-label="Suggestions">
@@ -166,11 +166,6 @@ watch(
     </ul>
     <div class="min-h-0 flex-1 overflow-y-auto">
       <p v-if="searched && !results.length && !loading" class="p-4 text-center text-sm text-muted">No results</p>
-      <p v-else-if="!searched" class="p-4 text-sm text-muted">
-        Words match as prefixes. Filters: <code>from:</code> <code>mentions:</code> <code>in:</code> <code>has:file|image|link</code> <code
-          >before:2026-11-01</code
-        > <code>after:2026-10-01</code>
-      </p>
       <ul v-if="!suggestions.length" class="space-y-2 px-2 pb-2" role="listbox" aria-label="Results">
         <li v-for="(h, i) in results" :key="h.messageId">
           <UContextMenu :items="menu(h)">

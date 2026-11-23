@@ -139,7 +139,11 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     </UDashboardSidebar>
 
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex h-12 shrink-0 items-center gap-2 bg-(--ui-bg-base) px-3">
+      <!-- With the search sidebar open, the search field ends flush with the main panel. -->
+      <header
+        class="flex h-12 shrink-0 items-center gap-2 bg-(--ui-bg-base) px-3 transition-[padding] duration-200 ease-out motion-reduce:transition-none"
+        :class="search.open && isLarge && 'pr-0'"
+      >
         <UButton class="lg:hidden" icon="i-lucide-menu" color="neutral" variant="ghost" aria-label="Open sidebar" @click="open = true" />
         <UTooltip :text="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'" :kbds="['meta', 'B']" class="max-lg:hidden">
           <UButton
