@@ -82,6 +82,7 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
     { id: 'ui-voice-music', type: 'voice', name: 'Music' },
     { id: 'ui-voice-empty', type: 'voice', name: 'Quiet room' },
     { id: 'ui-dm', type: 'dm', name: null, otherUserId: 'ui-alex', lastActivityAt: preset === 'empty' ? null : epoch },
+    { id: 'ui-webhook', type: 'webhook', name: 'Coolify', icon: 'server', ownerId: 'ui-me' },
   ]
   messages =
     preset === 'empty'
@@ -147,6 +148,46 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
       ],
     }
     messages.push(token, paragraphs, edited, reply, deletedReply, spoiler, reactions, link, code, poll)
+    const hook = (embed: NonNullable<MessageDto['embed']>) => Object.assign(message('ui-webhook', 'ui-me', ''), { embed })
+    const deploy = (app: string, project: string) =>
+      hook({
+        title: 'deployment_success',
+        color: 'success',
+        description: 'New version successfully deployed',
+        fields: Object.entries({
+          success: 'true',
+          application_name: app,
+          application_uuid: '0muoekg1n0hxcrfxxd5k51au',
+          deployment_uuid: 'qqpojcnhj2ibzoedoz41bjpa',
+          deployment_url: `https://coolify.example.test/project/b9cmn72twktag7hgldcrwdgo/environment/pfphcw62cwbpq9lifub48ufb/application/0muoekg1n0hxcrfxxd5k51au/deployment/qqpojcnhj2ibzoedoz41bjpa`,
+          project,
+          environment: 'production',
+          fqdn: `https://${app}.example.test`,
+        }).map(([name, value]) => ({ name, value, inline: true })),
+      })
+    messages.push(
+      hook({
+        title: 'test',
+        color: 'warning',
+        description: 'This is a test webhook notification from Coolify.',
+        fields: [{ name: 'success', value: 'true', inline: true }],
+      }),
+      deploy('app', 'spk.example.test'),
+      hook({
+        title: 'deployment_failed',
+        url: 'https://coolify.example.test/deployments/1',
+        color: 'error',
+        description: 'Build failed: `pnpm build` exited with **code 1**',
+        fields: [
+          { name: 'application_name', value: 'play', inline: true },
+          { name: 'environment', value: 'staging', inline: true },
+          { name: 'error', value: 'ERR_PNPM_OUTDATED_LOCKFILE Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date' },
+        ],
+        footer: 'Coolify',
+        timestamp: new Date(epoch).toISOString(),
+      }),
+      deploy('play', 'rearview'),
+    )
   }
   unread = {
     'ui-general': { unread: 0, mentions: 0 },
