@@ -98,7 +98,7 @@ it.each([
   expect(wrapper.find('[data-member]').classes()).toContain('min-h-9')
 })
 
-it('shows a non-actionable radio indicator matching the camera control only while listening', async () => {
+it('shows a non-actionable radio status icon only while listening', async () => {
   member.cam = true
   const wrapper = await mountInApp(AppSidebar)
   await vi.waitFor(() => expect(wrapper.find('[data-member] [aria-label="Watch User\'s camera"]').exists()).toBe(true))
@@ -106,10 +106,7 @@ it('shows a non-actionable radio indicator matching the camera control only whil
   expect(indicator().exists()).toBe(false)
   member.radioListening = true
   await nextTick()
-  expect(indicator().element.tagName).toBe('SPAN')
-  const camera = wrapper.find('[data-member] [aria-label="Watch User\'s camera"]')
-  expect(indicator().classes()).toEqual(camera.classes().filter(name => name !== 'ml-auto'))
-  expect(wrapper.findAllComponents({ name: 'UButton' }).some(button => button.props('icon') === 'i-lucide-radio' && button.props('as') === 'span')).toBe(true)
+  expect(indicator().classes()).toEqual(expect.arrayContaining(['size-3', 'shrink-0', 'text-primary']))
   expect(indicator().element.hasAttribute('tabindex')).toBe(false)
   member.radioListening = false
   await nextTick()

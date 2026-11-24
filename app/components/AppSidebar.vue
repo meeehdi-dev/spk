@@ -306,6 +306,12 @@ const onDrop = (channelId: string) => {
                   />
                   <span class="truncate"><EmojiText :text="nameOf(m.userId)" /></span>
                   <span v-if="m.pending || voice.unheard.value.has(m.userId)" role="status" class="text-xs">Connecting…</span>
+                  <UTooltip v-if="m.radioListening" text="Listening to radio">
+                    <UIcon name="i-lucide-radio" class="size-3 shrink-0 text-primary" aria-label="Listening to radio" />
+                  </UTooltip>
+                  <UIcon v-if="voice.playing.value[m.userId]" :name="voice.playing.value[m.userId]!" class="size-3 shrink-0 text-primary" aria-hidden="true" />
+                  <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-3 shrink-0 text-error" aria-label="Deafened" />
+                  <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-3 shrink-0 text-error" aria-label="Muted" />
                   <UTooltip v-if="m.screen" :text="`Watch ${nameOf(m.userId)}'s stream`" class="ml-auto">
                     <template #content="{ ui }"><EmojiText :text="`Watch ${nameOf(m.userId)}'s stream`" :class="ui.text()" /></template>
                     <UButton
@@ -326,11 +332,6 @@ const onDrop = (channelId: string) => {
                       @click="voice.watchStream(c.id, m.userId)"
                     />
                   </UTooltip>
-                  <UTooltip v-if="m.radioListening" text="Listening to radio" :class="m.screen || m.cam ? '' : 'ml-auto'">
-                    <UButton as="span" icon="i-lucide-radio" color="primary" variant="ghost" aria-label="Listening to radio" />
-                  </UTooltip>
-                  <UIcon v-if="m.deafened" name="i-lucide-headphone-off" class="size-3.5 shrink-0 text-error" aria-label="Deafened" />
-                  <UIcon v-else-if="m.muted" name="i-lucide-mic-off" class="size-3.5 shrink-0 text-error" aria-label="Muted" />
                 </li>
               </UserContext>
             </ul>
