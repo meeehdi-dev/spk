@@ -26,8 +26,26 @@ describe('WebhookEmbed', () => {
     await vi.waitFor(() => expect(wrapper.find('strong').text()).toBe('good'))
     const fields = wrapper.findAll('dl > div')
     expect(fields[0]!.classes()).toContain('col-span-1')
-    expect(fields[1]!.classes()).toContain('col-span-3')
+    expect(fields[1]!.classes()).toContain('col-span-full')
     expect(wrapper.text()).toContain('Coolify · just now')
+  })
+
+  it('gives long or URL inline fields a full row and links URLs', async () => {
+    const wrapper = await mountInApp(WebhookEmbed, {
+      embed: {
+        fields: [
+          { name: 'url', value: 'https://example.com/x', inline: true },
+          { name: 'uuid', value: 'x'.repeat(41), inline: true },
+          { name: 'bad', value: 'javascript:alert(1)', inline: true },
+        ],
+      },
+    })
+    const fields = wrapper.findAll('dl > div')
+    expect(fields[0]!.classes()).toContain('col-span-full')
+    expect(fields[0]!.find('a').attributes('href')).toBe('https://example.com/x')
+    expect(fields[1]!.classes()).toContain('col-span-full')
+    expect(fields[2]!.classes()).toContain('col-span-1')
+    expect(fields[2]!.find('a').exists()).toBe(false)
   })
 
   it('renders a plain title without a link', async () => {
