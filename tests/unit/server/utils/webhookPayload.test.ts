@@ -64,6 +64,14 @@ describe('formatPayload', () => {
   test('javascript: url is dropped', () => {
     expect(json({ title: 'T', url: 'javascript:alert(1)' })?.embed?.url).toBeUndefined()
     expect(json({ content: 'x', embeds: [{ title: 'T', url: 'javascript:alert(1)' }] })?.embed?.url).toBeUndefined()
+    const author = (a: object) => json({ embeds: [{ title: 'T', author: a }] })?.embed?.author
+    expect(author({ name: 'Al', url: 'https://a.dev', icon_url: 'https://a.dev/i.png' })).toEqual({
+      name: 'Al',
+      url: 'https://a.dev/',
+      icon: 'https://a.dev/i.png',
+    })
+    expect(author({ name: 'Al', url: 'javascript:alert(1)', icon_url: 'http://a.dev/i.png' })).toEqual({ name: 'Al' })
+    expect(author({ url: 'https://a.dev' })).toBeUndefined()
   })
   test('mention syntax is stripped', () => {
     const r = json({ title: 'hi <@abc-1>', message: 'ping <@u2> now' })!

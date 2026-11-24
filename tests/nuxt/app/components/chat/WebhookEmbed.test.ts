@@ -40,12 +40,39 @@ describe('WebhookEmbed', () => {
         ],
       },
     })
+    await flushPromises()
     const fields = wrapper.findAll('dl > div')
     expect(fields[0]!.classes()).toContain('col-span-full')
-    expect(fields[0]!.find('a').attributes('href')).toBe('https://example.com/x')
+    await vi.waitFor(() => expect(fields[0]!.find('a').attributes('href')).toBe('https://example.com/x'))
     expect(fields[1]!.classes()).toContain('col-span-full')
     expect(fields[2]!.classes()).toContain('col-span-1')
     expect(fields[2]!.find('a').exists()).toBe(false)
+  })
+
+  it('renders markdown field values and sizes them by visible text', async () => {
+    const wrapper = await mountInApp(WebhookEmbed, {
+      embed: { fields: [{ name: 'Commit', value: `[\`abc1234\`](https://github.com/me/spk/commit/${'a'.repeat(40)})`, inline: true }] },
+    })
+    await flushPromises()
+    const field = wrapper.find('dl > div')
+    expect(field.classes()).toContain('col-span-1')
+    await vi.waitFor(() => expect(field.find('a code').text()).toBe('abc1234'))
+  })
+
+  it('renders the author with a no-referrer avatar', async () => {
+    const wrapper = await mountInApp(WebhookEmbed, { embed: { author: { name: 'bob', url: 'https://github.com/bob', icon: 'https://avatars.example/bob' } } })
+    const author = wrapper.find('[data-embed-author]')
+    expect(author.find('a').attributes('href')).toBe('https://github.com/bob')
+    expect(author.find('img').attributes('referrerpolicy')).toBe('no-referrer')
+    await author.find('img').trigger('error')
+    expect(author.find('img').exists()).toBe(false)
+    expect(author.text()).toBe('bob')
+  })
+
+  it('renders an author without icon or link as plain text', async () => {
+    const wrapper = await mountInApp(WebhookEmbed, { embed: { author: { name: 'bot' } } })
+    expect(wrapper.find('[data-embed-author] img').exists()).toBe(false)
+    expect(wrapper.find('[data-embed-author] a').exists()).toBe(false)
   })
 
   it('renders a plain title without a link', async () => {

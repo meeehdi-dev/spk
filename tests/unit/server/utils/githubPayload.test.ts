@@ -3,12 +3,22 @@ import { describe, expect, test } from 'vitest'
 import { formatPayload } from '~~/server/utils/webhookPayload'
 
 const repository = { name: 'spk', full_name: 'me/spk', html_url: 'https://g.dev/me/spk' }
-const sender = { login: 'bob' }
+const sender = { login: 'bob', html_url: 'https://github.com/bob', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' }
 const run = (event: string, p: object, ct = 'application/json') => formatPayload(ct, JSON.stringify({ repository, sender, ...p }), event)
 
 describe('GitHub events via formatPayload', () => {
   test.each([
-    ['ping', { hook: { events: ['push', 'issues'] } }, { title: '[spk] Webhook connected', description: 'push, issues', color: 'info', footer: 'bob' }],
+    [
+      'ping',
+      { hook: { events: ['push', 'issues'] } },
+      {
+        title: '[spk] Webhook connected',
+        description: 'push, issues',
+        color: 'info',
+        footer: 'me/spk',
+        author: { name: 'bob', url: 'https://github.com/bob', icon: 'https://avatars.githubusercontent.com/u/1?v=4&s=40' },
+      },
+    ],
     [
       'push',
       {
@@ -111,6 +121,80 @@ describe('GitHub events via formatPayload', () => {
   test('missing fields do not crash', () => {
     expect(() => formatPayload('application/json', '{}', 'pull_request_review')).not.toThrow()
     expect(formatPayload('application/json', '{"action":"opened"}', 'issues')).not.toBeNull()
+  })
+  test('push links commits and authors, escapes messages, and links the overflow', () => {
+    const commits = Array.from({ length: 12 }, (_, i) => ({
+      id: `abcdef${i}0000`,
+      url: `https://github.com/me/spk/commit/abcdef${i}`,
+      message: i ? 'plain' : 'fix [x](javascript:alert(1)) *bold*\nbody',
+      author: { name: 'Al', username: i ? 'al' : undefined },
+    }))
+    const d = (run('push', { ref: 'refs/heads/main', compare: 'https://github.com/me/spk/compare/a...b', commits }) as { embed: { description: string } }).embed
+      .description
+    const lines = d.split('\n')
+    expect(lines[0]).toBe('[`abcdef0`](https://github.com/me/spk/commit/abcdef0) fix \\[x\\](javascript:alert(1)) \\*bold\\* — Al')
+    expect(lines[1]).toBe('[`abcdef1`](https://github.com/me/spk/commit/abcdef1) plain — [Al](https://github.com/al)')
+    expect(lines).toHaveLength(11)
+    expect(lines[10]).toBe('[+2 more](https://github.com/me/spk/compare/a...b)')
+  })
+  test('PR card: author, branches, changes, merger and labels', () => {
+    const r = run('pull_request', {
+      action: 'closed',
+      pull_request: {
+        number: 3,
+        title: 'T',
+        merged: true,
+        user: { login: 'al', avatar_url: 'https://avatars.githubusercontent.com/u/2' },
+        head: { ref: 'feat/x' },
+        base: { ref: 'main' },
+        additions: 10,
+        deletions: 2,
+        changed_files: 3,
+        merged_by: { login: 'bob', html_url: 'https://github.com/bob' },
+        labels: [{ name: 'bug' }],
+      },
+    })
+    expect(r).toMatchObject({
+      embed: {
+        author: { name: 'al', url: 'https://github.com/al', icon: 'https://avatars.githubusercontent.com/u/2?s=40' },
+        fields: [
+          { name: 'Branch', value: '[`feat/x`](https://g.dev/me/spk/tree/feat%2Fx) → [`main`](https://g.dev/me/spk/tree/main)' },
+          { name: 'Changes', value: '+10 −2 · 3 files' },
+          { name: 'Merged by', value: '[bob](https://github.com/bob)' },
+          { name: 'Labels', value: '`bug`' },
+        ],
+      },
+    })
+  })
+  test('workflow run fields', () => {
+    const r = run('workflow_run', {
+      action: 'completed',
+      workflow_run: {
+        name: 'CI',
+        head_branch: 'main',
+        head_sha: 'a'.repeat(40),
+        event: 'push',
+        conclusion: 'success',
+        run_started_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:02:05Z',
+        triggering_actor: { login: 'al' },
+      },
+    })
+    expect(r).toMatchObject({
+      embed: {
+        author: { name: 'al' },
+        fields: [
+          { name: 'Branch', value: '[`main`](https://g.dev/me/spk/tree/main)' },
+          { name: 'Commit', value: `[\`aaaaaaa\`](https://g.dev/me/spk/commit/${'a'.repeat(40)})` },
+          { name: 'Trigger', value: 'push' },
+          { name: 'Duration', value: '2m 5s' },
+        ],
+      },
+    })
+  })
+  test('non-https links stay plain text', () => {
+    const r = run('push', { ref: 'refs/heads/x', commits: [{ id: 'abc1234', url: 'javascript:alert(1)', message: 'm' }] })
+    expect(r).toMatchObject({ embed: { description: '`abc1234` m' } })
   })
   test('payload without a repository', () => {
     expect(formatPayload('application/json', JSON.stringify({ action: 'created', sender }), 'star')).toMatchObject({ embed: { title: '⭐ Starred by bob' } })

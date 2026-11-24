@@ -61,8 +61,13 @@ export function sanitizeEmbed(input: unknown): Embed | undefined {
     .slice(0, 25)
     .map(f => (isObj(f) ? { name: text(f.name, 256), value: text(f.value, 1024), inline: f.inline === true } : null))
     .filter((f): f is { name: string; value: string; inline: boolean } => !!f?.name && !!f.value)
+  const a = isObj(input.author) ? input.author : {}
+  const name = text(a.name, 256)
+  const icon = httpUrl(a.icon)
   const e: Embed = {
     title: text(input.title, 256),
+    // https-only icon: an http image would be mixed content.
+    author: name ? { name, url: httpUrl(a.url), icon: icon?.startsWith('https:') ? icon : undefined } : undefined,
     description: text(input.description, 4096),
     url: httpUrl(input.url),
     color: COLORS.find(c => c === input.color),
@@ -80,6 +85,7 @@ const discord = (p: Obj, e: Obj) => ({
     title: e.title,
     description: e.description,
     url: e.url,
+    author: isObj(e.author) ? { name: e.author.name, url: e.author.url, icon: e.author.icon_url } : undefined,
     color: nearestColor(e.color),
     fields: e.fields,
     footer: isObj(e.footer) ? e.footer.text : undefined,
