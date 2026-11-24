@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const soundKey = (id: string) => `sounds/${id}`
 
 /** Name (1–32 characters) and Lucide icon name, trimmed and checked. */
-function cleanSoundMeta(input: { name?: unknown; icon?: unknown }) {
+export function cleanNameIcon(input: { name?: unknown; icon?: unknown }) {
   const name = typeof input.name === 'string' ? input.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '' // oxlint-disable-line no-control-regex -- Strip control characters from user-provided names.
   if (name.length < 1 || name.length > 32) throw new ChatError(400, 'Name must be 1–32 characters')
   if (typeof input.icon !== 'string' || !/^[a-z0-9-]{1,64}$/.test(input.icon)) throw new ChatError(400, 'Bad icon')
@@ -33,7 +33,7 @@ export function createSound(
   input: { id?: unknown; name?: unknown; icon?: unknown; durationMs?: unknown; size?: unknown },
   uploadedSize: number | null,
 ) {
-  const meta = cleanSoundMeta(input)
+  const meta = cleanNameIcon(input)
   const size = checkSoundSize(input.size)
   const d = input.durationMs
   if (typeof input.id !== 'string' || !UUID.test(input.id)) throw new ChatError(400, 'Bad sound id')
@@ -59,7 +59,7 @@ export const getSound = (db: Db, id: string) => db.select().from(sounds).where(e
 
 /** Name and icon only (the trim can't change; delete and upload again). */
 export function updateSound(db: Db, id: string, input: { name?: unknown; icon?: unknown }) {
-  const row = db.update(sounds).set(cleanSoundMeta(input)).where(eq(sounds.id, id)).returning().get()
+  const row = db.update(sounds).set(cleanNameIcon(input)).where(eq(sounds.id, id)).returning().get()
   if (!row) throw new ChatError(404, 'Not found')
   return row
 }

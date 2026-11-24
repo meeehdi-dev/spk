@@ -7,6 +7,7 @@ const props = defineProps<{ channelId: string; messageId?: string }>()
 const { data: channels } = useChannels()
 const channel = computed(() => channels.value.find(c => c.id === props.channelId))
 const label = useChannelLabel()
+const readOnly = computed(() => channel.value?.type === 'webhook')
 const unread = useUnread()
 const focused = useWindowFocus()
 const dividerId = ref<string | null>(null) // the "New messages" divider sits above this message
@@ -324,16 +325,18 @@ function applyEvent(m: SocketFrame) {
   if (m.type === 'message:new' && m.message.channelId === props.channelId) {
     typers.delete(m.message.userId)
     if (hasMoreAfter.value || messages.value.some(x => x.id === m.message.id)) return
-    if (dividerId.value === null && m.message.userId !== me.value?.id && !focused.value) dividerId.value = m.message.id
+    // Webhook alerts carry the owner's userId but are not the owner's own messages.
+    const mine = m.message.userId === me.value?.id && !readOnly.value
+    if (dividerId.value === null && !mine && !focused.value) dividerId.value = m.message.id
     const el = scroller.value
-    const follow = !el || atBottom(el, 120) || m.message.userId === me.value?.id
+    const follow = !el || atBottom(el, 120) || mine
     messages.value.push(m.message)
     messages.value.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     if (follow) {
       pinned = true // keep following while its body, images and previews render
       void nextTick(scrollToEnd)
     } else unseenBelow.value = true
-    if (m.message.userId !== me.value?.id) void nextTick(maybeRead)
+    if (!mine) void nextTick(maybeRead)
   } else if (m.type === 'message:edit' && m.message.channelId === props.channelId) {
     const i = messages.value.findIndex(x => x.id === m.message.id)
     if (i >= 0) messages.value[i] = m.message
@@ -500,7 +503,7 @@ socket.onOpen(() => {
             <div v-if="loading" class="p-6 text-center text-sm text-muted">Loading…</div>
             <template v-else>
               <div v-if="!hasMoreBefore" class="px-4 pt-6 pb-2 text-sm text-muted compact:pt-3">
-                <div v-if="!messages.length">No messages yet. Say something!</div>
+                <div v-if="!messages.length">{{ readOnly ? 'No alerts yet.' : 'No messages yet. Say something!' }}</div>
               </div>
               <div v-else class="flex h-9 items-center justify-center gap-2 text-xs text-muted">
                 <template v-if="loadingMore"> <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" /> Loading older messages… </template>
@@ -563,7 +566,9 @@ socket.onOpen(() => {
         <EmojiText :text="typingText" />
       </div>
       <ClientOnly>
+        <div v-if="readOnly" class="flex items-center justify-center gap-2 px-4 pb-3 text-sm text-muted"><UIcon name="i-lucide-lock" /> Read-only feed</div>
         <ChatMessageInput
+          v-else
           :key="channelId"
           ref="input"
           :channel-id="channelId"

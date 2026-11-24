@@ -2,6 +2,7 @@ import type { Db } from './client'
 
 import { and, eq, sql } from 'drizzle-orm'
 
+import { readableChannel } from './readable'
 import { channelReads, messages } from './schema'
 
 export interface UnreadState {
@@ -10,7 +11,7 @@ export interface UnreadState {
 }
 
 // Unread = other people's live messages newer than channel_reads.last_read_at (no row yet: newer than the account),
-// in text channels and in DMs the user belongs to. Mentions are the subset that mention the user.
+// in text channels, in DMs the user belongs to and in webhook feeds they can read (their own webhook's messages count). Mentions are the subset that mention the user.
 function counts(db: Db, userId: string, channelId?: string): Record<string, UnreadState> {
   const rows = db.all<{ channelId: string; unread: number; mentions: number }>(sql`
     SELECT m.channel_id AS channelId, COUNT(*) AS unread,
@@ -18,9 +19,9 @@ function counts(db: Db, userId: string, channelId?: string): Record<string, Unre
     FROM messages m
     JOIN channels c ON c.id = m.channel_id
     LEFT JOIN channel_reads r ON r.channel_id = m.channel_id AND r.user_id = ${userId}
-    WHERE m.deleted_at IS NULL AND m.user_id <> ${userId}
+    WHERE m.deleted_at IS NULL AND (m.user_id <> ${userId} OR c.type = 'webhook')
       AND m.created_at > COALESCE(r.last_read_at, (SELECT created_at FROM users WHERE id = ${userId}))
-      AND (c.type = 'text' OR (c.type = 'dm' AND EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ${userId})))
+      AND ${readableChannel(userId)}
       ${channelId ? sql`AND m.channel_id = ${channelId}` : sql``}
     GROUP BY m.channel_id`)
   return Object.fromEntries(rows.map(r => [r.channelId, { unread: r.unread, mentions: r.mentions }]))
@@ -56,8 +57,9 @@ export function firstUnreadId(db: Db, userId: string, channelId: string): string
   return (
     db.get<{ id: string }>(sql`
     SELECT m.id FROM messages m
+    JOIN channels c ON c.id = m.channel_id
     LEFT JOIN channel_reads r ON r.channel_id = m.channel_id AND r.user_id = ${userId}
-    WHERE m.channel_id = ${channelId} AND m.deleted_at IS NULL AND m.user_id <> ${userId}
+    WHERE m.channel_id = ${channelId} AND m.deleted_at IS NULL AND (m.user_id <> ${userId} OR c.type = 'webhook')
       AND m.created_at > COALESCE(r.last_read_at, (SELECT created_at FROM users WHERE id = ${userId}))
     ORDER BY m.created_at, m.id LIMIT 1`)?.id ?? null
   )

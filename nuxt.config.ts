@@ -60,7 +60,10 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   nitro: {
     experimental: { websocket: true, tasks: true },
-    scheduledTasks: { '0 * * * *': ['attachments:cleanup'] }, // hourly: unsent uploads older than 24 h
+    scheduledTasks: {
+      '0 * * * *': ['attachments:cleanup'], // hourly: unsent uploads older than 24 h
+      '0 4 * * *': ['webhooks:prune'], // daily: webhook alerts older than 30 days
+    },
   },
   vite: {
     plugins: [noiseSuppressionAudioWorkletVitePlugin()],

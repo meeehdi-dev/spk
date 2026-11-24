@@ -21,6 +21,7 @@ beforeAll(() => {
     { id: 'target', type: 'voice', name: 'Target' },
     { id: 'general', type: 'text', name: 'General' },
     { id: 'dm', type: 'dm', otherUserId: 'user', lastActivityAt: 1 },
+    { id: 'hook', type: 'webhook', name: 'Deploys', icon: 'rocket', ownerId: 'me', private: true },
   ])
   registerEndpoint('/api/admin/voice/move', { method: 'POST', handler: async event => move(await readBody(event)) ?? {} })
 })
@@ -225,4 +226,16 @@ describe('voice member dragging', () => {
     await settle()
     expect(move).toHaveBeenCalledTimes(1)
   })
+})
+
+it('lists webhooks in their own card with a lock for private ones and a + button', async () => {
+  useUnread().set('hook', { unread: 2, mentions: 0 })
+  const wrapper = await mountInApp(AppSidebar)
+  await vi.waitFor(() => expect(wrapper.find('a[href="/c/hook"]').exists()).toBe(true))
+  const row = wrapper.find('a[href="/c/hook"]')
+  expect(row.text()).toContain('Deploys')
+  expect(row.find('[aria-label="Private"]').exists()).toBe(true)
+  expect(row.find('[aria-label="Unread messages"]').text()).toBe('2')
+  expect(wrapper.find('[aria-label="New webhook"]').exists()).toBe(true)
+  expect(wrapper.text()).toContain('Webhooks')
 })

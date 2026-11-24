@@ -112,6 +112,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
     <SettingsModal />
     <VoiceDialogs />
     <AdminDialogs />
+    <WebhookDialog />
     <UDashboardSidebar
       id="main"
       v-model:open="open"
@@ -157,7 +158,15 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
         </UTooltip>
         <UIcon
           v-if="route.path.startsWith('/c/')"
-          :name="isVoice ? 'i-lucide-volume-2' : current?.type === 'dm' ? 'i-lucide-message-circle' : 'i-lucide-hash'"
+          :name="
+            isVoice
+              ? 'i-lucide-volume-2'
+              : current?.type === 'dm'
+                ? 'i-lucide-message-circle'
+                : current?.type === 'webhook'
+                  ? `i-lucide-${current.icon ?? 'webhook'}`
+                  : 'i-lucide-hash'
+          "
           class="size-4 text-muted"
         />
         <h1 class="truncate text-sm font-medium">

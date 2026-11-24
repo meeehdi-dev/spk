@@ -9,13 +9,6 @@ const { data: sounds, refresh } = useSounds()
 const toast = useToast()
 const fail = (title: string) => (e: unknown) => toast.add({ title, description: errorText(e), color: 'error', icon: 'i-lucide-circle-alert' })
 
-// Lucide icon names for the picker (loaded only on this tab; aliases left out).
-const iconItems = ref<Array<{ label: string; value: string; icon: string }>>([])
-onMounted(async () => {
-  const set = (await import('@iconify-json/lucide/icons.json')).default as { icons: Record<string, unknown> }
-  iconItems.value = Object.keys(set.icons).map(n => ({ label: n, value: n, icon: `i-lucide-${n}` }))
-})
-
 // --- add: choose a file, crop, name, icon, save ---
 const box = ref<HTMLElement>()
 const media = shallowRef<HTMLMediaElement | null>(null)
@@ -320,9 +313,9 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
               <UInput v-model="form.name" maxlength="32" class="w-full" />
             </UFormField>
             <UFormField label="Icon">
-              <USelectMenu v-model="form.icon" :items="iconItems" value-key="value" :icon="`i-lucide-${form.icon}`" virtualize class="w-56" aria-label="Icon" />
+              <IconSelect v-model="form.icon" class="w-56" aria-label="Icon" />
             </UFormField>
-            <UButton label="Save" icon="i-lucide-save" :loading="saving" :disabled="!form.name.trim() || !iconItems.length || clipping" @click="save" />
+            <UButton label="Save" icon="i-lucide-save" :loading="saving" :disabled="!form.name.trim() || clipping" @click="save" />
             <UButton label="Discard" icon="i-lucide-x" color="neutral" variant="ghost" @click="reset" />
           </div>
         </div>
@@ -354,15 +347,7 @@ const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`
             <UInput v-model="editing.name" maxlength="32" class="w-full" />
           </UFormField>
           <UFormField label="Icon">
-            <USelectMenu
-              v-model="editing.icon"
-              :items="iconItems"
-              value-key="value"
-              :icon="`i-lucide-${editing.icon}`"
-              virtualize
-              class="w-full"
-              aria-label="Icon"
-            />
+            <IconSelect v-model="editing.icon" class="w-full" aria-label="Icon" />
           </UFormField>
           <UButton type="submit" label="Save" icon="i-lucide-save" :disabled="!editing.name.trim()" />
         </form>

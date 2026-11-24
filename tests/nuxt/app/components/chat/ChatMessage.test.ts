@@ -423,3 +423,35 @@ describe('pinning', () => {
     }
   })
 })
+
+describe('webhook feed', () => {
+  it('shows the webhook as author, renders the embed and offers only delete', async () => {
+    registerEndpoint('/api/channels', () => [{ id: 'w', type: 'webhook', name: 'Deploys', icon: 'rocket', ownerId: 'a', private: true }])
+    await refreshNuxtData('channels')
+    const embed = { title: 'Build failed', color: 'error' as const }
+    const wrapper = await mountInApp(
+      ChatMessage,
+      { message: { ...message, channelId: 'w', embed }, grouped: false },
+      { global: { provide: { [chatActionsKey as symbol]: actions } } },
+    )
+    await vi.waitFor(() => expect(wrapper.find('[data-webhook-name]').text()).toBe('Deploys'))
+    expect(wrapper.find('[aria-label="Profile of Alex"]').exists()).toBe(false)
+    expect(wrapper.find('[data-embed]').text()).toContain('Build failed')
+    for (const label of ['Add reaction', 'Reply', 'Edit message']) expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(false)
+  })
+
+  it("lets the feed owner delete alerts but not edit them, even though alerts carry the owner's userId", async () => {
+    registerEndpoint('/api/channels', () => [{ id: 'w', type: 'webhook', name: 'Deploys', icon: 'rocket', ownerId: 'a', private: true }])
+    await refreshNuxtData('channels')
+    const wrapper = await mountInApp(
+      ChatMessage,
+      { message: { ...message, channelId: 'w', userId: 'a' }, grouped: false },
+      { global: { provide: { [chatActionsKey as symbol]: actions } } },
+    )
+    await vi.waitFor(() => expect(wrapper.find('[data-webhook-name]').text()).toBe('Deploys'))
+    expect(wrapper.find('[role="img"][aria-label="Deploys"]').exists()).toBe(true)
+    const labels = (wrapper.findComponent(ChatMessage).vm as unknown as State).messageItems().map(i => i.label)
+    expect(labels).toContain('Delete')
+    expect(labels).not.toContain('Edit')
+  })
+})

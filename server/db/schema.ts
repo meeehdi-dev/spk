@@ -1,3 +1,5 @@
+import type { Embed } from '../../shared/utils/embed'
+
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -94,10 +96,23 @@ export const invites = sqliteTable('invites', {
 
 export const channels = sqliteTable('channels', {
   id: text('id').primaryKey(),
-  type: text('type', { enum: ['text', 'voice', 'dm'] }).notNull(),
+  type: text('type', { enum: ['text', 'voice', 'dm', 'webhook'] }).notNull(),
   name: text('name'),
   lastActivityAt: ts('last_activity_at'),
   position: integer('position'),
+  createdAt: ts('created_at').notNull().default(now),
+})
+
+/** One row per webhook channel. Private = the owner has a channel_members row; public = no member rows. */
+export const webhooks = sqliteTable('webhooks', {
+  channelId: text('channel_id')
+    .primaryKey()
+    .references(() => channels.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  icon: text('icon').notNull(),
+  secretHash: text('secret_hash').notNull().unique(),
   createdAt: ts('created_at').notNull().default(now),
 })
 
@@ -144,6 +159,7 @@ export const messages = sqliteTable(
     deletedAt: ts('deleted_at'),
     suppressPreviews: integer('suppress_previews', { mode: 'boolean' }).notNull().default(false),
     poll: text('poll', { mode: 'json' }).$type<{ id: string; label: string }[]>(),
+    embed: text('embed', { mode: 'json' }).$type<Embed>(),
   },
   t => [index('messages_channel_created').on(t.channelId, t.createdAt)],
 )

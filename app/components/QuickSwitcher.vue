@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const open = defineModel<boolean>('open', { default: false })
-const { dms, textChannels, voiceChannels } = useNavChannels()
+const { dms, textChannels, voiceChannels, webhooks } = useNavChannels()
 const { data: users, nameOf } = useUsers()
 const { data: me } = useMe()
 const colorMode = useColorMode()
@@ -16,6 +16,11 @@ const groups = computed(() => [
     id: 'voice',
     label: 'Voice channels',
     items: voiceChannels.value.map(c => ({ label: c.name ?? '', icon: 'i-lucide-volume-2', onSelect: go(`/c/${c.id}`) })),
+  },
+  {
+    id: 'webhooks',
+    label: 'Webhooks',
+    items: webhooks.value.map(c => ({ label: c.name ?? '', icon: `i-lucide-${c.icon ?? 'webhook'}`, onSelect: go(`/c/${c.id}`) })),
   },
   {
     id: 'dms',

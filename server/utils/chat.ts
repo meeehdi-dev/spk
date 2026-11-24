@@ -1,6 +1,9 @@
+import { eq } from 'drizzle-orm'
+
 import { MANUAL_STATUSES, type ManualStatus } from '../../shared/utils/presence'
-import { accessibleChannel, channelMemberIds, ChatError, createMessage } from '../db/messages'
+import { accessibleChannel, channelMemberIds, ChatError, createMessage, type MessageDto } from '../db/messages'
 import { markRead, readState } from '../db/reads'
+import { channels } from '../db/schema'
 
 import { logConnectionDiag } from './connectionDiag'
 import { createLimiter } from './limiter'
@@ -19,6 +22,21 @@ export function fanOut(channelId: string, userId: string, data: unknown, include
   const ids = channelMemberIds(db, ch, onlineUserIds()).filter(id => includeSender || id !== userId)
   for (const id of ids) sendToUser(id, data)
   return ids
+}
+
+/** Broadcasts a freshly created message: previews, pushes, live event and unread counts. Without `senderId` nobody is marked read. */
+export function publishMessage(message: MessageDto, { senderId, nonce, previews = true }: { senderId?: string; nonce?: unknown; previews?: boolean } = {}) {
+  const db = useDb()
+  if (previews) queuePreviews(message)
+  sendPushes(message)
+  if (senderId) markRead(db, senderId, message.channelId) // sending means you've caught up
+  const ch = db.select().from(channels).where(eq(channels.id, message.channelId)).get()
+  if (!ch) return
+  const ids = channelMemberIds(db, ch, onlineUserIds())
+  for (const id of ids) sendToUser(id, { type: 'message:new', message, nonce })
+  for (const id of ids) {
+    sendToUser(id, { type: 'unread:update', channelId: message.channelId, ...readState(db, id, message.channelId) })
+  }
 }
 
 /** Handles a JSON frame from a signed-in socket. */
@@ -62,13 +80,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
         attachments: files,
         poll: m.poll,
       })
-      const db = useDb()
-      queuePreviews(message)
-      sendPushes(message)
-      markRead(db, userId, message.channelId) // sending means you've caught up
-      for (const id of fanOut(message.channelId, userId, { type: 'message:new', message, nonce: m.nonce }, true)) {
-        sendToUser(id, { type: 'unread:update', channelId: message.channelId, ...readState(db, id, message.channelId) })
-      }
+      publishMessage(message, { senderId: userId, nonce: m.nonce })
     } catch (e) {
       if (!(e instanceof ChatError)) throw e
       sendToUser(userId, { type: 'message:error', nonce: m.nonce, error: e.message })

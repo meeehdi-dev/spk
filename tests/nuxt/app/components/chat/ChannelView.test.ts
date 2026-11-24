@@ -23,6 +23,7 @@ const mocks = await vi.hoisted(async () => {
     opens: new Set<() => void>(),
     toast: vi.fn(),
     read: vi.fn(),
+    input: vi.fn(),
   }
 })
 mockNuxtImport('useSocket', () => () => ({
@@ -33,7 +34,7 @@ mockNuxtImport('useSocket', () => () => ({
 mockNuxtImport('useToast', () => () => ({ add: mocks.toast, remove: vi.fn() }))
 mockNuxtImport('useWindowFocus', () => () => mocks.focused)
 mockNuxtImport('markChannelRead', () => mocks.read)
-mockComponent('ChatMessageInput', { setup: () => () => null })
+mockComponent('ChatMessageInput', { setup: () => () => (mocks.input(), null) })
 
 interface State {
   load: (around?: string, keep?: boolean) => Promise<void>
@@ -80,9 +81,10 @@ beforeAll(() => {
   registerEndpoint('/api/channels', () => [
     { id: 't', type: 'text', name: 't' },
     { id: 'other', type: 'text', name: 'other' },
+    { id: 'w', type: 'webhook', name: 'Deploys', icon: 'rocket', ownerId: 'a', private: true },
   ])
-  for (const id of ['t', 'other']) registerEndpoint(`/api/channels/${id}/messages`, event => history(id, getQuery(event) as Record<string, string>))
-  for (const id of ['t', 'other']) registerEndpoint(`/api/channels/${id}/pins`, () => pinList(id))
+  for (const id of ['t', 'other', 'w']) registerEndpoint(`/api/channels/${id}/messages`, event => history(id, getQuery(event) as Record<string, string>))
+  for (const id of ['t', 'other', 'w']) registerEndpoint(`/api/channels/${id}/pins`, () => pinList(id))
   registerEndpoint('/api/messages/m/reactions', { method: 'POST', handler: async event => reactions(await readBody(event)) })
   registerEndpoint('/api/channels/t/unread', { method: 'POST', handler: event => ({ unread: 0, mentions: 0, id: getRouterParam(event, 'id') }) })
 })
@@ -139,6 +141,34 @@ describe('chat reconnect recovery', () => {
     await settle()
     expect(state.messages).toEqual(messages)
     expect(state.recoveryFailed).toBe(false)
+  })
+
+  it('shows a read-only note and no message input in a webhook feed', async () => {
+    await useChannels().refresh() // the feed type must be known before the view renders
+    const { wrapper } = await mountChannel(page([]), reactive({ channelId: 'w' }))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Read-only feed'))
+    expect(mocks.input).not.toHaveBeenCalled()
+  })
+
+  it("treats a webhook alert as incoming for the feed's owner", async () => {
+    await useChannels().refresh()
+    mocks.focused.value = true
+    const { state } = await mountChannel(page([]), reactive({ channelId: 'w' }))
+    await vi.waitFor(() => expect(state.loading).toBe(false))
+    mocks.read.mockClear()
+    receive({ type: 'message:new', message: { ...message('alert'), channelId: 'w', userId: 'a' } })
+    await settle()
+    expect(mocks.read).toHaveBeenCalledWith('w')
+  })
+
+  it("marks the first unseen alert with the divider for the feed's owner", async () => {
+    await useChannels().refresh()
+    mocks.focused.value = false
+    const { state } = await mountChannel(page([]), reactive({ channelId: 'w' }))
+    await vi.waitFor(() => expect(state.loading).toBe(false))
+    receive({ type: 'message:new', message: { ...message('alert'), channelId: 'w', userId: 'a' } })
+    await settle()
+    expect(state.dividerId).toBe('alert')
   })
 
   it('applies poll updates to the message', async () => {

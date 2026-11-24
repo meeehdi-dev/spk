@@ -7,6 +7,9 @@ type AdminDialog =
   | { kind: 'profile'; userId: string }
 
 const dialog = ref<AdminDialog | null>(null)
+/** The webhook create/edit/secret/delete dialog (WebhookDialog.vue). */
+type WebhookDialogState = { mode: 'create' } | { mode: 'edit' | 'secret' | 'delete'; channel: ChannelEntry }
+const webhookDialog = ref<WebhookDialogState | null>(null)
 /** The message input watches this to insert `<@id>`. */
 const mentionRequest = ref<{ id: string; n: number } | null>(null)
 
@@ -62,7 +65,7 @@ export function useAdmin() {
 
   /** Channel menu entries (flat). Admin entries only when the signed-in user is admin; the server checks again. */
   function channelItems(c: ChannelEntry) {
-    if (!isAdmin.value) return []
+    if (!isAdmin.value || c.type === 'webhook') return []
     const ids = section(c.type).map(x => x.id),
       i = ids.indexOf(c.id)
     return [
@@ -83,6 +86,19 @@ export function useAdmin() {
           dialog.value = { kind: 'delete', channel: c }
         },
       },
+    ]
+  }
+
+  /** Webhook menu entries: only the owner, or an admin (the server only lists public feeds to admins). */
+  function webhookItems(c: ChannelEntry) {
+    if (c.ownerId !== me.value?.id && !isAdmin.value) return []
+    const open = (mode: 'edit' | 'secret' | 'delete') => () => {
+      webhookDialog.value = { mode, channel: c }
+    }
+    return [
+      { label: 'Edit', icon: 'i-lucide-pencil', onSelect: open('edit') },
+      { label: 'New secret URL', icon: 'i-lucide-key-round', onSelect: open('secret') },
+      { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: open('delete') },
     ]
   }
 
@@ -178,5 +194,5 @@ export function useAdmin() {
     return groups.filter(g => g.length)
   }
 
-  return { isAdmin, dialog, mentionRequest, channelItems, userGroups, setRole, setBanned, disconnect, move, reorder, origin, fail }
+  return { isAdmin, dialog, webhookDialog, mentionRequest, channelItems, webhookItems, userGroups, setRole, setBanned, disconnect, move, reorder, origin, fail }
 }

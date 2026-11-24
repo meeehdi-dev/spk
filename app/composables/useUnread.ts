@@ -57,12 +57,13 @@ export async function openDmWith(userId: string) {
   }
 }
 
-/** The channels the sidebar shows, in its order (existing DMs, text channels, voice channels). Shared by the sidebar, Alt ↑/↓ and the quick switcher. */
+/** The channels the sidebar shows, in its order (existing DMs, text channels, voice channels, webhooks). Shared by the sidebar, Alt ↑/↓ and the quick switcher. */
 export function useNavChannels() {
   const { data: channels } = useChannels()
   const route = useRoute()
   const dms = computed(() => channels.value.filter(c => c.type === 'dm' && (c.lastActivityAt || route.params.channelId === c.id)))
   const textChannels = computed(() => channels.value.filter(c => c.type === 'text'))
   const voiceChannels = computed(() => channels.value.filter(c => c.type === 'voice'))
-  return { dms, textChannels, voiceChannels, all: computed(() => [...dms.value, ...textChannels.value, ...voiceChannels.value]) }
+  const webhooks = computed(() => channels.value.filter(c => c.type === 'webhook'))
+  return { dms, textChannels, voiceChannels, webhooks, all: computed(() => [...dms.value, ...textChannels.value, ...voiceChannels.value, ...webhooks.value]) }
 }

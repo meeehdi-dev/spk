@@ -36,7 +36,7 @@ export function createChannel(db: Db, type: unknown, name: unknown) {
 
 const manageable = (db: Db, id: unknown) => {
   const c = typeof id === 'string' ? db.select().from(channels).where(eq(channels.id, id)).get() : undefined
-  if (!c || c.type === 'dm') throw new ChatError(404, 'Channel not found') // DMs aren't managed
+  if (!c || (c.type !== 'text' && c.type !== 'voice')) throw new ChatError(404, 'Channel not found') // DMs and webhooks aren't managed here
   return c
 }
 

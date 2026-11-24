@@ -24,7 +24,7 @@ const parse = <T>(s: string, fallback: T): T => {
 /** Pushes for a new message: DM partner or mentioned/replied-to users, only those with no open socket and whose settings allow it. */
 export function pushJobs(db: Db, m: MessageDto, onlineIds: string[]): PushJob[] {
   const ch = db.select().from(channels).where(eq(channels.id, m.channelId)).get()
-  if (!ch) return []
+  if (!ch || ch.type === 'webhook') return []
   const isDm = ch.type === 'dm'
   const targets = isDm
     ? db

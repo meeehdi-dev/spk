@@ -122,7 +122,7 @@ export function useIncomingNotifications() {
     if (m.type !== 'message:new' || !me.value || m.message.userId === me.value.id) return
     const msg = m.message
     const ch = channels.value.find(c => c.id === msg.channelId)
-    if (!ch) return
+    if (!ch || ch.type === 'webhook') return // feeds only get the unread badge
     const isDm = ch.type === 'dm'
     const pinged = extractMentionIds(msg.body).includes(me.value.id) || msg.replyTo?.userId === me.value.id
     if ((!isDm && !pinged) || !allowedBy({ ...settings.value, dnd: myStatus.value === 'busy' }, ch.id, isDm)) return

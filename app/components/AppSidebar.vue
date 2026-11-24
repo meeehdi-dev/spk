@@ -10,7 +10,7 @@ const route = useRoute()
 const { data: me } = useMe()
 const { data: users, nameOf, byId } = useUsers()
 const { of: unreadOf } = useUnread()
-const { textChannels, voiceChannels } = useNavChannels()
+const { textChannels, voiceChannels, webhooks } = useNavChannels()
 const voice = useVoice()
 const radioDirectory = useRadioDirectory()
 const settingsTab = useSettingsModal()
@@ -57,6 +57,15 @@ const channelMenu = (c: ChannelEntry) =>
     admin.channelItems(c),
   ].filter(g => g.length)
 const admin = useAdmin()
+const webhookMenu = (c: ChannelEntry) =>
+  [
+    [
+      { label: 'Mark read', icon: 'i-lucide-check-check', onSelect: () => readNow(c.id) },
+      muteItem(c.id),
+      { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => copyText(`${location.origin}/c/${c.id}`) },
+    ],
+    admin.webhookItems(c),
+  ].filter(g => g.length)
 // Admins drag channels within their section; the order is saved in channels.position.
 const textList = ref<HTMLElement>()
 const voiceList = ref<HTMLElement>()
@@ -325,6 +334,46 @@ const onDrop = (channelId: string) => {
                 </li>
               </UserContext>
             </ul>
+          </li>
+        </ul>
+      </section>
+
+      <section class="rounded-lg bg-(--ui-bg-panel) p-1">
+        <div class="flex h-8 items-center justify-between pl-2 compact:h-6">
+          <h2 class="flex items-center gap-1.5 text-sm font-semibold text-muted">
+            <UIcon name="i-lucide-webhook" class="size-4" aria-hidden="true" />Webhooks
+          </h2>
+          <UButton icon="i-lucide-plus" color="neutral" variant="ghost" aria-label="New webhook" @click="admin.webhookDialog.value = { mode: 'create' }" />
+        </div>
+        <ul class="py-1 compact:py-0">
+          <li v-if="!webhooks.length" class="px-2 py-1 text-xs text-muted">No webhooks yet</li>
+          <li v-for="c in webhooks" :key="c.id">
+            <UContextMenu :items="webhookMenu(c) as never">
+              <UButton
+                :to="`/c/${c.id}`"
+                :label="c.name ?? ''"
+                :icon="`i-lucide-${c.icon ?? 'webhook'}`"
+                :color="route.params.channelId === c.id ? 'primary' : 'neutral'"
+                :variant="route.params.channelId === c.id ? 'soft' : 'ghost'"
+                block
+                class="justify-start compact:py-1"
+                :class="[unreadOf(c.id).unread ? 'font-bold text-highlighted' : '', isMuted(c.id) ? 'opacity-50' : '']"
+              >
+                <EmojiText :text="c.name ?? ''" data-slot="label" class="truncate" />
+                <template #trailing>
+                  <UIcon v-if="c.private" name="i-lucide-lock" class="ml-auto size-3.5 shrink-0 text-muted" aria-label="Private" />
+                  <UBadge
+                    v-if="unreadOf(c.id).unread"
+                    :label="String(unreadOf(c.id).unread)"
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                    :class="{ 'ml-auto': !c.private }"
+                    aria-label="Unread messages"
+                  />
+                </template>
+              </UButton>
+            </UContextMenu>
           </li>
         </ul>
       </section>

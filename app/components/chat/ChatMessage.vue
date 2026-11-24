@@ -11,7 +11,6 @@ const { data: channels } = useChannels()
 const { quickReactions } = useRecentReactions()
 const actions = inject(chatActionsKey)!
 const author = computed(() => byId.value.get(props.message.userId))
-const own = computed(() => me.value?.id === props.message.userId)
 const pinged = computed(
   () =>
     !!me.value &&
@@ -19,7 +18,13 @@ const pinged = computed(
     channels.value.some(c => c.id === props.message.channelId && c.type === 'text') &&
     (props.message.replyTo?.userId === me.value.id || extractMentionIds(props.message.body).includes(me.value.id)),
 )
-const canDelete = computed(() => own.value || me.value?.role === 'admin')
+// A webhook feed is read-only: the author is the webhook, and only delete (owner or admin) is left of the actions.
+const webhook = computed(() => {
+  const c = channels.value.find(c => c.id === props.message.channelId)
+  return c?.type === 'webhook' ? c : undefined
+})
+const own = computed(() => me.value?.id === props.message.userId && !webhook.value) // alerts carry the owner's userId
+const canDelete = computed(() => own.value || me.value?.role === 'admin' || (!!webhook.value && webhook.value.ownerId === me.value?.id))
 const pinnable = computed(() => canPin(channels.value.find(c => c.id === props.message.channelId)?.type, me.value?.role))
 
 const pollEditOpen = ref(false)
@@ -129,25 +134,29 @@ useEventListener(() => (toolbarVisible.value ? props.scroller : undefined), 'scr
 const plain = () => root.value?.querySelector<HTMLElement>('[data-body]')?.innerText ?? props.message.body
 
 const messageItems = (point?: { x: number; y: number }) => [
-  {
-    label: 'Reply',
-    icon: 'i-lucide-reply',
-    onSelect: () => {
-      skipRefocus = true
-      replyAfterClose = true
-    },
-  },
-  {
-    label: 'React',
-    icon: 'i-lucide-smile-plus',
-    onSelect: () => {
-      skipRefocus = true
-      pickerPoint.value = point
-      openPickerAfterClose = true
-    },
-  },
-  { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('quote', selectionText() || props.message.body) },
-  ...(own.value
+  ...(webhook.value
+    ? []
+    : [
+        {
+          label: 'Reply',
+          icon: 'i-lucide-reply',
+          onSelect: () => {
+            skipRefocus = true
+            replyAfterClose = true
+          },
+        },
+        {
+          label: 'React',
+          icon: 'i-lucide-smile-plus',
+          onSelect: () => {
+            skipRefocus = true
+            pickerPoint.value = point
+            openPickerAfterClose = true
+          },
+        },
+        { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('quote', selectionText() || props.message.body) },
+      ]),
+  ...(own.value && !webhook.value
     ? [
         {
           label: 'Edit',
@@ -224,7 +233,15 @@ function onContext(e: MouseEvent) {
 const { copy, copied } = useClipboard({ copiedDuring: 1500 })
 // Only keyboard focus arms `R`; blurring mouse focus would interrupt text selection.
 function onKey(e: KeyboardEvent) {
-  if (e.target === root.value && root.value?.matches(':focus-visible') && e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  if (
+    !webhook.value &&
+    e.target === root.value &&
+    root.value?.matches(':focus-visible') &&
+    e.key.toLowerCase() === 'r' &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey
+  ) {
     e.preventDefault()
     actions.reply(props.message.id)
   }
@@ -252,8 +269,16 @@ function onKey(e: KeyboardEvent) {
       @keydown="onKey"
     >
       <div class="relative flex w-9 shrink-0 justify-end">
+        <span
+          v-if="!grouped && webhook"
+          role="img"
+          class="flex size-10 items-center justify-center self-start rounded-full bg-elevated"
+          :aria-label="webhook.name ?? ''"
+        >
+          <UIcon :name="`i-lucide-${webhook.icon ?? 'webhook'}`" class="size-5" aria-hidden="true" data-webhook-icon />
+        </span>
         <button
-          v-if="!grouped"
+          v-else-if="!grouped"
           ref="avatarEl"
           type="button"
           class="self-start rounded-full"
@@ -268,7 +293,8 @@ function onKey(e: KeyboardEvent) {
       </div>
       <div class="min-w-0 flex-1">
         <div v-if="!grouped" class="flex items-baseline gap-2 text-sm">
-          <button ref="nameEl" type="button" class="font-bold hover:underline" @click="openProfile">
+          <span v-if="webhook" class="font-bold" data-webhook-name><EmojiText :text="webhook.name ?? ''" /></span>
+          <button v-else ref="nameEl" type="button" class="font-bold hover:underline" @click="openProfile">
             <EmojiText :text="nameOf(message.userId)" />
           </button>
           <UTooltip :text="exactTime(message.createdAt)">
@@ -334,6 +360,7 @@ function onKey(e: KeyboardEvent) {
         <div v-if="message.attachments.length" class="mt-1 flex flex-col items-start">
           <ChatAttachmentView v-for="f in message.attachments" :key="f.id" :file="f" @open="actions.openImage" />
         </div>
+        <ChatWebhookEmbed v-if="message.embed" :embed="message.embed" />
         <ChatPreviewCard
           v-for="p in message.previews"
           :key="p.url"
@@ -354,7 +381,7 @@ function onKey(e: KeyboardEvent) {
         class="fixed z-10 hidden w-max -translate-x-full -translate-y-1/2 gap-0.5 overflow-x-auto rounded-md bg-(--ui-bg-base) p-0.5 shadow-sm group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex"
         :class="picker || moreOpen ? '!flex' : ''"
       >
-        <UTooltip v-for="e in quickReactions" :key="e" :text="`React ${e}`">
+        <UTooltip v-for="e in webhook ? [] : quickReactions" :key="e" :text="`React ${e}`">
           <template #content="{ ui }"><EmojiText :text="`React ${e}`" :class="ui.text()" /></template>
           <UButton
             color="neutral"
@@ -367,6 +394,7 @@ function onKey(e: KeyboardEvent) {
           </UButton>
         </UTooltip>
         <UPopover
+          v-if="!webhook"
           :open="picker"
           :reference="pickerReference"
           :content="pickerPoint ? { side: 'bottom', align: 'start', sideOffset: 0 } : { side: 'top', align: 'end' }"
@@ -379,10 +407,10 @@ function onKey(e: KeyboardEvent) {
             <ChatEmojiPicker @pick="pick" />
           </template>
         </UPopover>
-        <UTooltip text="Reply" :kbds="['R']">
+        <UTooltip v-if="!webhook" text="Reply" :kbds="['R']">
           <UButton icon="i-lucide-reply" color="neutral" variant="ghost" aria-label="Reply" @click="actions.reply(message.id)" />
         </UTooltip>
-        <UTooltip v-if="own" text="Edit" :kbds="['arrowup']">
+        <UTooltip v-if="own && !webhook" text="Edit" :kbds="['arrowup']">
           <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" aria-label="Edit message" @click="startEdit" />
         </UTooltip>
         <UTooltip :text="copied ? 'Copied' : 'Copy Markdown'">

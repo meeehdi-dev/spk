@@ -5,6 +5,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { ftsTerm, hasAnything, parseSearch } from '../../shared/utils/searchQuery'
 
 import { accessibleChannel, ChatError } from './messages'
+import { readableChannel } from './readable'
 
 type SearchScope = 'channel' | 'channels' | 'dms' | 'everything'
 const PAGE = 20
@@ -46,7 +47,7 @@ const idList = (ids: string[]) =>
     : sql`NULL`
 
 /**
- * Searches only what `userId` can read: text channels and their own DMs. Deleted messages are excluded
+ * Searches only what `userId` can read: text channels, their own DMs and the webhook feeds they can see. Deleted messages are excluded
  * (they are also gone from the FTS table). Names are resolved against current nicknames at search time.
  */
 export function searchMessages(db: Db, userId: string, opts: { q?: unknown; scope?: unknown; channelId?: unknown; cursor?: unknown }): SearchResult {
@@ -55,13 +56,12 @@ export function searchMessages(db: Db, userId: string, opts: { q?: unknown; scop
   const scope: SearchScope = (['channel', 'channels', 'dms', 'everything'] as const).find(s => s === opts.scope) ?? 'everything'
   const offset = typeof opts.cursor === 'string' && /^\d{1,6}$/.test(opts.cursor) ? Number(opts.cursor) : 0
 
-  const dmOk = sql`c.id IN (SELECT channel_id FROM channel_members WHERE user_id = ${userId})`
   const where: SQL[] = [sql`m.deleted_at IS NULL`]
   if (scope === 'channel') {
     if (typeof opts.channelId !== 'string' || !accessibleChannel(db, userId, opts.channelId)) throw new ChatError(403, 'No access to this channel')
     where.push(sql`c.id = ${opts.channelId}`)
   } else {
-    where.push(sql`(c.type = 'text' OR (c.type = 'dm' AND ${dmOk}))`)
+    where.push(readableChannel(userId))
     if (scope === 'channels') where.push(sql`c.type = 'text'`)
     if (scope === 'dms') where.push(sql`c.type = 'dm'`)
   }

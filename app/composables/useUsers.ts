@@ -7,10 +7,13 @@ export interface UserEntry {
 }
 export interface ChannelEntry {
   id: string
-  type: 'text' | 'voice' | 'dm'
+  type: 'text' | 'voice' | 'dm' | 'webhook'
   name: string | null
   otherUserId?: string
   lastActivityAt?: number | null
+  icon?: string
+  ownerId?: string
+  private?: boolean
 }
 
 const headers = () => useRequestHeaders(['cookie'])
@@ -24,10 +27,10 @@ export function useUsers() {
   return { ...res, byId, nameOf: (id: string) => byId.value.get(id)?.displayName || 'Unknown user' }
 }
 
-/** "#general" for text channels, "@Alex" for a DM. */
+/** "#general" for text channels, "@Alex" for a DM, the bare name for a webhook. */
 export function useChannelLabel() {
   const { nameOf } = useUsers()
-  return (c?: ChannelEntry) => (!c ? '' : c.type === 'dm' ? `@${nameOf(c.otherUserId ?? '')}` : `#${c.name}`)
+  return (c?: ChannelEntry) => (!c ? '' : c.type === 'dm' ? `@${nameOf(c.otherUserId ?? '')}` : c.type === 'webhook' ? (c.name ?? '') : `#${c.name}`)
 }
 
 export const avatarSrc = (u?: { id: string; avatarKey: string | null }) => (u?.avatarKey ? `/api/avatar/${u.id}?v=${u.avatarKey}` : undefined)

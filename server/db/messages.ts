@@ -1,3 +1,5 @@
+import type { Embed } from '../../shared/utils/embed'
+
 import type { Db } from './client'
 
 import { and, asc, desc, eq, gt, inArray, isNull, notInArray, sql } from 'drizzle-orm'
@@ -68,6 +70,7 @@ export interface MessageDto {
   previews: PreviewDto[]
   pinned: boolean
   poll: PollDto | null
+  embed?: Embed | null
 }
 
 export class ChatError extends Error {
@@ -79,32 +82,37 @@ export class ChatError extends Error {
   }
 }
 
-/** The channel if this user may read and write its messages (text: anyone, DM: its members), else null. */
+/** The channel if this user may read its messages (text: anyone, DM: its members, webhook: anyone if public, else its owner), else null. */
 export function accessibleChannel(db: Db, userId: string, channelId: string) {
   const ch = db.select().from(channels).where(eq(channels.id, channelId)).get()
   if (!ch) return null
   if (ch.type === 'text') return ch
-  if (ch.type === 'dm') {
-    const m = db
-      .select()
-      .from(channelMembers)
-      .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
-      .get()
-    return m ? ch : null
-  }
-  return null
+  if (ch.type !== 'dm' && ch.type !== 'webhook') return null
+  const members = audience(db, ch)
+  return !members || members.includes(userId) ? ch : null
 }
 
-/** Users who should receive live events for a channel. */
-export function channelMemberIds(db: Db, ch: { id: string; type: string }, onlineIds: string[]) {
-  if (ch.type !== 'dm') return onlineIds
+/** Who may read a DM or webhook channel: its member ids, or null when everyone may (public webhook, no member rows). */
+function audience(db: Db, ch: { id: string; type: string }) {
   const members = db
     .select({ id: channelMembers.userId })
     .from(channelMembers)
     .where(eq(channelMembers.channelId, ch.id))
     .all()
     .map(r => r.id)
-  return onlineIds.filter(id => members.includes(id))
+  return ch.type === 'webhook' && !members.length ? null : members
+}
+
+/** Webhook feeds are written only by their ingest endpoint. */
+const assertWritable = (ch: { type: string }) => {
+  if (ch.type === 'webhook') throw new ChatError(403, 'Webhook feeds are read-only')
+}
+
+/** Users who should receive live events for a channel. */
+export function channelMemberIds(db: Db, ch: { id: string; type: string }, onlineIds: string[]) {
+  if (ch.type !== 'dm' && ch.type !== 'webhook') return onlineIds
+  const members = audience(db, ch)
+  return members ? onlineIds.filter(id => members.includes(id)) : onlineIds
 }
 
 const MAX_POLL_OPTIONS = 10
@@ -198,6 +206,7 @@ export function hydrate(db: Conn, rows: Array<typeof messages.$inferSelect>): Me
       poll: m.poll
         ? { options: m.poll.map(o => ({ ...o, userIds: votes.filter(v => v.messageId === m.id && v.choiceId === o.id).map(v => v.userId) })) }
         : null,
+      embed: m.embed ?? null,
     }
   })
 }
@@ -208,6 +217,9 @@ export interface SendOptions {
   replyToId?: string | null
   attachments?: Array<{ id: string; spoiler?: boolean }>
   poll?: unknown
+  /** Internal: the ingest endpoint posts as the webhook's owner. */
+  asWebhook?: boolean
+  embed?: Embed | null
 }
 
 /** Mentions = real users in the body, plus the author of the message being replied to (a reply pings). */
@@ -235,13 +247,15 @@ const ATTACH_FRESH_MS = 23 * 3600_000
 
 export function createMessage(db: Db, userId: string, channelId: string, body: unknown, now = Date.now(), opts: SendOptions = {}): MessageDto {
   const files = opts.attachments ?? []
-  if (typeof body !== 'string' || (!body.trim() && !files.length)) throw new ChatError(400, 'Message is empty')
+  if (typeof body !== 'string' || (!body.trim() && !files.length && !opts.embed)) throw new ChatError(400, 'Message is empty')
   if (Buffer.byteLength(body) > MAX_BODY_BYTES) throw new ChatError(413, 'Message is over 200 KB')
   if (files.length > MAX_FILES) throw new ChatError(400, `At most ${MAX_FILES} files per message`)
   const poll = opts.poll == null ? null : parsePoll(opts.poll)
   if (poll) checkQuestion(body)
   const ch = accessibleChannel(db, userId, channelId)
   if (!ch) throw new ChatError(403, 'No access to this channel')
+  if (ch.type === 'webhook' ? !opts.asWebhook : opts.asWebhook || opts.embed)
+    throw new ChatError(403, ch.type === 'webhook' ? 'Webhook feeds are read-only' : 'Not a webhook feed')
   return db.transaction(tx => {
     let replyAuthor: string | null = null
     if (opts.replyToId) {
@@ -255,7 +269,16 @@ export function createMessage(db: Db, userId: string, channelId: string, body: u
     }
     const row = tx
       .insert(messages)
-      .values({ id: crypto.randomUUID(), channelId, userId, body, poll, replyToId: opts.replyToId ?? null, createdAt: new Date(now) })
+      .values({
+        id: crypto.randomUUID(),
+        channelId,
+        userId,
+        body,
+        poll,
+        embed: opts.embed ?? null,
+        replyToId: opts.replyToId ?? null,
+        createdAt: new Date(now),
+      })
       .returning()
       .get()
     // The attachment rows are linked in the same transaction as the message.
@@ -304,7 +327,9 @@ export function editMessage(
   opts: { poll?: unknown; resetVotes?: boolean } = {},
 ): MessageDto {
   const m = liveMessage(db, messageId)
-  if (!m || !accessibleChannel(db, userId, m.channelId)) throw new ChatError(404, 'Message not found')
+  const ch = m && accessibleChannel(db, userId, m.channelId)
+  if (!ch) throw new ChatError(404, 'Message not found')
+  assertWritable(ch)
   if (m.userId !== userId) throw new ChatError(403, 'You can only edit your own messages')
   if (typeof body !== 'string') throw new ChatError(400, 'Message is empty')
   const hasFiles = !!db.select({ id: attachments.id }).from(attachments).where(eq(attachments.messageId, m.id)).get()
@@ -383,7 +408,9 @@ export function isEmoji(v: unknown): v is string {
 /** Adds or removes the user's reaction. Returns the message's reactions after the change. */
 export function setReaction(db: Db, userId: string, messageId: unknown, emoji: unknown, on: boolean) {
   const m = liveMessage(db, messageId)
-  if (!m || !accessibleChannel(db, userId, m.channelId)) throw new ChatError(404, 'Message not found')
+  const ch = m && accessibleChannel(db, userId, m.channelId)
+  if (!ch) throw new ChatError(404, 'Message not found')
+  assertWritable(ch)
   if (!isEmoji(emoji)) throw new ChatError(400, 'Not an emoji')
   const mine = and(eq(reactions.messageId, m.id), eq(reactions.userId, userId), eq(reactions.emoji, emoji))
   if (on) {
@@ -407,7 +434,9 @@ export function setReaction(db: Db, userId: string, messageId: unknown, emoji: u
 /** Casts, changes or (choiceId null) removes the user's vote. Returns the poll after the change. */
 export function setVote(db: Db, userId: string, messageId: unknown, choiceId: unknown) {
   const m = liveMessage(db, messageId)
-  if (!m || !accessibleChannel(db, userId, m.channelId)) throw new ChatError(404, 'Message not found')
+  const ch = m && accessibleChannel(db, userId, m.channelId)
+  if (!ch) throw new ChatError(404, 'Message not found')
+  assertWritable(ch)
   if (!m.poll) throw new ChatError(400, 'Not a poll')
   if (choiceId === null)
     db.delete(pollVotes)
