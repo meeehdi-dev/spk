@@ -7,6 +7,7 @@ export default defineEventHandler(async event => {
   return asHttp(async () => {
     const uploaded = typeof body.id === 'string' && /^[0-9a-f-]{36}$/.test(body.id) ? await r2Size(useR2(), soundKey(body.id)) : null
     const { id, name, icon, durationMs, size } = createSound(useDb(), u.id, body, uploaded)
+    broadcast({ type: 'sound:new', id })
     return { id, name, icon, durationMs, size }
   })
 })

@@ -10,6 +10,7 @@ export type SocketFrame =
   | ({ type: 'voice:radio:state'; sid: string } & RadioState)
   | { type: 'voice:radio:error'; sid: string; channelId?: string; error: string }
   | { type: 'channels:changed' | 'users:changed' | 'banned' | 'signed-out' }
+  | { type: 'sound:new'; id: string }
   | { type: 'presence:update'; userId: string; status: Presence }
   | { type: 'unread:update'; channelId: string; unread: number; mentions: number }
   | { type: 'message:new'; message: MessageDto; nonce?: string }

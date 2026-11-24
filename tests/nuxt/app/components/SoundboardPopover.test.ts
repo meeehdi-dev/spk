@@ -37,7 +37,7 @@ const mountPopover = () =>
     {
       global: {
         stubs: {
-          UPopover: { template: '<div><slot /><slot name="content" /></div>' },
+          UPopover: { name: 'UPopover', emits: ['update:open'], template: '<div><slot /><slot name="content" /></div>' },
         },
       },
     },
@@ -103,4 +103,13 @@ it('keeps search, results and controls mounted across refresh sizes and empty se
   state.sounds.value = [{ id: 'sound', name: 'Bell', icon: 'bell', durationMs: 1000 }]
   await search.setValue('bell')
   expect(results.find('[aria-label="Play Bell"]').exists()).toBe(true)
+})
+
+it('shows a dot for a new sound and clears it when the popover opens', async () => {
+  useState('newSound').value = true
+  const wrapper = await mountPopover()
+  expect(wrapper.findComponent({ name: 'UChip' }).props('show')).toBe(true)
+  wrapper.findComponent({ name: 'UPopover' }).vm.$emit('update:open', true)
+  await nextTick()
+  expect(wrapper.findComponent({ name: 'UChip' }).props('show')).toBe(false)
 })

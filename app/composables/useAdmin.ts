@@ -20,6 +20,7 @@ export function useAdminLive() {
   const socket = useSocket()
   socket.on(m => {
     if (m.type === 'channels:changed') void refreshNuxtData('channels')
+    else if (m.type === 'sound:new') useState('newSound').value = true
     else if (m.type === 'users:changed') void refreshNuxtData(['users', 'me'])
     else if (m.type === 'banned' || m.type === 'signed-out') window.location.assign('/login') // the sessions are gone; a reload also stops the socket's reconnects
   })

@@ -4,21 +4,24 @@ const v = useVoice()
 const { data: sounds, refresh } = useSounds()
 const { cooling, press } = useSoundboard()
 const sb = computed(() => v.settings.value.soundboard)
+const newSound = useState('newSound', () => false) // session-only: an admin added a sound
 const q = ref('')
 const shown = computed(() => sounds.value.filter(s => s.name.toLowerCase().includes(q.value.trim().toLowerCase())))
 </script>
 
 <template>
-  <UPopover :content="{ align: 'end', side: 'top' }" @update:open="$event && refresh()">
+  <UPopover :content="{ align: 'end', side: 'top' }" @update:open="$event && ((newSound = false), refresh())">
     <UTooltip text="Soundboard">
-      <UButton
-        icon="i-lucide-megaphone"
-        color="neutral"
-        variant="ghost"
-        :disabled="!v.channelId.value"
-        aria-label="Soundboard"
-        :label="labeled ? 'Soundboard' : undefined"
-      />
+      <UChip :show="newSound" color="primary" inset>
+        <UButton
+          icon="i-lucide-megaphone"
+          color="neutral"
+          variant="ghost"
+          :disabled="!v.channelId.value"
+          aria-label="Soundboard"
+          :label="labeled ? 'Soundboard' : undefined"
+        />
+      </UChip>
     </UTooltip>
     <template #content>
       <div class="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 p-3 text-sm">
