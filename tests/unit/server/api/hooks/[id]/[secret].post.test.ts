@@ -8,6 +8,7 @@ import { addUser, test } from '~~/tests/fixtures/db'
 import { stubNitro } from '~~/tests/fixtures/nitro'
 
 let id: string, secret: string, ip: string
+let hdr: Record<string, string>
 let ctype: string, clen: string | undefined, raw: string | null, chunks: string[] | null
 const publishMessage = vi.fn()
 type H = (event: never) => Promise<unknown>
@@ -30,6 +31,7 @@ test.beforeEach(async ({ db }) => {
   params = { id, secret }
   ip = '1.1.1.1'
   ctype = 'application/json'
+  hdr = {}
   clen = undefined
   chunks = null
   raw = JSON.stringify({ title: 'Deployed', message: 'ok' })
@@ -37,7 +39,7 @@ test.beforeEach(async ({ db }) => {
     useDb: () => db,
     getRouterParam: (_e: unknown, k: string) => params[k],
     getRequestIP: () => ip,
-    getRequestHeader: (_e: unknown, k: string) => (k === 'content-length' ? clen : ctype),
+    getRequestHeader: (_e: unknown, k: string) => (k === 'content-length' ? clen : k === 'content-type' ? ctype : hdr[k]),
     setResponseStatus: vi.fn(),
     publishMessage,
   })
@@ -67,20 +69,32 @@ describe('POST /api/hooks/:id/:secret', () => {
     expect(codes.slice(0, 20).every(c => c === 404)).toBe(true)
     expect(codes[20]).toBe(429)
   })
-  test('content-length over 64 KB → 413 without reading', async () => {
-    clen = String(64 * 1024 + 1)
+  test('content-length over 1 MB → 413 without reading', async () => {
+    clen = String(1024 * 1024 + 1)
     raw = null
     expect(await status(post({} as never))).toBe(413)
   })
-  test('raw body over 64 KB → 413', async () => {
-    raw = 'x'.repeat(64 * 1024 + 1)
+  test('raw body over 1 MB → 413', async () => {
+    raw = 'x'.repeat(1024 * 1024 + 1)
     ctype = 'text/plain'
     expect(await status(post({} as never))).toBe(413)
   })
-  test('chunked body without content-length over 64 KB → 413', async () => {
+  test('chunked body without content-length over 1 MB → 413', async () => {
     ctype = 'text/plain'
-    chunks = Array.from({ length: 5 }, () => 'x'.repeat(16 * 1024))
+    chunks = Array.from({ length: 5 }, () => 'x'.repeat(256 * 1024))
     expect(await status(post({} as never))).toBe(413)
+  })
+  test('raw body of exactly 1 MB is accepted', async () => {
+    raw = JSON.stringify({ title: 'x'.repeat(1024 * 1024 - 12) })
+    expect(Buffer.byteLength(raw)).toBe(1024 * 1024)
+    expect(await post({} as never)).toBeNull()
+  })
+  test('skipped GitHub event → 204 without a message', async ({ db }) => {
+    hdr = { 'x-github-event': 'workflow_job' }
+    raw = '{}'
+    expect(await post({} as never)).toBeNull()
+    expect(db.select().from(messages).all()).toEqual([])
+    expect(publishMessage).not.toHaveBeenCalled()
   })
   test.each([['{nope'], ['']])('unparseable %j → 400', async body => {
     raw = body

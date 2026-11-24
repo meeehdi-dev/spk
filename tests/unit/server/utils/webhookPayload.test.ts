@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest'
 import { extractMentionIds } from '#shared/utils/markdown'
 import { formatPayload, sanitizeEmbed } from '~~/server/utils/webhookPayload'
 
-const json = (v: unknown) => formatPayload('application/json', JSON.stringify(v))
+const json = (v: unknown) => formatPayload('application/json', JSON.stringify(v)) as Exclude<ReturnType<typeof formatPayload>, 'skip'>
 
 describe('formatPayload', () => {
   test.each([
@@ -80,7 +80,7 @@ describe('mention stripping', () => {
     ['application/json', JSON.stringify({ content: '<<@x>@abc>hi', embeds: [{ title: 't' }] })],
     ['application/json', JSON.stringify({ text: '<<@x>@abc>hi', attachments: [{ title: 't' }] })],
   ])('nested bypass in %s %s leaves no mention', (ct, raw) => {
-    expect(extractMentionIds(formatPayload(ct, raw)!.body)).toEqual([])
+    expect(extractMentionIds((formatPayload(ct, raw) as { body: string }).body)).toEqual([])
   })
   test('crafted input stays linear', () => {
     const t0 = performance.now()

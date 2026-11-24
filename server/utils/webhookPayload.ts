@@ -1,5 +1,7 @@
 import type { Embed } from '../../shared/utils/embed'
 
+import { formatGithub } from './githubPayload'
+
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v)
 const isScalar = (v: unknown): v is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof v)
@@ -132,8 +134,8 @@ function generic(p: Obj) {
   }
 }
 
-/** Turns a raw webhook request body into message text plus an optional embed. Null when there is nothing to post. */
-export function formatPayload(contentType: string, raw: string): { body: string; embed?: Embed } | null {
+/** Turns a raw webhook request body into message text plus an optional embed. Null when unreadable, 'skip' for events deliberately not posted. */
+export function formatPayload(contentType: string, raw: string, event?: string): { body: string; embed?: Embed } | 'skip' | null {
   const plain = (s: string) => {
     const body = stripMentions(s).trim()
     return body ? { body } : null
@@ -146,6 +148,10 @@ export function formatPayload(contentType: string, raw: string): { body: string;
     return null
   }
   if (!isObj(p)) return Array.isArray(p) || p === null ? formatNested(p) : plain(String(p))
+  if (event) {
+    const g = formatGithub(event, p)
+    return g === 'skip' ? g : { body: '', embed: sanitizeEmbed(g) }
+  }
   const dEmbed = Array.isArray(p.embeds) && isObj(p.embeds[0]) ? p.embeds[0] : null
   const sAttach = Array.isArray(p.attachments) && isObj(p.attachments[0]) ? p.attachments[0] : null
   let r: { body: string; embed?: Obj }
