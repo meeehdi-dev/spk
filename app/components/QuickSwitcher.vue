@@ -31,7 +31,7 @@ const groups = computed(() => [
     id: 'people',
     label: 'People',
     items: users.value
-      .filter(u => u.id !== me.value?.id && u.displayName)
+      .filter(u => u.id !== me.value?.id && u.id !== BOT_ID && u.displayName)
       .map(u => ({
         label: u.displayName!,
         suffix: 'Send a message',

@@ -138,7 +138,7 @@ export function useAdmin() {
             dialog.value = { kind: 'profile', userId: id }
           },
         },
-        ...(mine ? [] : [{ label: 'Send DM', icon: 'i-lucide-message-circle', onSelect: () => openDmWith(id) }]),
+        ...(mine || id === BOT_ID ? [] : [{ label: 'Send DM', icon: 'i-lucide-message-circle', onSelect: () => openDmWith(id) }]),
         ...(inChat
           ? [
               {

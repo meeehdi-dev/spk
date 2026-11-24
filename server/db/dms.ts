@@ -3,6 +3,8 @@ import type { Db } from './client'
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 
+import { BOT_ID } from '../../shared/utils/bot'
+
 import { ChatError } from './messages'
 import { readableChannel } from './readable'
 import { channelMembers, channels, user, webhooks } from './schema'
@@ -24,7 +26,7 @@ export interface ChannelDto {
 export function openDm(db: Db, me: string, otherId: unknown): ChannelDto {
   if (typeof otherId !== 'string' || !otherId) throw new ChatError(400, 'Pick a user')
   if (otherId === me) throw new ChatError(400, "You can't message yourself")
-  if (!db.select({ id: user.id }).from(user).where(eq(user.id, otherId)).get()) throw new ChatError(404, 'User not found')
+  if (otherId === BOT_ID || !db.select({ id: user.id }).from(user).where(eq(user.id, otherId)).get()) throw new ChatError(404, 'User not found')
   return db.transaction(tx => {
     const a = alias(channelMembers, 'a'),
       b = alias(channelMembers, 'b')

@@ -35,7 +35,7 @@ const { data: allChannels } = useChannels()
 const people = computed(() => {
   const dmOf = new Map(allChannels.value.filter(c => c.type === 'dm').map(c => [c.otherUserId, c]))
   return users.value
-    .filter(u => u.id !== me.value?.id && u.displayName && !u.banned)
+    .filter(u => u.id !== me.value?.id && u.id !== BOT_ID && u.displayName && !u.banned)
     .map(u => ({ user: u, dm: dmOf.get(u.id) }))
     .sort((a, b) => (b.dm?.lastActivityAt ?? 0) - (a.dm?.lastActivityAt ?? 0) || a.user.displayName!.localeCompare(b.user.displayName!))
 })

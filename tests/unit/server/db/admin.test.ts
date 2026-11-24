@@ -6,6 +6,7 @@ import { describe, expect } from 'vitest'
 import { listUsersWithStorage, setBanned, setRole } from '~~/server/db/admin'
 import { createMessage } from '~~/server/db/messages'
 import { attachments, messages, pushSubscriptions, session, user } from '~~/server/db/schema'
+import { BOT_ID } from '~~/shared/utils/bot'
 import { addChannel, addUser, test } from '~~/tests/fixtures/db'
 
 const addPush = (db: Db, userId: string) =>
@@ -38,6 +39,15 @@ describe('setRole', () => {
     setRole(db, 'c', 'admin')
     setBanned(db, 'a', 'c', true)
     expect(() => setRole(db, 'a', 'user')).toThrow(/last admin/)
+  })
+})
+
+describe('bot user', () => {
+  test('is hidden from the list and cannot be changed', ({ db }) => {
+    addUser(db, BOT_ID)
+    expect(() => setRole(db, BOT_ID, 'admin')).toThrow(/not found/)
+    expect(() => setBanned(db, 'a', BOT_ID, true)).toThrow(/not found/)
+    expect(listUsersWithStorage(db).users.map(u => u.id)).not.toContain(BOT_ID)
   })
 })
 

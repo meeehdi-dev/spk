@@ -93,6 +93,15 @@ function stubResizeObserver() {
   return { observers, notify }
 }
 
+describe('bot badge', () => {
+  it('marks messages from the bot only', async () => {
+    const mount = (userId: string) =>
+      mountInApp(ChatMessage, { message: { ...message, userId }, grouped: false }, { global: { provide: { [chatActionsKey as symbol]: actions } } })
+    expect((await mount(BOT_ID)).text()).toContain('BOT')
+    expect((await mount('a')).text()).not.toContain('BOT')
+  })
+})
+
 describe('poll', () => {
   it('renders the poll above reactions', async () => {
     const poll = { options: [{ id: 'o1', label: 'Yes', userIds: ['a'] }] }

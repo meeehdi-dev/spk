@@ -55,6 +55,7 @@ export default defineNuxtConfig({
     vapidPrivateKey: '',
     vapidSubject: '',
     klipyApiKey: '',
+    anthropicApiKey: '',
     public: { livekitUrl: '', vapidPublicKey: '' },
   },
   compatibilityDate: '2025-07-15',

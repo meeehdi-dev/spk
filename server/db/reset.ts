@@ -4,6 +4,8 @@ import { randomBytes } from 'node:crypto'
 
 import { and, eq, gt, like } from 'drizzle-orm'
 
+import { BOT_ID } from '../../shared/utils/bot'
+
 import { hashToken } from './invites'
 import { ChatError } from './messages'
 import { account, pushSubscriptions, session, user, verification } from './schema'
@@ -14,7 +16,8 @@ const ident = (token: string) => PREFIX + hashToken(token)
 
 /** One-time password reset link token for a user. Only its hash is stored; a new link replaces the old one. */
 export function createResetToken(db: Db, userId: unknown, now = Date.now()) {
-  if (typeof userId !== 'string' || !db.select({ id: user.id }).from(user).where(eq(user.id, userId)).get()) throw new ChatError(404, 'User not found')
+  if (typeof userId !== 'string' || userId === BOT_ID || !db.select({ id: user.id }).from(user).where(eq(user.id, userId)).get())
+    throw new ChatError(404, 'User not found')
   const token = randomBytes(24).toString('base64url')
   db.transaction(tx => {
     tx.delete(verification)

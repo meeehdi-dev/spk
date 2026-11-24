@@ -4,6 +4,7 @@ import { describe, expect } from 'vitest'
 
 import { checkResetToken, createResetToken, RESET_TTL_MS, resetPassword } from '~~/server/db/reset'
 import { account, pushSubscriptions, session, verification } from '~~/server/db/schema'
+import { BOT_ID } from '~~/shared/utils/bot'
 import { addUser, test } from '~~/tests/fixtures/db'
 
 const addCred = (db: Db) => db.insert(account).values({ id: 'acc', accountId: 'b', providerId: 'credential', userId: 'b', password: 'old' }).run()
@@ -14,6 +15,11 @@ test.beforeEach(({ db }) => {
 })
 
 describe('reset password link', () => {
+  test('is refused for the bot', ({ db }) => {
+    addUser(db, BOT_ID)
+    expect(() => createResetToken(db, BOT_ID)).toThrow(/not found/)
+  })
+
   test('stores only a hash and works exactly once, signing the user out', ({ db }) => {
     addCred(db)
     db.insert(session)

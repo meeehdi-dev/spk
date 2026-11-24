@@ -133,7 +133,7 @@ const title = computed(
           </div>
           <span v-if="email" class="truncate text-xs text-muted"><EmojiText :text="email" /></span>
           <UButton
-            v-if="me?.id !== profile.id"
+            v-if="me?.id !== profile.id && profile.id !== BOT_ID"
             label="Send DM"
             icon="i-lucide-message-circle"
             class="mt-1 w-fit"

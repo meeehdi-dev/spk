@@ -297,6 +297,7 @@ function onKey(e: KeyboardEvent) {
           <button v-else ref="nameEl" type="button" class="font-bold hover:underline" @click="openProfile">
             <EmojiText :text="nameOf(message.userId)" />
           </button>
+          <UBadge v-if="message.userId === BOT_ID" label="BOT" size="sm" variant="subtle" />
           <UTooltip :text="exactTime(message.createdAt)">
             <span class="text-xs text-muted">{{ rel }}</span>
           </UTooltip>

@@ -1,12 +1,14 @@
 import type { Db } from './client'
 
-import { eq, sql } from 'drizzle-orm'
+import { eq, ne, sql } from 'drizzle-orm'
+
+import { BOT_ID } from '../../shared/utils/bot'
 
 import { ChatError } from './messages'
 import { wouldRemoveLastAdmin } from './roles'
 import { attachments, pushSubscriptions, session, sounds, user } from './schema'
 
-const exists = (db: Db, id: unknown) => typeof id === 'string' && !!db.select({ id: user.id }).from(user).where(eq(user.id, id)).get()
+const exists = (db: Db, id: unknown) => typeof id === 'string' && id !== BOT_ID && !!db.select({ id: user.id }).from(user).where(eq(user.id, id)).get()
 
 /** Changes a role. The last admin can't be demoted (also when they are the one asking). */
 export function setRole(db: Db, targetId: unknown, role: unknown) {
@@ -65,6 +67,7 @@ export function listUsersWithStorage(db: Db) {
       createdAt: user.createdAt,
     })
     .from(user)
+    .where(ne(user.id, BOT_ID))
     .orderBy(user.createdAt)
     .all()
     .map(u => ({ ...u, createdAt: u.createdAt.getTime(), bytes: bytes.get(u.id) ?? 0 }))

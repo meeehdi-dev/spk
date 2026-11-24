@@ -5,6 +5,7 @@ import { accessibleChannel, channelMemberIds, ChatError, createMessage, type Mes
 import { markRead, readState } from '../db/reads'
 import { channels } from '../db/schema'
 
+import { maybeReply } from './bot'
 import { logConnectionDiag } from './connectionDiag'
 import { createLimiter } from './limiter'
 import { onlineUserIds, sendToUser, setManualStatus, setPeerIdle, broadcast } from './peers'
@@ -81,6 +82,7 @@ export function handleClientFrame(userId: string, raw: string, socket?: unknown)
         poll: m.poll,
       })
       publishMessage(message, { senderId: userId, nonce: m.nonce })
+      void maybeReply(message)
     } catch (e) {
       if (!(e instanceof ChatError)) throw e
       sendToUser(userId, { type: 'message:error', nonce: m.nonce, error: e.message })

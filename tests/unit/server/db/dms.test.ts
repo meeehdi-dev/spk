@@ -2,6 +2,7 @@ import { describe, expect } from 'vitest'
 
 import { listChannelsFor, openDm } from '~~/server/db/dms'
 import { accessibleChannel, createMessage } from '~~/server/db/messages'
+import { BOT_ID } from '~~/shared/utils/bot'
 import { addUser, test } from '~~/tests/fixtures/db'
 
 test.beforeEach(({ db }) => {
@@ -18,6 +19,10 @@ describe('openDm', () => {
     expect(() => createMessage(db, 'c', dm.id, 'hi')).toThrow(/No access/)
     expect(() => openDm(db, 'a', 'a')).toThrow()
     expect(() => openDm(db, 'a', 'ghost')).toThrow(/not found/)
+  })
+  test('cannot open a DM with the bot', ({ db }) => {
+    addUser(db, BOT_ID)
+    expect(() => openDm(db, 'a', BOT_ID)).toThrow(/not found/)
   })
 })
 
