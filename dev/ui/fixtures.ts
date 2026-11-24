@@ -7,6 +7,7 @@ import type { MessageDto } from '~~/server/db/messages'
 
 import { readonly, ref } from 'vue'
 
+import { githubEmbeds } from './github'
 import { resetVoiceScenario } from './voice'
 
 export const scenarioPresets = ['populated', 'empty', 'connecting', 'reconnecting', 'errors'] as const
@@ -83,6 +84,7 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
     { id: 'ui-voice-empty', type: 'voice', name: 'Quiet room' },
     { id: 'ui-dm', type: 'dm', name: null, otherUserId: 'ui-alex', lastActivityAt: preset === 'empty' ? null : epoch },
     { id: 'ui-webhook', type: 'webhook', name: 'Coolify', icon: 'server', ownerId: 'ui-me' },
+    { id: 'ui-webhook-github', type: 'webhook', name: 'GitHub - spk', icon: 'git-pull-request', ownerId: 'ui-me' },
   ]
   messages =
     preset === 'empty'
@@ -187,6 +189,7 @@ export function resetScenario(preset: ScenarioPreset = 'populated') {
         timestamp: new Date(epoch).toISOString(),
       }),
       deploy('play', 'rearview'),
+      ...githubEmbeds().map(embed => Object.assign(message('ui-webhook-github', 'ui-me', ''), { embed })),
     )
   }
   unread = {
