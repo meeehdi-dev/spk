@@ -1,7 +1,7 @@
-// Floating menus, popovers and tooltips: base color, a soft ring and a deeper shadow (black in dark mode, where the default shadow is invisible).
-const floating = 'bg-(--ui-bg-base) shadow-xl shadow-black/10 ring-default/60 dark:shadow-black/50'
+// Floating menus, popovers and tooltips: base color, no ring and a deeper shadow (black in dark mode, where the default shadow is invisible).
+const floating = 'bg-(--ui-bg-base) shadow-xl shadow-black/10 ring-0 dark:shadow-black/50'
 const field = 'bg-(--ui-bg-field,var(--ui-bg-panel)) ring-0'
-const focus = 'outline-inverted/25'
+const focus = 'outline-none ring-0 focus-visible:ring-0 focus-visible:bg-elevated'
 
 export default defineAppConfig({
   ui: {
@@ -79,7 +79,7 @@ export default defineAppConfig({
       ],
     },
     // Fields have no border and use the panel color, or --ui-bg-field (sidebar color) inside cards.
-    // Focus outline is neutral, not primary.
+    // Focus lightens the background instead of drawing a ring.
     input: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
     inputMenu: {
       slots: { content: floating },
@@ -87,11 +87,15 @@ export default defineAppConfig({
       compoundVariants: [{ variant: 'outline', class: focus }],
     },
     inputNumber: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
-    select: { slots: { content: floating }, variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
+    select: {
+      slots: { content: floating },
+      variants: { variant: { outline: field } },
+      compoundVariants: [{ variant: 'outline', class: `${focus} data-[state=open]:bg-elevated` }],
+    },
     selectMenu: {
       slots: { content: floating },
       variants: { variant: { outline: field } },
-      compoundVariants: [{ variant: 'outline', class: focus }],
+      compoundVariants: [{ variant: 'outline', class: `${focus} data-[state=open]:bg-elevated` }],
     },
     textarea: { variants: { variant: { outline: field } }, compoundVariants: [{ variant: 'outline', class: focus }] },
   },

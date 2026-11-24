@@ -37,7 +37,7 @@ const extensions = [
 </script>
 
 <template>
-  <div class="rounded-md border border-primary bg-(--ui-bg-base)">
+  <div class="rounded-md bg-(--ui-bg-base)">
     <UEditor
       v-model="model"
       content-type="markdown"
@@ -59,7 +59,7 @@ const extensions = [
         <ChatEditorMenu v-if="emojiItems.length" kind="emoji" :editor="editor" :items="emojiItems" />
       </template>
     </UEditor>
-    <div class="flex items-center gap-2 border-t border-default px-2 py-1 text-xs text-muted">
+    <div class="flex items-center gap-2 px-2 py-1 text-xs text-muted">
       <span>Esc to cancel · Enter to save</span>
       <UButton class="ml-auto" label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
       <UButton label="Save" icon="i-lucide-check" @click="save" />

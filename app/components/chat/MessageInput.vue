@@ -165,7 +165,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="p-3 compact:p-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
+  <div class="px-4 pb-3 compact:pb-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
     <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-(--ui-bg-base) px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
       <span class="truncate"
@@ -175,7 +175,7 @@ defineExpose({
         <UButton class="ml-auto" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Cancel reply" @click="emit('cancelReply')" />
       </UTooltip>
     </div>
-    <div class="rounded-lg bg-(--ui-bg-base) ring-1 ring-transparent" :class="dragging ? 'bg-primary/5 ring-primary' : ''" @paste.capture="onPaste">
+    <div class="rounded-lg bg-(--ui-bg-base)" :class="dragging ? 'bg-primary/5' : ''" @paste.capture="onPaste">
       <ChatUploadQueue v-if="uploads.items.value.length || gif" :uploads="uploads.items.value" :gif="gif" @cancel="uploads.cancel" @remove-gif="gif = null" />
       <!-- sm:px-3 overrides Nuxt UI's sm:px-8 on desktop; px-3 alone only covers phones. -->
       <UEditor
