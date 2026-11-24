@@ -165,7 +165,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="px-4 pb-3 compact:pb-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
+  <div class="px-2 pb-2" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop="onDrop">
     <div v-if="replyTo" class="mb-1 flex items-center gap-2 rounded-md bg-(--ui-bg-base) px-2 py-1 text-xs">
       <UIcon name="i-lucide-reply" class="size-4 shrink-0" />
       <span class="truncate"
