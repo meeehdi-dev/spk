@@ -14,7 +14,7 @@ let current = null // { win, sources, audio, finish } while a request is open
 const isPicker = event => !!current?.win && event.sender === current.win.webContents && event.senderFrame?.url.split(/[?#]/)[0] === pickerUrl
 const kind = source => (source.id.startsWith('screen:') ? 'screen' : 'window')
 
-/** Owns the display-media handler: grants a lone screen directly, otherwise asks through a modal picker window. */
+/** Owns the display-media handler: grants a lone screen directly, otherwise asks through a picker window. */
 export const setupPicker = ({ session, getWindow, isServer }) => {
   ipcMain.handle('spk:picker:sources', event => {
     if (!isPicker(event)) return { audio: false, sources: [] }
@@ -60,15 +60,14 @@ export const setupPicker = ({ session, getWindow, isServer }) => {
       }
 
       const area = screen.getDisplayMatching(parent.getBounds()).workArea
-      const fit = (ratio, min, max, full) => Math.min(full, Math.min(max, Math.max(min, Math.round(full * ratio))))
-      const width = fit(0.75, 960, 1500, area.width)
-      const height = fit(0.75, 680, 1000, area.height)
+      // A 720px square with 3 thumbnail columns; the grid scrolls past that.
+      const width = Math.min(area.width, 720)
+      const height = Math.min(area.height, 720)
       const picker = new BrowserWindow({
-        parent,
-        modal: true,
+        parent, // not modal: macOS would attach it as a sheet to spk's window and ignore x/y
         width,
         height,
-        // Centered on the parent's display (macOS attaches modal children as sheets and ignores x/y).
+        // Centered on the screen spk is on.
         x: area.x + Math.round((area.width - width) / 2),
         y: area.y + Math.round((area.height - height) / 2),
         minWidth: 720,
