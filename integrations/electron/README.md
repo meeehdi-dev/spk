@@ -33,7 +33,7 @@ Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS install
 ## Features
 
 - Unread badge from `<meta name="spk-unread">`, the same source as the [Ferdium recipe](../ferdium/README.md).
-- Notifications, microphone, camera, and screen sharing (native picker on macOS 15+), granted only to your server's origin.
+- Notifications, microphone, camera, and screen sharing, granted only to your server's origin.
 - The unread badge works on macOS, and on Linux only with a matching `.desktop` file or Unity launcher. It does not work on Windows.
 - Links to other sites open in your default browser; only the server origin loads in the window.
 
@@ -41,6 +41,7 @@ Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS install
 
 - Same-origin popups (attachment "Open", image "Open original") open in the system browser, which needs its own sign-in.
 - No Web Push: Electron has no push service, so push is disabled in the app. Notifications appear only while the app is running.
+- Screen sharing always shares the first (main) screen; there is no window or screen picker. Screen audio (system loopback) works on Windows and macOS 14.2+ (macOS asks for System Audio Recording permission the first time), not on Linux. It captures all system audio, including the other participants' voices.
 - Builds are unsigned (Windows SmartScreen will warn) and have no auto-update. macOS builds are ad-hoc signed and not notarized: on first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/spk.app`.
 - macOS asks for microphone and camera access on first use; if denied, enable it in System Settings → Privacy & Security.
 
@@ -51,6 +52,6 @@ Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS install
 3. File → Change server… returns to setup with the current URL prefilled.
 4. Unread messages in another account set the dock/taskbar badge; reading clears it.
 5. A link to an external site opens in the browser, not in the window.
-6. Joining voice asks for the microphone (macOS prompt) and works; screen share starts.
+6. Joining voice asks for the microphone (macOS prompt) and works; screen share starts; with audio, listeners hear system audio.
 7. A second launch focuses the existing window.
 8. Settings → Notifications shows no push subscribe option; the permission prompt still works.

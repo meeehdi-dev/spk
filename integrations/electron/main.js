@@ -100,18 +100,18 @@ const setupSession = () => {
     }
     callback(true)
   })
-  ses.setDisplayMediaRequestHandler(
-    async (request, callback) => {
-      try {
-        if (!isServer(request.securityOrigin)) return callback({})
-        const [screen] = await desktopCapturer.getSources({ types: ['screen'] })
-        callback(screen ? { video: screen, ...(process.platform === 'win32' && { audio: 'loopback' }) } : {})
-      } catch {
-        callback({})
-      }
-    },
-    { useSystemPicker: true },
-  )
+  // No useSystemPicker: the macOS picker returns video only, so screen audio would be silently dropped.
+  // shortcut: always shares the first screen, add a source picker if window sharing is needed.
+  ses.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      if (!isServer(request.securityOrigin)) return callback({})
+      const [screen] = await desktopCapturer.getSources({ types: ['screen'] })
+      const loopback = request.audioRequested && process.platform !== 'linux' // system audio: Windows, macOS 14.2+
+      callback(screen ? { video: screen, ...(loopback && { audio: 'loopback' }) } : {})
+    } catch {
+      callback({})
+    }
+  })
 }
 
 const setupIpc = () => {
