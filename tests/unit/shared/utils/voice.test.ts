@@ -58,7 +58,7 @@ describe('sensitivity', () => {
 })
 
 describe('screen share audio', () => {
-  it('is captured without any processing', () => expect(Object.values(SCREEN_AUDIO_CAPTURE)).toEqual([false, false, false]))
+  it('is captured without any processing and without the call itself', () => expect(Object.values(SCREEN_AUDIO_CAPTURE)).toEqual([false, false, false, true]))
 })
 
 describe('screen share and per-user volume', () => {

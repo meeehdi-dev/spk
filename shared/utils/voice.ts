@@ -40,7 +40,7 @@ export function matchDevice(saved: SavedDevice | undefined, devices: DeviceLike[
 export const sensitivityToDb = (sensitivity: number) => -20 - Math.min(100, Math.max(0, sensitivity)) * 0.6
 
 /** Screen share audio is never processed: no browser suppression/echo/gain and no DeepFilterNet (that applies to the mic track only). F11 passes this to LiveKit's screen share audio capture. */
-export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false } as const
+export const SCREEN_AUDIO_CAPTURE = { noiseSuppression: false, echoCancellation: false, autoGainControl: false, restrictOwnAudio: true } as const
 
 export const SCREEN_HEIGHTS = [720, 1080, 1440] as const
 export const SCREEN_FPS = [5, 30, 60] as const

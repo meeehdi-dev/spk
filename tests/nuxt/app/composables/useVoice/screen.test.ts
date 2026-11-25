@@ -540,6 +540,33 @@ describe('live screen settings', () => {
     expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ description: expect.stringContaining('did not provide audio') }))
   })
 
+  it('asks to leave out its own audio and reports audio the system refused to provide', async () => {
+    expect(SCREEN_AUDIO_CAPTURE.restrictOwnAudio).toBe(true)
+    const screenAudioFailed = vi.fn()
+    vi.stubGlobal('spkDesktop', { screenAudioFailed })
+    const dead = track('audio')
+    dead.mediaStreamTrack.readyState = 'ended'
+    p.createScreenTracks.mockResolvedValueOnce([track('video'), dead])
+    await v.startScreen()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Screen audio unavailable' }))
+    expect(screenAudioFailed).toHaveBeenCalledTimes(1)
+    expect(p.publishTrack).not.toHaveBeenCalledWith(dead, expect.anything())
+    expect(dead.stop).toHaveBeenCalled()
+  })
+
+  it('keeps the current share when re-captured audio is dead', async () => {
+    const { video } = await share()
+    const next = track('video'),
+      dead = track('audio')
+    dead.mediaStreamTrack.readyState = 'ended'
+    p.createScreenTracks.mockResolvedValueOnce([next, dead])
+    await v.setScreenAudio(true)
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Screen audio unavailable' }))
+    expect(video.stop).not.toHaveBeenCalled()
+    expect(next.stop).toHaveBeenCalled()
+    expect(p.publishTrack).not.toHaveBeenCalledWith(dead, expect.anything())
+  })
+
   it('restores the original share if replacement audio publication fails', async () => {
     const { video } = await share()
     const next = track('video'),

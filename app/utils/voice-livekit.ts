@@ -1147,6 +1147,20 @@ export function useVoice() {
     systemAudio: 'include',
     surfaceSwitching: 'include',
   })
+  /** True (and reported) when the OS handed us an already-dead audio track; no track at all is the user's choice. */
+  const screenAudioDead = (audio?: LocalAudioTrack) => {
+    if (audio?.mediaStreamTrack.readyState !== 'ended') return false
+    toast.add({
+      title: 'Screen audio unavailable',
+      description: window.spkDesktop
+        ? 'Your system did not provide audio for this share. On macOS, allow spk under System Settings → Privacy & Security → System Audio Recording, then restart spk.'
+        : 'Your system did not provide audio for this share.',
+      color: 'warning',
+      icon: 'i-lucide-volume-x',
+    })
+    window.spkDesktop?.screenAudioFailed?.()
+    return true
+  }
   const screenPublish = (quality: ScreenQuality): TrackPublishOptions => {
     const p = screenShareOptions(quality)
     return {
@@ -1220,7 +1234,11 @@ export function useVoice() {
       tracks = await r.localParticipant.createScreenTracks(screenCapture(quality, settings.value.screenAudio))
       if (!current()) return
       const video = tracks.find(t => t.kind === 'video') as LocalVideoTrack
-      const audio = tracks.find(t => t.kind === 'audio') as LocalAudioTrack | undefined
+      let audio = tracks.find(t => t.kind === 'audio') as LocalAudioTrack | undefined
+      if (screenAudioDead(audio)) {
+        audio?.stop() // never published; already ended
+        audio = undefined
+      }
       captured = capturedScreen(video, audio)
       screenSession = captured
       await publishScreenVideo(r, captured, quality)
@@ -1310,6 +1328,7 @@ export function useVoice() {
       if (!current()) return
       const video = tracks.find(t => t.kind === 'video') as LocalVideoTrack
       const audio = tracks.find(t => t.kind === 'audio') as LocalAudioTrack | undefined
+      if (screenAudioDead(audio)) return // finally discards the unused capture; the old share stays
       if (!audio) throw new Error('This browser or selected source did not provide audio. Choose an audio-capable source and enable audio in the picker.')
       replacement = pendingScreenSession = capturedScreen(video, audio)
       const requireLive = () => {

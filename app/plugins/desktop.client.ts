@@ -9,6 +9,7 @@ declare global {
       onCommand?: (cb: (cmd: string) => void) => () => void
       attention?: () => void
       focus?: () => void
+      screenAudioFailed?: () => void
     }
   }
 }
