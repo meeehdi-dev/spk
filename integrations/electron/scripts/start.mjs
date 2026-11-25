@@ -1,5 +1,5 @@
 // `pnpm start`: on macOS, run Electron from a renamed copy (.dev/spk.app) so the menu bar and dock show spk and its icon.
-// The copy is rebuilt when the Electron version changes. node_modules is never modified: pnpm hardlinks it from a shared store.
+// The copy is rebuilt when the Electron version or the stamp format changes. node_modules is never modified: pnpm hardlinks it from a shared store.
 import { spawn, execFileSync } from 'node:child_process'
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -11,7 +11,7 @@ const require = createRequire(join(root, 'package.json'))
 let binary = require('electron') // path to the stock Electron binary
 
 if (process.platform === 'darwin') {
-  const version = require('electron/package.json').version
+  const version = `${require('electron/package.json').version}:2`
   const app = join(root, '.dev/spk.app')
   const stamp = join(root, '.dev/version')
   if (!existsSync(stamp) || readFileSync(stamp, 'utf8') !== version) {
@@ -21,7 +21,7 @@ if (process.platform === 'darwin') {
     for (const [key, value] of [
       ['CFBundleName', 'spk'],
       ['CFBundleDisplayName', 'spk'],
-      ['CFBundleIdentifier', 'dev.spk.desktop.dev'], // separate from packaged builds, so macOS keeps their permissions apart
+      ['CFBundleIdentifier', 'dev.spk.desktop'], // same as packaged builds, so macOS shows a single spk entry in Privacy settings
     ])
       execFileSync('plutil', ['-replace', key, '-string', value, plist])
     execFileSync('sips', ['-s', 'format', 'icns', join(root, '../../public/pwa-512x512.png'), '--out', join(app, 'Contents/Resources/electron.icns')], {

@@ -12,8 +12,8 @@
     // Standalone Electron wrapper with its own package.json.
     "integrations/electron/{*.js,*.cjs,scripts/*.mjs}",
   ],
-  // macOS system tools used by integrations/electron/scripts/start.mjs.
-  "ignoreBinaries": ["sips"],
+  // macOS system tools used by integrations/electron/scripts (start.mjs, reset-permissions.mjs).
+  "ignoreBinaries": ["sips", "tccutil"],
   "ignoreDependencies": [
     // Provided by integrations/electron/package.json, which is outside the workspace.
     "electron",

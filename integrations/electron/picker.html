@@ -10,31 +10,38 @@
         display: flex;
         flex-direction: column;
         height: 100vh;
+        overflow: hidden;
         background: #18181b;
         color: #fafafa;
         font:
           14px system-ui,
           sans-serif;
       }
+      header {
+        padding: 16px 20px 12px;
+        border-bottom: 1px solid #3f3f46;
+      }
       main {
         flex: 1;
+        min-height: 0;
         overflow: auto;
-        padding: 16px;
+        padding: 4px 20px 16px;
       }
       h1 {
-        margin: 0 0 12px;
+        margin: 0;
         font-size: 18px;
       }
       h2 {
-        margin: 16px 0 8px;
-        font-size: 13px;
+        margin: 16px 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.04em;
         color: #a1a1aa;
         text-transform: uppercase;
       }
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
       }
       .grid button {
         display: grid;
@@ -78,7 +85,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 16px;
+        padding: 12px 20px;
         border-top: 1px solid #3f3f46;
       }
       label {
@@ -87,6 +94,7 @@
         gap: 6px;
       }
       #cancel {
+        margin-left: auto;
         padding: 8px 14px;
         border: 1px solid #3f3f46;
         border-radius: 6px;
@@ -95,14 +103,21 @@
         font: inherit;
         cursor: pointer;
       }
+      #cancel:focus-visible,
+      #audio:focus-visible {
+        outline: 2px solid #fafafa;
+        outline-offset: 2px;
+      }
       [hidden] {
         display: none;
       }
     </style>
   </head>
   <body>
-    <main>
+    <header>
       <h1>Share your screen</h1>
+    </header>
+    <main>
       <section id="screens" hidden>
         <h2>Screens</h2>
         <div class="grid"></div>

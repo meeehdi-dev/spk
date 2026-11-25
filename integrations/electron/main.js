@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { app, BrowserWindow, ipcMain, powerSaveBlocker, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, session, shell, systemPreferences } from 'electron'
 
 import { readConfig, setConfigFile, writeConfig } from './config.js'
 import { setupMenu } from './menu.js'
@@ -42,7 +42,8 @@ const stopBlocker = () => {
   blocker = null
 }
 
-const showSetup = (error = '') => win.loadURL(`${setupUrl}?${new URLSearchParams({ server: server ?? '', error })}`)
+// The catch covers loads cancelled by "Stay" in the leave-call dialog.
+const showSetup = (error = '') => win.loadURL(`${setupUrl}?${new URLSearchParams({ server: server ?? '', error })}`).catch(() => {})
 const load = () => (server ? win.loadURL(server).catch(() => {}) : showSetup()) // failures are handled by did-fail-load
 
 /** https anywhere, http only for loopback. Returns an origin or null. */
@@ -93,6 +94,20 @@ const createWindow = ({ setup = false } = {}) => {
   })
   win.webContents.on('did-start-navigation', ({ isMainFrame, isSameDocument }) => isMainFrame && !isSameDocument && resetVoice())
   win.webContents.on('render-process-gone', resetVoice)
+  // The web app blocks unload during a call (browsers show "Leave site?"); Electron shows nothing, so ask here.
+  // preventDefault() on this event lets the unload (close, quit, reload, navigation) go ahead.
+  win.webContents.on('will-prevent-unload', event => {
+    showWindow() // a dialog owned by a hidden/minimized window would be invisible and block the app
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      message: 'Leave the call?',
+      detail: 'You are in a voice call. Closing or reloading spk disconnects you.',
+      buttons: ['Leave', 'Stay'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    if (choice === 0) event.preventDefault()
+  })
   win.on('focus', () => process.platform !== 'darwin' && win.flashFrame(false))
   win.on('closed', () => {
     win = null
@@ -145,6 +160,9 @@ const setupIpc = () => {
     if (!isServer(event.senderFrame?.url ?? '') || !win || win.isFocused()) return
     if (process.platform === 'darwin') app.dock?.bounce('informational')
     else win.flashFrame(true)
+  })
+  ipcMain.on('spk:screen-audio-failed', event => {
+    if (process.platform === 'darwin' && isServer(event.senderFrame?.url ?? '')) explainDenied(win, 'System Audio Recording')
   })
   ipcMain.on('spk:focus', event => {
     if (isServer(event.senderFrame?.url ?? '') && win) showWindow()

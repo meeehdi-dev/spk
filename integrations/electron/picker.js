@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { BrowserWindow, desktopCapturer, ipcMain, systemPreferences } from 'electron'
+import { BrowserWindow, desktopCapturer, ipcMain, screen, systemPreferences } from 'electron'
 
 import { explainDenied } from './permissions.js'
 import { once } from './util.js'
@@ -44,7 +44,7 @@ export const setupPicker = ({ session, getWindow, isServer }) => {
     }
     try {
       // getSources triggers the macOS permission prompt, so check the status only after it
-      const all = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
+      const all = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 480, height: 270 }, fetchWindowIcons: true })
       if (process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('screen') === 'denied') {
         explainDenied(parent, 'Screen Recording')
         return reject()
@@ -59,11 +59,21 @@ export const setupPicker = ({ session, getWindow, isServer }) => {
         return callback({ video: screens[0], ...(audio && { audio: 'loopback' }) })
       }
 
+      const area = screen.getDisplayMatching(parent.getBounds()).workArea
+      const fit = (ratio, min, max, full) => Math.min(full, Math.min(max, Math.max(min, Math.round(full * ratio))))
+      const width = fit(0.75, 960, 1500, area.width)
+      const height = fit(0.75, 680, 1000, area.height)
       const picker = new BrowserWindow({
         parent,
         modal: true,
-        width: 720,
-        height: 520,
+        width,
+        height,
+        // Centered on the parent's display (macOS attaches modal children as sheets and ignores x/y).
+        x: area.x + Math.round((area.width - width) / 2),
+        y: area.y + Math.round((area.height - height) / 2),
+        minWidth: 720,
+        minHeight: 520,
+        resizable: true,
         title: 'Share your screen',
         backgroundColor: '#18181b',
         autoHideMenuBar: true,

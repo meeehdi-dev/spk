@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('spkDesktop', {
   voiceState: state => ipcRenderer.send('spk:voice-state', state),
   attention: () => ipcRenderer.send('spk:attention'),
   focus: () => ipcRenderer.send('spk:focus'),
+  screenAudioFailed: () => ipcRenderer.send('spk:screen-audio-failed'),
   onCommand: cb => {
     const listener = (_event, cmd) => COMMANDS.has(cmd) && cb(cmd)
     ipcRenderer.on('spk:command', listener)

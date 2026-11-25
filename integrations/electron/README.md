@@ -10,7 +10,7 @@ pnpm install --ignore-workspace
 pnpm start
 ```
 
-On macOS, `pnpm start` runs a renamed copy of Electron in `.dev/spk.app` (gitignored) so the menu bar and dock show spk and its icon. It is rebuilt when the Electron version changes; delete `.dev` to force it. The copy uses its own bundle id, so macOS asks for microphone, screen and Accessibility permissions separately from the packaged app.
+On macOS, `pnpm start` runs a renamed copy of Electron in `.dev/spk.app` (gitignored) so the menu bar and dock show spk and its icon. It is rebuilt when the Electron version changes; delete `.dev` to force it. The copy uses the same bundle id as packaged builds, so both appear as one spk entry in Privacy & Security; switching between them may need permissions granted again (or `pnpm reset-permissions`).
 
 On first launch, enter your server URL (`https://…`, or `http://` for localhost only). Change it later from **spk → Change server…** (macOS) or **File → Change server…**. The choice is saved in `config.json` in the Electron user data folder.
 
@@ -46,14 +46,20 @@ Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS install
 
 Voice menu, dock menu, tray, shortcuts and push-to-talk need a server running a spk version with the desktop bridge (`app/plugins/desktop.client.ts`); with older servers those items stay disabled.
 
+## macOS permissions
+
+Builds are ad-hoc signed, so each rebuild can appear as a new spk entry in System Settings → Privacy & Security and lose its permissions (Accessibility, needed for push-to-talk, in particular). Quit spk and run `pnpm reset-permissions` to clear them, then grant them again.
+
+The first launch of a downloaded build needs Privacy & Security → **Open Anyway** (or `xattr -dr com.apple.quarantine /Applications/spk.app`). After allowing System Audio Recording or Screen Recording, restart spk.
+
 ## Limitations
 
 - Same-origin popups (attachment "Open", image "Open original") open in the system browser, which needs its own sign-in.
 - No Web Push: Electron has no push service, so push is disabled in the app. Notifications appear only while the app is running.
-- Screen audio is all system audio (also when sharing a single window), including the other participants' voices. Not available on Linux. macOS asks for System Audio Recording permission the first time.
-- Push-to-talk on Linux needs X11 (not pure Wayland). With ad-hoc signed macOS builds, Accessibility permission must be granted again after each update.
+- Screen audio is all system audio (also when sharing a single window). spk asks the system to leave out its own audio (the call), but this is not yet verified on every platform, so listeners may still hear themselves; other apps' audio is included. Not available on Linux. macOS asks for System Audio Recording permission the first time.
+- Push-to-talk on Linux needs X11 (not pure Wayland).
 - The Linux tray needs an AppIndicator-capable desktop (GNOME: AppIndicator extension).
-- Builds are unsigned (Windows SmartScreen will warn) and have no auto-update. macOS builds are ad-hoc signed and not notarized: on first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/spk.app`.
+- Builds are unsigned (Windows SmartScreen will warn) and have no auto-update. macOS builds are ad-hoc signed and not notarized (see macOS permissions above for the first launch).
 - macOS asks for microphone and camera access on first use; if denied, spk offers to open the right System Settings pane.
 
 ## Manual verification

@@ -11,6 +11,7 @@
     "dist:linux": "electron-builder --linux",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
+    "reset-permissions": "node scripts/reset-permissions.mjs",
     "start": "node scripts/start.mjs"
   },
   "dependencies": {
