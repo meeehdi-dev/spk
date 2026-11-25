@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
 
 import { readConfig, setConfigFile, writeConfig } from './config.js'
 import { setupMenu } from './menu.js'
@@ -65,10 +65,20 @@ const external = url => {
   }
 }
 
+/** Last window bounds, ignored if they no longer overlap a connected display (e.g. an unplugged monitor). */
+const savedBounds = () => {
+  const { x, y, width, height } = readConfig().bounds ?? {}
+  if (![x, y, width, height].every(Number.isFinite)) return {}
+  const visible = screen.getAllDisplays().some(({ workArea: a }) => x < a.x + a.width && x + width > a.x && y < a.y + a.height && y + height > a.y)
+  return visible ? { x, y, width, height } : { width, height }
+}
+
 const createWindow = ({ setup = false } = {}) => {
+  const { maximized } = readConfig()
   win = new BrowserWindow({
     width: 1200,
     height: 800,
+    ...savedBounds(),
     backgroundColor: '#18181b',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: join(dir, 'preload.cjs') },
@@ -109,6 +119,9 @@ const createWindow = ({ setup = false } = {}) => {
     if (choice === 0) event.preventDefault()
   })
   win.on('focus', () => process.platform !== 'darwin' && win.flashFrame(false))
+  if (maximized) win.maximize()
+  // Saved on close only: cheap, and a crash just keeps the previous placement.
+  win.on('close', () => writeConfig({ bounds: win.getNormalBounds(), maximized: win.isMaximized() }))
   win.on('closed', () => {
     win = null
     resetVoice()
@@ -207,5 +220,6 @@ else {
     createWindow()
     app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow())
   })
-  app.on('window-all-closed', () => process.platform !== 'darwin' && app.quit())
+  // macOS apps normally stay in the dock with no window; from source (`pnpm start`), quit so the terminal command ends.
+  app.on('window-all-closed', () => (process.platform !== 'darwin' || !app.isPackaged) && app.quit())
 }
