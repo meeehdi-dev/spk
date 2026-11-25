@@ -16,6 +16,8 @@ On first launch, enter your server URL (`https://…`, or `http://` for localhos
 
 ## Build
 
+Ready-made builds for every platform are on the [GitHub Releases](https://github.com/meeehdi-dev/spk/releases) page. To build locally:
+
 ```sh
 pnpm dist:mac     # dist/spk-<version>[-arm64].dmg and -mac.zip (arm64 and x64), ad-hoc signed
 pnpm dist:linux   # dist/spk-<version>.AppImage and dist/spk-desktop-<version>.tar.gz (x64)
@@ -31,6 +33,16 @@ docker run --rm --platform linux/amd64 -v "$PWD":/project -w /project/integratio
 ```
 
 Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS installer then fails; the zip and tar.gz targets work everywhere.
+
+## Release
+
+Releases are automatic. The [Desktop workflow](../../.github/workflows/desktop.yml) builds macOS, Linux and Windows on every PR that touches this folder (artifacts only). On each push to `main` that changes this folder (Markdown aside) since the last `desktop-v*` tag, it:
+
+1. Picks the next version from the Conventional Commit subjects ([`scripts/next-version.mjs`](scripts/next-version.mjs)): `feat` bumps the minor version, anything else the patch, `!` the major (the minor before 1.0).
+2. Commits `chore(desktop): release X.Y.Z [skip ci]` to `main` with the new `version` in `package.json`.
+3. Builds all platforms from that commit and publishes the `desktop-vX.Y.Z` GitHub release with the installers, archives and the desktop commits as notes.
+
+Do not edit `version` by hand, and pull `main` after a desktop release: CI pushed a commit.
 
 ## Features
 

@@ -1,0 +1,154 @@
+name: Desktop
+
+# Push to main: release the desktop app when it changed since the last desktop-v* tag.
+# CI commits the version bump to main, so pull after a desktop release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - integrations/electron/**
+      - '!integrations/electron/**/*.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - integrations/electron/**
+      - .github/workflows/desktop.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Queue releases so each run sees the previous run's tag.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  version:
+    name: Version
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      release: ${{ steps.next.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
+      notes: ${{ steps.next.outputs.notes }}
+      sha: ${{ steps.bump.outputs.sha }}
+    defaults:
+      run:
+        working-directory: integrations/electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Test version script
+        run: node --test scripts/next-version.test.mjs
+
+      - name: Compute next version
+        id: next
+        run: node scripts/next-version.mjs
+
+      - name: Commit version bump
+        id: bump
+        if: steps.next.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          if [ "$(node -p "require('./package.json').version")" != "$VERSION" ]; then
+            npm pkg set version="$VERSION"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -am "chore(desktop): release $VERSION [skip ci]"
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: version
+    if: ${{ !cancelled() && (needs.version.result == 'skipped' || needs.version.outputs.release == 'true') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+    defaults:
+      run:
+        shell: bash
+        working-directory: integrations/electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          # The release bump commit; empty (the event's commit) for PRs and manual runs.
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Set up tools
+        uses: jdx/mise-action@v5.2.7
+
+      - name: Configure pnpm
+        run: |
+          corepack enable pnpm
+          echo "pnpm_config_store_dir=$RUNNER_TEMP/pnpm-store" >> "$GITHUB_ENV"
+
+      - name: Cache dependencies
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/pnpm-store
+          key: desktop-deps-${{ runner.os }}-${{ hashFiles('mise.toml') }}-${{ hashFiles('integrations/electron/pnpm-lock.yaml') }}
+          restore-keys: |
+            desktop-deps-${{ runner.os }}-${{ hashFiles('mise.toml') }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      - name: Build
+        run: pnpm dist:${{ matrix.platform }} --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: spk-desktop-${{ matrix.platform }}
+          path: |
+            integrations/electron/dist/*.dmg
+            integrations/electron/dist/*.zip
+            integrations/electron/dist/*.AppImage
+            integrations/electron/dist/*.tar.gz
+            integrations/electron/dist/*.exe
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
+
+  release:
+    name: Release
+    needs: [version, build]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8.0.2
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.version.outputs.sha }}
+          NOTES: ${{ needs.version.outputs.notes }}
+        run: gh release create "desktop-v$VERSION" --target "$SHA" --title "spk desktop $VERSION" --notes "$NOTES" artifacts/*

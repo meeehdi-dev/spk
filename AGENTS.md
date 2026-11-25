@@ -48,6 +48,8 @@ Shared helpers live in `tests/fixtures/`: `db.ts` exports a `test` with a fresh 
 
 Always use Conventional Commits for commit subjects and PR titles: `<type>(<optional scope>): <description>`, such as `fix(notifications): correct push toggle state` or `docs: update setup instructions`. Keep PRs small and focused. Describe the problem, resulting behavior, and validation; link related issues and include screenshots for visible UI changes when useful.
 
+Desktop releases are automatic: each push to `main` that changes `integrations/electron/` makes CI commit `chore(desktop): release X.Y.Z [skip ci]` to `main`, then tag and publish `desktop-vX.Y.Z`. Commit types pick the bump (`feat` minor, others patch), so type desktop commits carefully. Local `main` is then one commit behind: run `git pull --rebase` before committing or pushing after a desktop change lands. Never edit `integrations/electron/package.json` `version` by hand.
+
 ## Security & Configuration
 
 Keep secrets in `.env`; never commit credentials or database files. Preserve authentication and access checks. Production requires one app replica and persistent storage mounted at `/app/data`.
