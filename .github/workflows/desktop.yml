@@ -8,6 +8,8 @@ on:
     paths:
       - integrations/electron/**
       - '!integrations/electron/**/*.md'
+      # Releases only if the app changed since the last tag (next-version.mjs decides).
+      - .github/workflows/desktop.yml
   pull_request:
     branches: [main]
     paths:
@@ -111,7 +113,8 @@ jobs:
             desktop-deps-${{ runner.os }}-${{ hashFiles('mise.toml') }}-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-workspace
+        # No --ignore-workspace: allowBuilds lives in this folder's pnpm-workspace.yaml.
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm dist:${{ matrix.platform }} --publish never
