@@ -15,6 +15,7 @@ On first launch, enter your server URL (`https://…`, or `http://` for localhos
 ## Build
 
 ```sh
+pnpm dist:mac     # dist/spk-<version>[-arm64].dmg and -mac.zip (arm64 and x64), ad-hoc signed
 pnpm dist:linux   # dist/spk-<version>.AppImage and dist/spk-desktop-<version>.tar.gz (x64)
 pnpm dist:win     # dist/spk Setup <version>.exe (NSIS) and dist/spk-<version>-win.zip (x64)
 ```
@@ -40,7 +41,7 @@ Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS install
 
 - Same-origin popups (attachment "Open", image "Open original") open in the system browser, which needs its own sign-in.
 - No Web Push: Electron has no push service, so push is disabled in the app. Notifications appear only while the app is running.
-- Builds are unsigned (Windows SmartScreen will warn) and have no auto-update.
+- Builds are unsigned (Windows SmartScreen will warn) and have no auto-update. macOS builds are ad-hoc signed and not notarized: on first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/spk.app`.
 - macOS asks for microphone and camera access on first use; if denied, enable it in System Settings → Privacy & Security.
 
 ## Manual verification
