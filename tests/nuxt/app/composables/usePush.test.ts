@@ -58,3 +58,16 @@ describe('usePush during development', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 })
+
+describe('usePush in the desktop app', () => {
+  it('is unsupported because Electron has no push service', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubGlobal('PushManager', {})
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {} })
+    vi.stubGlobal('spkDesktop', {})
+    useRuntimeConfig().public.vapidPublicKey = 'configured'
+    let push!: ReturnType<typeof usePush>
+    await mountSuspended(defineComponent({ setup: () => ((push = usePush()), () => null) }))
+    expect(push.supported).toBe(false)
+  })
+})

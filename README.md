@@ -69,6 +69,10 @@ Push subscriptions must use HTTPS on port 443 with no credentials or fragment. S
 
 Use the [local Ferdium recipe](integrations/ferdium/README.md) to add your spk server as a custom service with unread badges. Copy one folder, reload Ferdium, and enter your server URL; no build or dependency installation is needed.
 
+### Desktop app
+
+A minimal [Electron wrapper](integrations/electron/README.md) opens your spk server in its own window with an unread badge, notifications, voice, and screen sharing. It runs from source; there are no packaged builds.
+
 ## Configuration
 
 Environment variables (Nuxt maps `NUXT_*` onto `runtimeConfig`). [.env.example](.env.example) says how to generate each one.

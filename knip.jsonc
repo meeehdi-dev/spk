@@ -9,8 +9,12 @@
     "dev/ui/server/**/*.ts",
     // The PWA worker source is relative to Vite's app root.
     "service-worker/sw.js",
+    // Standalone Electron wrapper with its own package.json.
+    "integrations/electron/{main.js,preload.cjs,setup.js}",
   ],
   "ignoreDependencies": [
+    // Provided by integrations/electron/package.json, which is outside the workspace.
+    "electron",
     // Nuxt invokes vue-tsc through its CLI.
     "vue-tsc",
   ],

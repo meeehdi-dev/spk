@@ -1,0 +1,38 @@
+# spk desktop (Electron)
+
+A thin Electron client for spk. It loads your self-hosted spk server URL and does not embed the Nuxt server. Plain JS, no build step.
+
+## Run
+
+```sh
+cd integrations/electron
+pnpm install --ignore-workspace
+pnpm start
+```
+
+On first launch, enter your server URL (`https://…`, or `http://` for localhost only). Change it later from **File → Change server…**. The choice is saved in `config.json` in the Electron user data folder.
+
+## Features
+
+- Unread badge from `<meta name="spk-unread">`, the same source as the [Ferdium recipe](../ferdium/README.md).
+- Notifications, microphone, camera, and screen sharing (native picker on macOS 15+), granted only to your server's origin.
+- The unread badge works on macOS, and on Linux only with a matching `.desktop` file or Unity launcher. It does not work on Windows.
+- Links to other sites open in your default browser; only the server origin loads in the window.
+
+## Limitations
+
+- Same-origin popups (attachment "Open", image "Open original") open in the system browser, which needs its own sign-in.
+- No Web Push: Electron has no push service, so push is disabled in the app. Notifications appear only while the app is running.
+- No packaging, auto-update, or code signing (no electron-builder). Run from source.
+- macOS asks for microphone and camera access on first use; if denied, enable it in System Settings → Privacy & Security.
+
+## Manual verification
+
+1. First launch shows the setup page; an invalid URL (`ftp://x`, `http://example.com`) shows an error.
+2. A valid URL loads spk; relaunch loads it directly.
+3. File → Change server… returns to setup with the current URL prefilled.
+4. Unread messages in another account set the dock/taskbar badge; reading clears it.
+5. A link to an external site opens in the browser, not in the window.
+6. Joining voice asks for the microphone (macOS prompt) and works; screen share starts.
+7. A second launch focuses the existing window.
+8. Settings → Notifications shows no push subscribe option; the permission prompt still works.
