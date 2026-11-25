@@ -12,6 +12,23 @@ pnpm start
 
 On first launch, enter your server URL (`https://…`, or `http://` for localhost only). Change it later from **File → Change server…**. The choice is saved in `config.json` in the Electron user data folder.
 
+## Build
+
+```sh
+pnpm dist:linux   # dist/spk-<version>.AppImage and dist/spk-desktop-<version>.tar.gz (x64)
+pnpm dist:win     # dist/spk Setup <version>.exe (NSIS) and dist/spk-<version>-win.zip (x64)
+```
+
+The AppImage and NSIS steps run x86-64 tools (and Wine for NSIS), so they fail on Apple Silicon without Rosetta. Build them on x86-64 Linux, or in Docker:
+
+```sh
+# from the repo root
+docker run --rm --platform linux/amd64 -v "$PWD":/project -w /project/integrations/electron \
+  electronuserland/builder:wine node node_modules/electron-builder/cli.js --linux AppImage --win nsis
+```
+
+Under amd64 emulation on Apple Silicon, Wine may not start, and the NSIS installer then fails; the zip and tar.gz targets work everywhere.
+
 ## Features
 
 - Unread badge from `<meta name="spk-unread">`, the same source as the [Ferdium recipe](../ferdium/README.md).
@@ -23,7 +40,7 @@ On first launch, enter your server URL (`https://…`, or `http://` for localhos
 
 - Same-origin popups (attachment "Open", image "Open original") open in the system browser, which needs its own sign-in.
 - No Web Push: Electron has no push service, so push is disabled in the app. Notifications appear only while the app is running.
-- No packaging, auto-update, or code signing (no electron-builder). Run from source.
+- Builds are unsigned (Windows SmartScreen will warn) and have no auto-update.
 - macOS asks for microphone and camera access on first use; if denied, enable it in System Settings → Privacy & Security.
 
 ## Manual verification

@@ -1,16 +1,70 @@
 {
   "name": "spk-desktop",
+  "version": "0.1.0",
   "private": true,
+  "description": "Desktop client for a self-hosted spk server",
+  "license": "MIT",
+  "author": "Mehdi",
   "type": "module",
   "main": "main.js",
   "scripts": {
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
     "start": "electron ."
   },
   "devDependencies": {
-    "electron": "^45.0.0"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
   },
   "engines": {
     "node": ">=26"
   },
-  "packageManager": "pnpm@12.21.0"
+  "packageManager": "pnpm@12.21.0",
+  "build": {
+    "appId": "dev.spk.desktop",
+    "productName": "spk",
+    "files": [
+      "main.js",
+      "preload.cjs",
+      "setup.html",
+      "setup.js"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "icon": "../../public/pwa-512x512.png",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Network"
+    }
+  }
 }
