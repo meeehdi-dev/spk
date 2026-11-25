@@ -17,6 +17,7 @@ mockNuxtImport('useSocket', () => () => ({ on: mocks.on }))
 mockNuxtImport('useMe', () => () => ({ data: { value: { id: 'me' } } }))
 mockNuxtImport('useChannels', () => () => ({ data: { value: [{ id: 'dm', type: 'dm' }] } }))
 mockNuxtImport('useUsers', () => () => ({ nameOf: () => 'Friend' }))
+mockNuxtImport('navigateTo', () => vi.fn())
 mockNuxtImport('useRoute', () => () => ({ params: {} }))
 
 const media = vi.hoisted(() => {
@@ -134,5 +135,44 @@ describe('incoming notifications', () => {
     expect(media.play).toHaveBeenCalledOnce()
     expect(mocks.toast).toHaveBeenCalledTimes(focused ? 1 : 0)
     expect(notification).toHaveBeenCalledTimes(focused ? 0 : 1)
+  })
+
+  it('asks the desktop shell for attention and focus only on a system notification', async () => {
+    const notification = Object.assign(
+      vi.fn(function () {}),
+      { permission: 'granted' },
+    )
+    const spkDesktop = { attention: vi.fn(), focus: vi.fn() }
+    vi.stubGlobal('Notification', notification)
+    vi.stubGlobal('spkDesktop', spkDesktop)
+    vi.stubGlobal(
+      'BroadcastChannel',
+      class {
+        addEventListener() {}
+        postMessage() {}
+        close() {}
+      },
+    )
+    vi.spyOn(window, 'focus').mockImplementation(() => {})
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    scope.run(() => useIncomingNotifications())
+    vi.useFakeTimers()
+    const receive = mocks.on.mock.calls[0]![0]
+
+    const toast = receive(message)
+    await vi.advanceTimersByTimeAsync(150)
+    await toast
+    expect(spkDesktop.attention).not.toHaveBeenCalled()
+
+    hasFocus.mockReturnValue(false)
+    const system = receive(message)
+    await vi.advanceTimersByTimeAsync(150)
+    await system
+    expect(spkDesktop.attention).toHaveBeenCalledOnce()
+    expect(spkDesktop.focus).not.toHaveBeenCalled()
+    const instance = notification.mock.instances[0] as { onclick: () => void; close: () => void }
+    instance.close = vi.fn()
+    instance.onclick()
+    expect(spkDesktop.focus).toHaveBeenCalledOnce()
   })
 })

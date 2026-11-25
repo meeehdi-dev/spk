@@ -251,6 +251,23 @@ describe('microphone lifecycle', () => {
     expect(stop).toHaveBeenCalledOnce()
   })
 
+  it('holds to talk silently, is idempotent and never overrides deafen', async () => {
+    const r = await setup()
+    voice.toggleMic()
+    mocks.playVoiceSound.mockClear()
+    r.mic.unmute.mockClear()
+    voice.holdToTalk(true)
+    voice.holdToTalk(true)
+    expect(voice.mute.value.muted).toBe(false)
+    expect(r.mic.unmute).toHaveBeenCalledOnce()
+    voice.holdToTalk(false)
+    expect(voice.mute.value.muted).toBe(true)
+    voice.toggleHeadphones()
+    voice.holdToTalk(true)
+    expect(voice.mute.value).toMatchObject({ muted: true, deafened: true })
+    expect(mocks.playVoiceSound).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the mic open across mute, reopens it only for changed options and reports unmute failure', async () => {
     const r = await setup()
     voice.toggleMic()

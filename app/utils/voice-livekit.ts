@@ -1043,6 +1043,12 @@ export function useVoice() {
     if (channelId.value) applyMute()
     playVoiceSound('mute', !mute.value.muted)
   }
+  // Push-to-talk from the desktop shell: silent, and deafen wins over the key.
+  const holdToTalk = (held: boolean) => {
+    if (mute.value.deafened || mute.value.muted === !held) return
+    mute.value = { ...mute.value, muted: !held }
+    if (channelId.value) applyMute()
+  }
   const toggleHeadphones = () => {
     mute.value = toggleDeafen(mute.value)
     if (channelId.value) applyMute()
@@ -1497,6 +1503,7 @@ export function useVoice() {
     move,
     leave,
     toggleMic,
+    holdToTalk,
     toggleHeadphones,
     applySettings,
     pickDevice,

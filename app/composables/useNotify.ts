@@ -78,8 +78,10 @@ function useNotify() {
         })
       } else if (notificationsSupported() && Notification.permission === 'granted') {
         const n = new Notification(o.title, { body: o.body, tag: o.tag, icon: '/pwa-192x192.png' })
+        window.spkDesktop?.attention?.()
         n.onclick = () => {
           window.focus()
+          window.spkDesktop?.focus?.()
           void navigateTo(o.target)
           n.close()
         }

@@ -401,6 +401,11 @@ export function useVoice() {
       mute.value = toggleMute(mute.value)
       syncState()
     },
+    holdToTalk: (held: boolean) => {
+      if (mute.value.deafened || mute.value.muted === !held) return
+      mute.value = { ...mute.value, muted: !held }
+      syncState()
+    },
     toggleHeadphones: () => {
       mute.value = toggleDeafen(mute.value)
       syncState()

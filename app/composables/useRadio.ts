@@ -125,6 +125,27 @@ export function useRadioLive() {
     listening => voice.setRadioListening(listening),
     { immediate: true, flush: 'sync' },
   )
+  if ('mediaSession' in navigator) {
+    const session = navigator.mediaSession
+    const clear = () => {
+      session.metadata = null
+      session.playbackState = 'none'
+      for (const action of ['play', 'pause', 'stop'] as const) session.setActionHandler(action, null)
+    }
+    watch(
+      () => [radio.station.value?.name, playback.value] as const,
+      ([name, state]) => {
+        if (!name) return clear()
+        session.metadata = new MediaMetadata({ title: name, artist: 'spk radio', artwork: [{ src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }] })
+        session.playbackState = state === 'playing' ? 'playing' : 'paused'
+        session.setActionHandler('play', radio.listen)
+        session.setActionHandler('pause', radio.mute)
+        session.setActionHandler('stop', radio.mute)
+      },
+      { immediate: true, flush: 'sync' },
+    )
+    onScopeDispose(clear)
+  }
   onMounted(refresh)
   onScopeDispose(() => {
     reset()

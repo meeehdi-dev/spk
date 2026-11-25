@@ -57,8 +57,17 @@ const frame = (
 })
 const receive = (m: SocketFrame) => mocks.receive(m)
 
+const session = { metadata: null as unknown, playbackState: 'none', setActionHandler: vi.fn() }
+Object.defineProperty(navigator, 'mediaSession', { value: session, configurable: true })
+vi.stubGlobal('MediaMetadata', function (this: object, init: object) {
+  Object.assign(this, init)
+})
+const handler = (action: string) => session.setActionHandler.mock.calls.findLast(c => c[0] === action)?.[1] as (() => void) | null
+
 beforeEach(async () => {
   vi.clearAllMocks()
+  session.metadata = null
+  session.playbackState = 'none'
   const { voice } = mocks
   voice.channelId.value = null
   voice.mute.value = { deafened: false, muted: false }
@@ -207,5 +216,31 @@ describe('radio session lifecycle', () => {
     expect(useRadio().station.value).toBeNull()
     receive(frame(3, 'destination'))
     expect(media.start).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('media session', () => {
+  it('mirrors the station, routes media keys to local mute only and clears without a station', () => {
+    receive(frame(1))
+    expect(session.metadata).toMatchObject({
+      title: 'Station',
+      artist: 'spk radio',
+      artwork: [{ src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }],
+    })
+    expect(session.playbackState).toBe('paused')
+    media.status('playing')
+    expect(session.playbackState).toBe('playing')
+    handler('pause')!()
+    expect(useRadio().enabled.value).toBe(false)
+    expect(session.playbackState).toBe('paused')
+    expect(mocks.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'voice:radio:stop' }))
+    handler('play')!()
+    expect(useRadio().enabled.value).toBe(true)
+    handler('stop')!()
+    expect(useRadio().enabled.value).toBe(false)
+    receive(frame(2, 'c', 's', null))
+    expect(session.metadata).toBeNull()
+    expect(session.playbackState).toBe('none')
+    expect(handler('play')).toBeNull()
   })
 })
