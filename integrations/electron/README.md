@@ -10,7 +10,7 @@ pnpm install --ignore-workspace
 pnpm start
 ```
 
-On macOS, `pnpm start` runs a renamed copy of Electron in `.dev/spk.app` (gitignored) so the menu bar and dock show spk and its icon. It is rebuilt when the Electron version changes; delete `.dev` to force it. The copy uses the same bundle id as packaged builds, so both appear as one spk entry in Privacy & Security; switching between them may need permissions granted again (or `pnpm reset-permissions`).
+On macOS, `pnpm start` runs a renamed copy of Electron in `.dev/spk.app` (gitignored) so the menu bar and dock show spk and its icon. It is launched through `open` rather than as a child of your terminal: otherwise macOS applies the terminal's privacy permissions and never asks for spk's own. App output is mirrored from `.dev/output.log`. It is rebuilt when the Electron version changes; delete `.dev` to force it. The copy has its own bundle id (`dev.spk.desktop.dev`) and appears as **spk dev** in Privacy & Security, separate from installed builds (`dev.spk.desktop`), so each entry's toggle applies to the right app.
 
 On first launch, enter your server URL (`https://…`, or `http://` for localhost only). Change it later from **spk → Change server…** (macOS) or **File → Change server…**. The choice is saved in `config.json` in the Electron user data folder.
 
@@ -48,7 +48,7 @@ Voice menu, dock menu, tray, shortcuts and push-to-talk need a server running a 
 
 ## macOS permissions
 
-Builds are ad-hoc signed, so each rebuild can appear as a new spk entry in System Settings → Privacy & Security and lose its permissions (Accessibility, needed for push-to-talk, in particular). Quit spk and run `pnpm reset-permissions` to clear them, then grant them again.
+Builds are ad-hoc signed, so each rebuild can appear as a new spk entry in System Settings → Privacy & Security and lose its permissions (Accessibility, needed for push-to-talk, in particular). Quit spk and run `pnpm reset-permissions` to clear them (both spk and spk dev), then grant them again. `tccutil` only resets an app macOS currently knows about, so run it while the app (or `.dev`) still exists. Delete old `dist/mac*` builds you no longer use: a stale copy with the same bundle id can make System Settings show an entry whose toggle has no effect.
 
 The first launch of a downloaded build needs Privacy & Security → **Open Anyway** (or `xattr -dr com.apple.quarantine /Applications/spk.app`). After allowing System Audio Recording or Screen Recording, restart spk.
 

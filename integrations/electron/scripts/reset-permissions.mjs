@@ -14,10 +14,12 @@ try {
   // pgrep exits non-zero when nothing matches: spk is not running
 }
 
-for (const service of ['Microphone', 'Camera', 'ScreenCapture', 'AudioCapture', 'Accessibility', 'ListenEvent']) {
-  try {
-    console.log(execFileSync('tccutil', ['reset', service, 'dev.spk.desktop'], { encoding: 'utf8' }).trim())
-  } catch (error) {
-    console.error(`${service}: ${error.message}`)
+// Packaged builds and the `pnpm start` copy ("spk dev").
+for (const id of ['dev.spk.desktop', 'dev.spk.desktop.dev'])
+  for (const service of ['Microphone', 'Camera', 'ScreenCapture', 'AudioCapture', 'Accessibility', 'ListenEvent']) {
+    try {
+      console.log(execFileSync('tccutil', ['reset', service, id], { encoding: 'utf8' }).trim())
+    } catch (error) {
+      console.error(`${id} ${service}: ${error.message.split('\n')[0]}`)
+    }
   }
-}
