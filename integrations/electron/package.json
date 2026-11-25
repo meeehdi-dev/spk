@@ -11,7 +11,10 @@
     "dist:linux": "electron-builder --linux",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
-    "start": "electron ."
+    "start": "node scripts/start.mjs"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -25,10 +28,10 @@
     "appId": "dev.spk.desktop",
     "productName": "spk",
     "files": [
-      "main.js",
-      "preload.cjs",
-      "setup.html",
-      "setup.js"
+      "*.js",
+      "*.cjs",
+      "*.html",
+      "assets/**"
     ],
     "directories": {
       "output": "dist"
@@ -92,6 +95,11 @@
         "NSAudioCaptureUsageDescription": "spk captures system audio when you share your screen with audio."
       },
       "hardenedRuntime": false
-    }
-  }
+    },
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "npmRebuild": false
+  },
+  "productName": "spk"
 }
